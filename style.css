@@ -51,7 +51,7 @@ label { display: block; font-size: .8rem; color: var(--muted); margin: 0 0 3px; 
 #tabs button { flex: 1 0 auto; min-width: 56px; background: none; border: 0; border-bottom: 3px solid transparent; color: var(--muted); padding: 6px 6px 5px; font-size: .68rem; min-height: 50px; cursor: pointer; white-space: nowrap; }
 #tabs button span { display: block; font-size: 1.15rem; line-height: 1.1; }
 #tabs button.on { color: var(--accent); font-weight: 700; border-bottom-color: var(--accent); }
-.hero { margin: -12px -12px 0; } .hero svg { display: block; width: 100%; height: auto; }
+.hero { margin: -12px -12px 0; } .hero img { display: block; width: 100%; height: auto; max-height: 340px; object-fit: cover; object-position: center 40%; }
 ol.steps { margin: 0 0 8px; padding-left: 20px; } ol.steps li { margin: 0 0 6px; }
 details { margin: 0 0 8px; } summary { cursor: pointer; color: var(--accent); padding: 6px 0; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }

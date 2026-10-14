@@ -932,7 +932,7 @@
   /* ----- Accueil, hub des parties, écran de partie ----- */
   function viewHome() {
     const a = army(); const l = readGames();
-    let h = `<div class="hero">${HomeArt}</div><h1 style="text-align:center;margin:10px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 14px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p>`;
+    let h = `<div class="hero"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><h1 style="text-align:center;margin:10px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 14px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p>`;
     h += `<div class="card">`;
     if (!S.gameId && hasQuick()) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie rapide en cours</div>Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
     if (S.gameId) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie en cours</div><b>${esc(S.gameName)}</b> · Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
