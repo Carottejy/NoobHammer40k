@@ -956,7 +956,10 @@
 
   /* ----- Infos ----- */
   function viewInfo() {
-    return `<h1>Infos</h1><div class="card"><h2>Sources des règles</h2>
+    const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
+    const last = rel[0];
+    const ver = `<div class="card"><h2>Version ${esc(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?')}</h2>${last ? `<div class="muted">Notes de version · ${esc(last.date || '')}</div><ul class="fxlist">${last.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}${rel.length > 1 ? `<details><summary>Versions précédentes</summary>${rel.slice(1).map((r) => `<h3>${esc(r.v)} · ${esc(r.date || '')}</h3><ul class="fxlist">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}</details>` : ''}</div>`;
+    return `<h1>Infos</h1>${ver}<div class="card"><h2>Sources des règles</h2>
       <p>Les règles de base (touche, blessure, sauvegarde, couvert −1 CT, relances, stratagèmes de base de la 11e édition) sont codées d'après les règles de base publiques et les guides de la communauté. Ce que l'appli ne peut pas deviner (datasheets, stratagèmes de ton détachement) vient de toi : saisis-le une fois, il reste sur ton téléphone.</p>
       <p class="muted">Les stratagèmes marqués « à vérifier » ont un coût ou un détail à confirmer dans l'appli officielle Warhammer 40,000. En cas de doute, la règle officielle prime.</p></div>
       <div class="card"><h2>Installer sur le téléphone</h2><p><b>Android (Chrome)</b> : menu ⋮ → « Installer l'application ».<br><b>iPhone (Safari)</b> : Partager → « Sur l'écran d'accueil ».</p><p class="muted">Après la première ouverture, l'appli fonctionne hors ligne.</p></div>
