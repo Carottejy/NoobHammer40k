@@ -97,7 +97,7 @@ const Engine = (() => {
       if (s.moved === 'advanced' && !ab.assault) res.warnings.push("L'unité a Avancé : cette arme ne peut pas tirer (pas Assaut).");
       if (s.moved === 'fellback') res.warnings.push("L'unité a battu en retraite : elle ne peut normalement pas tirer.");
       if (s.engaged && !ab.pistol) res.warnings.push("Unité engagée : seules les armes Pistolet peuvent tirer (hors règles Monstre/Véhicule — à vérifier dans la règle actuelle).");
-      if (c.battleShocked) res.notes.push("Unité en Battle-shock : OC réduit, aucune action, et aucun stratagème ne peut la cibler.");
+      if (c.battleShocked) res.notes.push("Unité en Choc de Bataille : OC réduit, aucune action, et aucun stratagème ne peut la cibler.");
     }
 
     /* — 1. Nombre d'attaques — */
@@ -153,7 +153,7 @@ const Engine = (() => {
       const critMin = 6;
       pCrit = (7 - critMin) / 6;
       hitMain = onlySix ? 'Touche sur 6 non modifié' : `${shown(req)}+`;
-      hitSub = onlySix ? (snap ? 'Tir de réaction (Snap Shooting) : 6 non modifié, relances interdites.' : 'Cible cachée : 6 non modifié seulement.') : `CT/CC ${base}+`;
+      hitSub = onlySix ? (snap ? 'Tir de réaction (tir instinctif) : 6 non modifié, relances interdites.' : 'Cible cachée : 6 non modifié seulement.') : `CT/CC ${base}+`;
       if (snap) rrHit = 'none';
       if (!onlySix && sum !== net) addNote(`Modificateurs de touche cumulés ${sum > 0 ? '+' : ''}${sum} : limités à ${net > 0 ? '+1' : '−1'} (un jet ne peut être modifié de plus de ±1).`);
       if (!onlySix && req > 6) addNote('Même avec les modificateurs, un 6 non modifié touche toujours.');

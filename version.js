@@ -1,6 +1,22 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.10.1';
+var APP_VERSION = '1.12.0';
 var APP_RELEASES = [
+  { v: '1.12.0', date: '2026-10-15', notes: [
+    'Création de liste (Space Marines) : choix du chapitre ; les détachements et unités propres à un autre chapitre sont masqués.',
+    'Mots-clés : affichés sur les unités, recherche par nom ou mot-clé, filtre par mot-clé (Création de liste et Base), touche un mot-clé d\'une fiche pour lister les unités qui l\'ont.',
+    'Améliorations, stratagèmes : filtrés selon les mots-clés de l\'unité (« Figurine X uniquement », cible du stratagème).',
+    'Traductions : noms de mots-clés, types de stratagèmes/aptitudes et textes de l\'appli (Choc de Bataille, Tir d\'Alerte, etc.) passés en français.'
+  ] },
+  { v: '1.11.1', date: '2026-10-15', notes: [
+    'Traduction française complète des descriptifs Wahapedia (stratagèmes, améliorations, règles, capacités) : plus aucun texte en anglais dans la base.',
+    'Traduction au mieux : la terminologie peut différer légèrement de la version française officielle.'
+  ] },
+  { v: '1.11.0', date: '2026-10-15', notes: [
+    'Onglet « Base » rétabli (consultation des données Wahapedia).',
+    'Création de liste : « Ajouter une unité » est maintenant au-dessus des unités ajoutées.',
+    'Le code YellowScribe se trouve désormais dans l\'onglet « Armée ».',
+    'Traductions : tous les noms (détachements, stratagèmes, améliorations, capacités) sont en français ; une grande partie des descriptifs aussi, le reste est signalé « EN ».'
+  ] },
   { v: '1.10.1', date: '2026-10-15', notes: [
     'Correctif : l\'appli ne démarre plus sur « Liste » et ne recharge plus en boucle si les données de la base sont introuvables (message + bouton Réessayer).'
   ] },

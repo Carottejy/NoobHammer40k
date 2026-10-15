@@ -12,7 +12,8 @@ const Wahap = (() => {
   const api = {
     T, isEn, norm,
     reg(id, data) { facs[id] = data; (waiters[id] || []).forEach((f) => f()); },
-    regIndex(d) { index = d; },
+    regIndex(d) { index = d; if (typeof Kw !== 'undefined' && Kw.setMap) Kw.setMap(d.kwfr || {}); },
+    kwT(k) { k = T(k); return (index && index.kwfr && index.kwfr[k]) || k; },
     ready() { return index ? Promise.resolve(index) : (indexWait = indexWait || load(base + 'index.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')).then(() => { if (!index) throw new Error('Base illisible'); return index; }).catch((e) => { indexWait = null; throw e; })); },
     index() { return index; },
     async faction(id) { if (facs[id]) return facs[id]; await load(base + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); return facs[id]; },
@@ -40,7 +41,7 @@ const Wahap = (() => {
         M: num(m.M), T: m.T || '', sv: m.Sv || '', inv: m.inv || '', W: m.W || '', Ld: m.Ld || '', OC: m.OC || '', fnp: '',
         weapons: (d.weapons || []).map((w) => ({ name: T(w.name), range: w.range === 'Mêlée' ? 'Mêlée' : num(w.range), A: String(w.A), skill: w.skill || '', S: String(w.S), AP: String(w.AP), D: String(w.D), abilities: w.ab || '', type: w.type })),
         abilities: (d.abilities || []).filter((a) => a.name).map((a) => ({ name: T(a.name) + (a.param ? ' ' + a.param : ''), text: T(a.text), phases: (typeof AlnPdf !== 'undefined' ? AlnPdf.phasesFromText(T(a.text) || T(a.name), T(a.name)) : ['all']), en: isEn(a.text) || isEn(a.name) })),
-        keywords: (d.kw || []).map(T), factionKw: (d.fkw || []).map(T), equipment: T(d.loadout).replace(/\n/g, ' '), subModels: [], enhancement: '', options: [], hasProfile: true, wahapId: d.id
+        keywords: (d.kw || []).map((k) => api.kwT(k)), factionKw: (d.fkw || []).map((k) => api.kwT(k)), equipment: T(d.loadout).replace(/\n/g, ' '), subModels: [], enhancement: '', options: [], hasProfile: true, wahapId: d.id
       };
       if (ms.length > 1) u.profiles = ms.map((x) => ({ name: T(x.name), M: num(x.M), T: x.T, W: x.W, Ld: x.Ld, OC: x.OC, sv: x.Sv, inv: x.inv }));
       return u;
