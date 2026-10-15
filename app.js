@@ -112,7 +112,7 @@
 
   /* ---------- Rendu ---------- */
   function render() {
-    if (!['home', 'game', 'army', 'build', 'db', 'enemy', 'strats', 'info'].includes(S.tab)) S.tab = 'home';
+    if (!['home', 'game', 'army', 'build', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
     if (a && ['army', 'game', 'strats'].includes(S.tab)) frAuto(a);
     if (a) {
@@ -125,9 +125,9 @@
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil'], ['game', '🎲', 'Partie'], ['army', '🛡️', 'Armée'], ['build', '🛠️', 'Liste'], ['db', '📚', 'Base']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse'], ['strats', '📜', 'Strat.']] : []).concat([['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil'], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, db: viewDb, info: viewInfo }[S.tab]();
+    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
   }
@@ -150,7 +150,7 @@
       <div class="row sp" style="margin-top:10px"><span class="muted">${S.mine ? 'Ton tour' : 'Tour adverse'} — ${phaseLabel(S.phase)}</span><button class="btn small" data-act="nextPhase">Phase suivante ▶</button></div>
     </div>`;
     if (!a || !a.units.length) {
-      return h + `<div class="card"><h2>Aucune unité</h2><p class="muted">Crée ton armée dans l'onglet « Armée » (ajoute tes unités à la main ou colle ta liste ALN pour pré-créer les unités).</p><button class="btn" data-act="tab" data-val="army">Aller à l'armée</button></div>` + stratPanel(null);
+      return h + `<div class="card"><h2>Aucune unité</h2><p class="muted">Crée ton armée dans l'onglet « Creator » (ajoute tes unités à la main ou colle ta liste ALN pour pré-créer les unités).</p><button class="btn" data-act="tab" data-val="army">Aller à l'armée</button></div>` + stratPanel(null);
     }
     const ub = unit(); const u = eff(a, ub);
     const label = (x) => { const e = eff(a, x); return (alive(x) ? '' : '☠ ') + esc(x.name) + (e.leaders.length ? ' (+ ' + e.leaders.map((l) => esc(l.name)).join(', ') + ')' : '') + (alive(x) ? '' : ' — détruite'); };
@@ -747,13 +747,9 @@
   }
   const abilitiesToText = (as) => (as || []).map((a) => `${a.name} | ${(a.phases || ['all']).join(',')} | ${a.text || ''}`).join('\n');
 
-  function viewArmy() {
-    const a = army();
-    let h = S.inGame ? `<h1>Armée de la partie</h1><div class="card"><b>${esc(a ? a.name : '—')}</b><p class="muted">Cette copie appartient à la partie « ${esc(S.gameName || 'Partie rapide')} » : tes pertes n'affectent pas ta bibliothèque. Pour changer d'armée, crée une autre partie.</p><div class="row"><button class="btn small ghost" data-act="renameArmy">Renommer</button></div></div>` : `<h1>Mes armées</h1><div class="card"><label>Armée (bibliothèque)</label>
-      <select data-bind="armyId">${libArmies().map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>
-      <div class="row" style="margin-top:8px"><button class="btn small" data-act="newArmy">+ Nouvelle armée</button>${a ? '<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button>' : ''}</div></div>`;
-    if (!a) return h + importCard(null);
-    if (S.editUnit) return h + unitEditor(a);
+  function armyBody(a) {
+    let h = '';
+    if (S.editUnit) return unitEditor(a);
     if (a.detachments && a.detachments.length) h += `<div class="card"><h2>Détachements</h2>${a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('')}${a.total ? `<p class="muted">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
     h += `<div class="card"><div class="row sp"><h2 style="margin:0">Unités (${a.units.length})</h2><button class="btn small" data-act="addUnit">+ Unité</button></div>
       ${a.units.map((u) => unitRow('mine', a, u)).join('') || '<p class="muted">Aucune unité pour l\'instant.</p>'}
@@ -762,11 +758,31 @@
     const rules = S.armyRules[a.id] || [];
     h += `<div class="card"><h2>Règles d'armée / détachement</h2><p class="muted">Une règle par ligne : <code>Nom | phases | texte</code> (phases : cmd, mvt, tir, charge, combat, def, all).</p>
       <textarea data-act-change="saveRules" data-bind-rules="1" placeholder="Oath of Moment | tir,combat | Relance les touches contre l'unité choisie">${esc(abilitiesToText(rules))}</textarea></div>`;
-    if (S.inGame) return h;
-    h += importCard(a);
-    h += `      <div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${a ? esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1)) : ''}</textarea>
-      <div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button><button class="btn small" data-act="importJson">Importer ce JSON</button></div></div>`;
     return h;
+  }
+  function viewArmy() {
+    const a = army();
+    if (S.inGame) {
+      let h = `<h1>Armée de la partie</h1><div class="card"><b>${esc(a ? a.name : '—')}</b><p class="muted">Cette copie appartient à la partie « ${esc(S.gameName || 'Partie rapide')} » : tes pertes n'affectent pas ta bibliothèque. Pour changer d'armée, crée une autre partie.</p><div class="row"><button class="btn small ghost" data-act="renameArmy">Renommer</button></div></div>`;
+      return a ? h + armyBody(a) : h;
+    }
+    const lib = libArmies();
+    let h = `<h1>Mes armées</h1>${S.ui.importMsg ? `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>` : ''}<div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
+    const imp = () => importCard(null) + `<div class="card"><h2>Importer un JSON</h2><p class="muted">Colle ici une armée exportée depuis NoobHammer40k (bouton « Copier » de Creator &gt; Modifier une armée).</p><textarea id="jsonBox"></textarea><div class="row" style="margin-top:8px"><button class="btn small" data-act="importJson">Importer ce JSON</button></div></div>`;
+    if (!lib.length) return h + '<div class="card"><p class="muted">Aucune armée pour l\'instant : importe-la ci-dessous (PDF, texte ALN, BBCode, JSON) ou crée-la dans Creator.</p></div>' + imp();
+    h += lib.map((x) => {
+      const on = x.id === S.armyId; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
+      return `<div class="card army-card${on ? ' on' : ''}"><div class="row sp"><div><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${x.units.length} unité(s)${pts ? ' · ' + pts + ' pts' : ''}</div></div></div>
+        ${(x.detachments || []).length ? `<div class="muted" style="margin-top:4px">${x.detachments.map(esc).join(' · ')}</div>` : ''}
+        <div class="row" style="margin-top:8px">${on ? '' : `<button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button>`}<button class="btn small ghost" data-act="armyEdit" data-val="${x.id}">✏️ Modifier</button><button class="btn small danger" data-act="armyDel" data-val="${x.id}">Supprimer</button></div></div>`;
+    }).join('');
+    if (a && lib.includes(a)) {
+      h += `<h2 style="margin:16px 2px 6px">${esc(a.name)}</h2>`;
+      if (a.detachments && a.detachments.length) h += `<div class="card"><h2>Détachements</h2>${a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('')}</div>`;
+      h += `<div class="card"><h2>Unités (${a.units.length})</h2>${a.units.map((u) => `<div class="unit-item"><div class="row sp"><div><b>${u.warlord ? '👑 ' : ''}${esc(u.name)}</b><div class="muted">${u.pts ? esc(u.pts) + ' pts · ' : ''}${esc(u.models || '')}${u.models ? ' fig. · ' : ''}${(u.weapons || []).length} arme(s)</div></div></div></div>`).join('') || '<p class="muted">Aucune unité.</p>'}</div>`;
+      h += yellowCard(a);
+    }
+    return h + imp();
   }
 
   function unitEditor(a) {
@@ -1054,7 +1070,7 @@
   /* ----- Création de liste (données Wahapedia) ----- */
   const BKEY = 'noobammer.build.v1';
   const FORMATS = [['500', 'Escarmouche (500)'], ['1000', 'Incursion (1000)'], ['2000', 'Force de frappe (2000)'], ['3000', 'Offensive (3000)'], ['0', 'Libre']];
-  const bdef = () => ({ fac: '', ch: '', kw: '', allEnh: false, warlord: '', fold: {}, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
+  const bdef = () => ({ cm: 'build', editId: '', fac: '', ch: '', kw: '', allEnh: false, warlord: '', fold: {}, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
   const B = (() => { try { return Object.assign(bdef(), JSON.parse(localStorage.getItem(BKEY) || '{}')); } catch (e) { return bdef(); } })();
   B.fold = B.fold || {};
   const fh = (id, title, right) => `<div class="row sp fold" data-act="bFold" data-val="${id}" style="cursor:pointer"><h2 style="margin:0">${B.fold[id] ? '▸' : '▾'} ${title}</h2>${right || ''}</div>`;
@@ -1090,8 +1106,27 @@
   const bWg = (f, e) => { const d = bdef1(f, e.id); return d && d.pc ? d.pc.w.reduce((s, w, j) => s + w[1] * (+(e.wg || {})[j] || 0), 0) : 0; };
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
+  function creatorTabs() {
+    return `<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${(B.cm === 'edit' ? 'edit' : 'build') === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div>`;
+  }
   function viewBuild() {
-    let h = '<h1>Création de liste</h1>';
+    const head = creatorTabs();
+    if (B.cm === 'edit') {
+      const lib = libArmies(); const a = army();
+      let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
+      if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
+      h += '</div>';
+      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ou importe-en une.</p>';
+      if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
+      h += armyBody(a);
+      if (!S.editUnit) h += profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
+      return h;
+    }
+    let h = head;
+    if (B.editId) { const ea = S.armies.find((x) => x.id === B.editId); h += ea ? `<div class="note">Modification de l'armée « ${esc(ea.name)} ». <button class="btn small ghost" data-act="bNew">Nouvelle liste</button></div>` : ''; if (!ea) B.editId = ''; }
+    return viewBuilder(h);
+  }
+  function viewBuilder(h) {
     const ix = Wahap.index();
     if (!ix) {
       if (B.err) return h + `<div class="card"><div class="warn">${esc(B.err)}</div><p class="muted">Les fichiers du dossier « data/wahapedia » doivent être hébergés avec l'appli (GitHub Pages).</p><button class="btn small" data-act="bRetry">Réessayer</button></div>`;
@@ -1117,7 +1152,7 @@
     h += `<div class="card">${fh('add', 'Ajouter une unité')}<div ${B.fold.add ? 'hidden' : ''}><div class="chips" style="margin-top:8px"><button class="chip ${B.grp ? '' : 'on'}" data-act="bGrp" data-val="">Toutes</button>${BGRPS.map((g) => `<button class="chip ${B.grp === g ? 'on' : ''}" data-act="bGrp" data-val="${g}">${g}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><input type="search" id="bq" placeholder="Nom ou mot-clé (français ou anglais)…" value="${esc(B.q)}" autocomplete="off" style="flex:1"><select data-bf="kw" style="width:42%"><option value="">Mot-clé…</option>${bKwOpts(f).map(([k, n]) => `<option value="${esc(k)}" ${B.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></div><div id="bres" style="margin-top:6px">${bResults(f)}</div></div></div>`;
     h += B.units.map((e, i) => bUnitCard(f, e, i)).join('');
-    h += `<div class="card"><button class="btn" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>✅ Créer l'armée</button> <button class="btn small danger" data-act="bReset">Vider</button><p class="muted">Points calculés d'après le Munitorum Field Manual (selon la taille et le rang de l'unité) ; tu peux les forcer dans « Points ». Les améliorations et équipements ajoutent leur coût.</p></div>`;
+    h += `<div class="card">${B.editId ? `<button class="btn" data-act="bUpdate" ${B.units.length ? '' : 'disabled'}>💾 Mettre à jour l'armée</button> <button class="btn small ghost" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>Créer une copie</button>` : `<button class="btn" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>✅ Créer l'armée</button>`} <button class="btn small danger" data-act="bReset">Vider</button><p class="muted">Points calculés d'après le Munitorum Field Manual (selon la taille et le rang de l'unité) ; tu peux les forcer dans « Points ». Les améliorations et équipements ajoutent leur coût.</p></div>`;
     return h;
   }
   function bKwOpts(f) {
@@ -1202,7 +1237,7 @@
     }
     return `<div class="card"><h2>Code YellowScribe</h2><p class="muted">Texte au format « application GW » (noms anglais), à coller dans <b>yellowscribe.link</b> pour obtenir le fichier Tabletop Simulator. Armes listées sans quantité ; le seigneur de bataille choisi (sinon le premier chef) est marqué Warlord.</p>${body}</div>`;
   }
-  function bBuildArmy() {
+  function bBuildArmy(rid) {
     const f = bfac(); const ix = Wahap.index();
     const idmap = {}; const units = B.units.map((e) => {
       const d = bdef1(f, e.id); const d2 = Object.assign({}, d, { weapons: (d.weapons || []).filter((w, j) => !(e.woff || []).includes(j)), abilities: (d.abilities || []).filter((a, j) => !(e.aoff || []).includes(j)) });
@@ -1214,8 +1249,11 @@
     B.units.forEach((e, i) => { if (e.to && idmap[e.to]) units[i].attachedTo = idmap[e.to]; });
     const fname = (ix.factions.find((x) => x.id === B.fac) || {}).name || '';
     const dets = f.detachments.filter((d) => B.dets.includes(d.id));
-    const a = { chapter: B.ch && B.ch !== 'codex' ? B.ch : '', id: uid(), name: B.name || (fname + ' — ' + (B.limit || 'liste') + ' pts'), faction: fname, detachments: dets.map((d) => T0(d.name) + ` (${d.dp} pt${+d.dp > 1 ? 's' : ''})`), alnUrl: '', total: { points: units.reduce((s, u) => s + u.pts, 0), models: units.reduce((s, u) => s + (+u.models || 0), 0), units: units.length }, units };
-    S.armies.push(a); S.armyId = a.id; S.armyRules[a.id] = []; dets.forEach((d) => addDetTo(a, d));
+    const a = { chapter: B.ch && B.ch !== 'codex' ? B.ch : '', id: rid || uid(), name: B.name || (fname + ' — ' + (B.limit || 'liste') + ' pts'), faction: fname, detachments: dets.map((d) => T0(d.name) + ` (${d.dp} pt${+d.dp > 1 ? 's' : ''})`), alnUrl: '', total: { points: units.reduce((s, u) => s + u.pts, 0), models: units.reduce((s, u) => s + (+u.models || 0), 0), units: units.length }, units };
+    a.build = JSON.parse(JSON.stringify({ fac: B.fac, ch: B.ch, kw: '', allEnh: B.allEnh, warlord: B.warlord, fmt: B.fmt, limit: B.limit, name: B.name, dets: B.dets, units: B.units }));
+    const oi = rid ? S.armies.findIndex((x) => x.id === rid) : -1;
+    if (oi >= 0) { S.customStrats = S.customStrats.filter((x) => x.armyId !== rid); S.armies[oi] = a; } else S.armies.push(a);
+    S.armyId = a.id; S.armyRules[a.id] = []; dets.forEach((d) => addDetTo(a, d));
     S.play.unitId = null; S.play.nModelsUnit = null; S.play.weaponIdx = 0; return a;
   }
   /* Armées importées (PDF/ALN) : détachements, règles, stratagèmes et améliorations remplacés par la version française de la base */
@@ -1254,6 +1292,50 @@
     return n;
   }
 
+  /* ---- Onglet Règles (11e) ---- */
+  const RS = { q: '', open: {} };
+  const rnorm = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, "'");
+  function rBody(lines, terms) {
+    const seg = (t) => { if (!terms.length) return esc(t); const np = rnorm(t); const rg = []; terms.forEach((w) => { let i = 0; while ((i = np.indexOf(w, i)) >= 0) { rg.push([i, i + w.length]); i += w.length; } }); if (!rg.length || np.length !== t.length) return esc(t); rg.sort((x, y) => x[0] - y[0]); const m = []; rg.forEach((r) => { const l = m[m.length - 1]; if (l && r[0] <= l[1]) l[1] = Math.max(l[1], r[1]); else m.push(r.slice()); }); let o = '', p = 0; m.forEach((r) => { o += esc(t.slice(p, r[0])) + '<mark>' + esc(t.slice(r[0], r[1])) + '</mark>'; p = r[1]; }); return o + esc(t.slice(p)); };
+    const mark = (t) => String(t).split(/(\[[^\]]+\])/).map((x) => (/^\[[^\]]+\]$/.test(x) ? '<b>' + seg(x) + '</b>' : seg(x))).join('');
+    let h = '', ul = false, tb = false;
+    const close = () => { if (ul) { h += '</ul>'; ul = false; } if (tb) { h += '</tbody></table>'; tb = false; } };
+    lines.forEach((l) => {
+      if (l.startsWith('- ')) { if (tb) close(); if (!ul) { h += '<ul class="fxlist">'; ul = true; } h += '<li>' + mark(l.slice(2)) + '</li>'; }
+      else if (l.startsWith('| ')) { if (ul) close(); const c = l.replace(/^\|\s*|\s*\|$/g, '').split(/\s*\|\s*/); if (!tb) { h += '<table class="rtab"><tbody>'; tb = true; h += '<tr>' + c.map((x) => '<th>' + mark(x) + '</th>').join('') + '</tr>'; } else h += '<tr>' + c.map((x) => '<td>' + mark(x) + '</td>').join('') + '</tr>'; }
+      else if (l.startsWith('## ')) { close(); h += '<h4>' + mark(l.slice(3)) + '</h4>'; }
+      else if (l.startsWith('! ')) { close(); h += '<p class="rfaq">💡 ' + mark(l.slice(2)) + '</p>'; }
+      else { close(); h += '<p>' + mark(l) + '</p>'; }
+    });
+    close(); return h;
+  }
+  function rulesResults() {
+    const R = (typeof RULES11 !== 'undefined' && RULES11) || [];
+    const terms = rnorm(RS.q).split(/\s+/).filter((w) => w.length > 1 || /^\d$/.test(w));
+    if (!terms.length) {
+      let h = '', g = '';
+      R.forEach((c) => {
+        if (c.g !== g) { g = c.g; h += `<div class="rgrp">${esc(g)}</div>`; }
+        const id = 'c' + c.n; const op = RS.open[id];
+        h += `<details class="rch" data-rid="${id}" ${op ? 'open' : ''}><summary><span class="rn">${esc(c.n)}</span> ${esc(c.t)}</summary>${c.s.map((x) => `<div class="rsec" id="r${esc(x.n.replace(/\./g, '_'))}"><h3><span class="rn">${esc(x.n)}</span> ${esc(x.t)}</h3>${rBody(x.p, [])}</div>`).join('')}</details>`;
+      });
+      return h || '<p class="muted">Aucune règle chargée.</p>';
+    }
+    const hits = [];
+    R.forEach((c) => c.s.forEach((x) => {
+      const head = rnorm(c.n + ' ' + c.t + ' ' + x.n + ' ' + x.t), body = rnorm(x.p.join(' '));
+      const all = head + ' ' + body;
+      if (terms.every((w) => all.includes(w))) hits.push({ c, x, score: terms.reduce((a, w) => a + (head.includes(w) ? 3 : 0) + (body.split(w).length - 1), 0) });
+    }));
+    hits.sort((a, b) => b.score - a.score);
+    if (!hits.length) return '<p class="muted">Aucune règle ne correspond. Essaie un seul mot (ex. « couvert », « cohésion », « Dangereux »).</p>';
+    return `<p class="muted">${hits.length} section(s) trouvée(s)</p>` + hits.map(({ c, x }) => `<div class="card rsec"><div class="muted" style="font-size:.78rem">${esc(c.n)} · ${esc(c.t)}</div><h3><span class="rn">${esc(x.n)}</span> ${esc(x.t)}</h3>${rBody(x.p, terms)}</div>`).join('');
+  }
+  function viewRules() {
+    const R = (typeof RULES11 !== 'undefined' && RULES11) || [];
+    return `<h1>Règles</h1><div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+  }
+
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
@@ -1269,13 +1351,11 @@
   /* ----- Accueil, hub des parties, écran de partie ----- */
   function viewHome() {
     const a = army(); const l = readGames();
-    let h = `<div class="hero"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><h1 style="text-align:center;margin:10px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 14px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p>`;
+    let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
     if (!S.gameId && hasQuick()) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie rapide en cours</div>Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
     if (S.gameId) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie en cours</div><b>${esc(S.gameName)}</b> · Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
-    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mon armée</button></div></div>`;
-    h += `<div class="card"><h2>Comment ça marche</h2><ol class="steps"><li><b>Armée</b> : importe ta liste (PDF ou texte ALN).</li><li><b>Adverse</b> : importe celle de ton adversaire, ou joue en ligne pour la recevoir en direct.</li><li><b>Partie</b> : crée ou ouvre une partie, puis choisis ton unité, ton action et ta cible.</li></ol>
-      <p class="muted">${a ? 'Bibliothèque : ' + libArmies().length + ' armée(s). Chaque partie utilise sa propre copie de l\'armée et son adversaire.' : 'Aucune armée importée pour le moment.'}</p></div>`;
+    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes armées</button></div></div>`;
     return h;
   }
   function viewHub() {
@@ -1285,7 +1365,7 @@
       <label style="margin-top:8px">Mon armée</label><select data-bind="armyId">${libArmies().map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
       ${S.enemy ? `<div class="note">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Retirer</button>'}</div>` : '<details><summary>Ajouter l\'armée adverse (facultatif)</summary>' + enemyImportCard() + '</details><p class="muted">L\'armée adverse n\'est liée qu\'à cette partie. Tu pourras aussi l\'ajouter ensuite, ou jouer en ligne ci-dessous pour la recevoir.</p>'}
       <div class="row" style="margin-top:8px"><button class="btn" data-act="gameCreate">Créer la partie</button><button class="btn ghost" data-act="gameQuick">Partie rapide</button></div>
-      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe d\'abord une armée dans l\'onglet « Armée ».</div>'}</div>`;
+      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée dans l\'onglet « Creator ».</div>'}</div>`;
     if (!S.gameId && hasQuick()) h = h.replace('<h2>Nouvelle partie</h2>', '<h2>Nouvelle partie</h2><div class="note">Une partie rapide non enregistrée est en cours (round ' + S.round + ') : <button class="btn small" data-act="gameResume">Continuer</button></div>');
     h += onlineCard() + gamesCard();
     return h;
@@ -1334,13 +1414,13 @@
       S.ui.enemyMsg = `Armée adverse importée : ${S.enemy.units.length} unité(s). Sans profils : ajoute un PDF ALN pour avoir armes et aptitudes.`;
     },
     gameCreate() {
-      const a = army(); if (!a) { alert('Importe d\'abord une armée dans l\'onglet « Armée ».'); return; }
+      const a = army(); if (!a) { alert('Importe ou crée d\'abord une armée dans l\'onglet « Creator ».'); return; }
       const name = (document.getElementById('newGameName').value || '').trim() || defaultGameName();
       flushGameSave(); freshGame(); const g = { id: uid(), name, at: Date.now() }; S.park = null; attachGameArmy(g.id);
       S.gameId = g.id; S.gameName = name; S.inGame = true; S.tab = 'game'; S.ui = { gameMsg: `✓ Partie « ${name} » créée.` };
       g.state = snapshot(); const l = readGames(); l.unshift(g); writeGames(l);
     },
-    gameQuick() { if (!army()) { alert('Importe d\'abord une armée dans l\'onglet « Armée ».'); return; } flushGameSave(); freshGame(); S.park = null; attachGameArmy('quick'); S.gameId = null; S.gameName = ''; S.inGame = true; S.tab = 'game'; S.ui = {}; },
+    gameQuick() { if (!army()) { alert('Importe ou crée d\'abord une armée dans l\'onglet « Creator ».'); return; } flushGameSave(); freshGame(); S.park = null; attachGameArmy('quick'); S.gameId = null; S.gameName = ''; S.inGame = true; S.tab = 'game'; S.ui = {}; },
 
     bDet(id) { const i = B.dets.indexOf(id); if (i >= 0) { B.dets.splice(i, 1); B.units.forEach((e) => { if (e.enh && e.enh.startsWith(id + '|')) e.enh = ''; }); } else B.dets.push(id); bsave(); },
     dbRetry() { dbs.err = ''; dbs.loading = false; },
@@ -1369,7 +1449,7 @@
     bDel(k) { B.units = B.units.filter((x) => x.k !== k); B.units.forEach((x) => { if (x.to === k) x.to = ''; }); bsave(); },
     bCopy() { const a = army(); const t = a ? yellowFromArmy(a) : ''; const ta = document.getElementById('ysTxt'); const ok = () => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; }; try { navigator.clipboard.writeText(t).then(() => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; render(); }, () => { if (ta) { ta.select(); document.execCommand('copy'); } ok(); }); } catch (e) { if (ta) { ta.select(); document.execCommand('copy'); } ok(); } },
     bReset() { if (confirm('Vider la liste en cours ?')) { B.units = []; B.dets = []; B.open = null; bsave(); } },
-    bCreate() { const a = bBuildArmy(); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée depuis la liste : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
+    bCreate() { const a = bBuildArmy(); B.editId = ''; B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée depuis la liste : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
     gameResume() {
       if (S.park) { if (S.park.armyId && S.armies.some((x) => x.id === S.park.armyId)) S.armyId = S.park.armyId; if (S.park.enemy && !S.enemy) S.enemy = S.park.enemy; S.park = null; }
       else { const c = S.armies.find((x) => x.gameOf && (x.gameOf === S.gameId || (!S.gameId && x.gameOf === 'quick'))); if (c) S.armyId = c.id; }
@@ -1470,6 +1550,14 @@
       S.ui.newStrat = null;
     },
     delStrat(id) { if (confirm('Supprimer ce stratagème ?')) S.customStrats = S.customStrats.filter((s) => s.id !== id); },
+    bCm(v) { B.cm = v; S.editUnit = null; bsave(); },
+    bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
+    bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
+    bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },
+    armyNew() { actions.bNew(); S.tab = 'build'; },
+    armySel(id) { S.armyId = id; S.ui = Object.assign({}, S.ui, { importMsg: '' }); },
+    armyEdit(id) { S.armyId = id; B.cm = 'edit'; S.editUnit = null; bsave(); S.tab = 'build'; },
+    armyDel(id) { const x = S.armies.find((y) => y.id === id); if (!x || !confirm('Supprimer l\'armée « ' + x.name + ' » ?')) return; S.customStrats = S.customStrats.filter((c) => c.armyId !== id); delete S.armyRules[id]; S.armies = S.armies.filter((y) => y.id !== id); if (B.editId === id) B.editId = ''; if (S.armyId === id) S.armyId = libArmies()[0] ? libArmies()[0].id : null; },
     newArmy() { const name = prompt('Nom de l\'armée :', 'Mon armée'); if (!name) return; const a = { id: uid(), name, units: [] }; S.armies.push(a); S.armyId = a.id; },
     renameArmy() { const a = army(); const n = prompt('Nouveau nom :', a.name); if (n) a.name = n; },
     delArmy() { if (!confirm('Supprimer cette armée ?')) return; S.customStrats = S.customStrats.filter((x) => x.armyId !== S.armyId); delete S.armyRules[S.armyId]; S.armies = S.armies.filter((x) => x.id !== S.armyId); S.armyId = libArmies()[0] ? libArmies()[0].id : null; },
@@ -1513,7 +1601,8 @@
     const fn = actions[el.dataset.act]; if (!fn) return;
     fn(el.dataset.val, el); render();
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
+  document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }

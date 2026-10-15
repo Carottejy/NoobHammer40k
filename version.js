@@ -1,6 +1,19 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.12.2';
+var APP_VERSION = '1.14.1';
 var APP_RELEASES = [
+  { v: '1.14.1', date: '2026-10-15', notes: [
+    'Les imports (PDF, texte ALN, BBCode, JSON) restent dans l\'onglet « Armées » ; Creator ne garde que « Nouvelle liste » et « Modifier une armée ».'
+  ] },
+  { v: '1.14.0', date: '2026-10-15', notes: [
+    'Armées : l\'onglet présente maintenant la liste de tes armées (choisir, modifier, supprimer) avec le détail de l\'armée choisie.',
+    'Creator : trois modes — Construire, Importer (PDF, texte ALN, BBCode, JSON) et Modifier (unités, règles, renommer). Une liste construite peut être rouverte dans le constructeur et mise à jour.',
+    'Accueil : titre en haut, encart « Comment ça marche » supprimé.'
+  ] },
+  { v: '1.13.0', date: '2026-10-15', notes: [
+    'Onglets réordonnés : Accueil, Armées, Parties, Adverse, Creator, Datasheets, Stratagèmes, Règles, Infos (« Liste » devient « Creator », « Base » devient « Datasheets »).',
+    'Nouvel onglet « Règles » : règles de base de la 11e édition résumées en français (concepts, phases, décor, objectifs, stratagèmes, actions, transports, unités rattachées, réserves, aéronefs, aptitudes de base) avec recherche.',
+    'Stratagèmes de base mis à jour d\'après les règles de la 11e (Tir d\'Alerte en fin de Mouvement adverse, Intervention Héroïque, Contre-offensive, etc.).'
+  ] },
   { v: '1.12.2', date: '2026-10-15', notes: [
     'Création de liste : choix du seigneur de bataille (👑), repris dans l\'armée et dans le code YellowScribe.',
     'Correctif : les descriptifs d\'aptitudes ne commencent plus par un titre parasite avec des chiffres (ex. « CHEF24.22 »).'

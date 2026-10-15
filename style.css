@@ -83,3 +83,16 @@ select option.dead{color:#888}
 .chk{display:flex;gap:8px;align-items:flex-start;margin:4px 0;font-weight:400}.chk input{width:auto;margin-top:3px}
 .kws{display:flex;flex-wrap:wrap;gap:4px;margin:4px 0}
 .kws .kw{font-size:11px;padding:1px 7px;border-radius:10px;background:var(--chip,#2a2f3a);color:inherit;opacity:.85;border:1px solid rgba(128,128,128,.35)}
+
+/* Règles */
+.rgrp { font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 2px 6px; }
+details.rch { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 12px; margin: 0 0 8px; }
+details.rch > summary { font-weight: 700; padding: 10px 0; }
+.rn { color: var(--accent); font-variant-numeric: tabular-nums; margin-right: 4px; }
+.rsec h3 { font-size: 1rem; margin: 12px 0 4px; } .rsec h4 { font-size: .9rem; margin: 10px 0 2px; color: var(--accent); }
+.rsec p { margin: 4px 0; font-size: .92rem; } .rfaq { color: var(--muted); font-size: .85rem !important; border-left: 3px solid var(--line); padding-left: 8px; }
+.rtab { border-collapse: collapse; margin: 6px 0; font-size: .9rem; } .rtab th, .rtab td { border: 1px solid var(--line); padding: 4px 10px; text-align: left; }
+mark { background: #6b5b12; color: #fff; border-radius: 2px; padding: 0 1px; }
+
+.seg { display: flex; gap: 6px; margin: 0 0 12px; } .seg button { flex: 1; background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; font-size: .85rem; cursor: pointer; } .seg button.on { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+.army-card.on { border-color: var(--accent); }
