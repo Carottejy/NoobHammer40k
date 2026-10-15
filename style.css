@@ -79,3 +79,5 @@ details.eu { margin: 4px 0 8px; }
 .unit-item.dead{opacity:.6}
 .unit-item.dead .mdl{opacity:1}
 select option.dead{color:#888}
+
+.chk{display:flex;gap:8px;align-items:flex-start;margin:4px 0;font-weight:400}.chk input{width:auto;margin-top:3px}
