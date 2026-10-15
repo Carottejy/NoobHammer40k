@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.10.0';
+var APP_VERSION = '1.10.1';
 var APP_RELEASES = [
+  { v: '1.10.1', date: '2026-10-15', notes: [
+    'Correctif : l\'appli ne démarre plus sur « Liste » et ne recharge plus en boucle si les données de la base sont introuvables (message + bouton Réessayer).'
+  ] },
   { v: '1.10.0', date: '2026-10-15', notes: [
     'Création de liste : générateur de texte YellowScribe (noms anglais, format application GW) avec bouton Copier.'
   ] },

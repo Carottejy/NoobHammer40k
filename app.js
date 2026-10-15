@@ -112,6 +112,7 @@
 
   /* ---------- Rendu ---------- */
   function render() {
+    if (!['home', 'game', 'army', 'build', 'enemy', 'strats', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
     if (a) {
       let cu = a.units.find((u) => u.id === S.play.unitId);
@@ -125,7 +126,7 @@
     if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
     const tabs = [['home', '🏠', 'Accueil'], ['game', '🎲', 'Partie'], ['army', '🛡️', 'Armée'], ['build', '🛠️', 'Liste']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse'], ['strats', '📜', 'Strat.']] : []).concat([['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, info: viewInfo }[S.tab === 'db' ? 'build' : S.tab]();
+    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
   }
@@ -996,6 +997,7 @@
     let h = '<h1>Création de liste</h1>';
     const ix = Wahap.index();
     if (!ix) {
+      if (B.err) return h + `<div class="card"><div class="warn">${esc(B.err)}</div><p class="muted">Les fichiers du dossier « data/wahapedia » doivent être hébergés avec l'appli (GitHub Pages).</p><button class="btn small" data-act="bRetry">Réessayer</button></div>`;
       if (!B.loading) { B.loading = true; Wahap.ready().then(() => { B.loading = false; render(); }).catch((e) => { B.loading = false; B.err = e.message; render(); }); }
       return h + `<div class="card">${B.err ? '<div class="warn">' + esc(B.err) + '</div>' : '<p class="muted">Chargement de la base…</p>'}</div>`;
     }
@@ -1006,7 +1008,7 @@
     if (B.msg) h += `<div class="note">${esc(B.msg)}</div>`;
     if (!B.fac) return h + '<p class="muted">Choisis une faction pour commencer.</p>';
     const f = bfac();
-    if (!f) { Wahap.faction(B.fac).then(() => render()).catch((e) => { B.err = e.message; B.fac = ''; render(); }); return h + '<div class="card"><p class="muted">Chargement de la faction…</p></div>'; }
+    if (!f) { if (B.facErr === B.fac) return h + `<div class="card"><div class="warn">Faction introuvable (fichier data/wahapedia/${esc(B.fac)}.js manquant ?).</div><button class="btn small" data-act="bRetry">Réessayer</button></div>`; if (!B.facLoad) { B.facLoad = true; Wahap.faction(B.fac).then(() => { B.facLoad = false; if (!Wahap.cached(B.fac)) B.facErr = B.fac; render(); }).catch(() => { B.facLoad = false; B.facErr = B.fac; render(); }); } return h + '<div class="card"><p class="muted">Chargement de la faction…</p></div>'; }
     const dp = f.detachments.filter((d) => B.dets.includes(d.id)).reduce((s, d) => s + (+d.dp || 0), 0);
     h += `<div class="card"><h2>Détachements${B.dets.length ? ' · ' + dp + ' pt(s)' : ''}</h2><div class="chips">${f.detachments.map((d) => `<button class="chip ${B.dets.includes(d.id) ? 'on' : ''}" data-act="bDet" data-val="${d.id}">${esc(T0(d.name))} (${esc(d.dp || "?")})</button>`).join('')}</div>
       ${B.dets.map((id) => { const d = f.detachments.find((x) => x.id === id); return d ? `<details class="note"><summary><b>${wt(d.name)}</b></summary>${(d.abilities || []).map((a) => `<div style="margin-top:6px"><b>${wt(a.name)}</b><div>${wt(a.text)}</div></div>`).join('')}</details>` : ''; }).join('')}</div>`;
@@ -1179,6 +1181,7 @@
     gameQuick() { if (!army()) { alert('Importe d\'abord une armée dans l\'onglet « Armée ».'); return; } flushGameSave(); freshGame(); S.park = null; attachGameArmy('quick'); S.gameId = null; S.gameName = ''; S.inGame = true; S.tab = 'game'; S.ui = {}; },
 
     bDet(id) { const i = B.dets.indexOf(id); if (i >= 0) { B.dets.splice(i, 1); B.units.forEach((e) => { if (e.enh && e.enh.startsWith(id + '|')) e.enh = ''; }); } else B.dets.push(id); bsave(); },
+    bRetry() { B.err = ''; B.facErr = ''; B.loading = false; B.facLoad = false; },
     bGrp(v) { B.grp = v; bsave(); },
     bAdd(id) { const f = bfac(); const d = f && bdef1(f, id); if (!d) return; const k = uid(); B.units.push({ k, id, models: ((d.pc && d.pc.t.length && d.pc.t[0][1].length) ? d.pc.t[0][1][0][0] : 1), pts: 0, wg: {}, to: '', enh: '', woff: [], aoff: [] }); B.open = k; B.msg = ''; bsave(); },
     bOpen(k) { B.open = B.open === k ? null : k; },
@@ -1333,7 +1336,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('change', (e) => {
     const t0 = e.target, ds = t0.dataset || {};
-    if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.fac = v; B.dets = []; B.units = []; B.open = null; } else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
+    if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.facErr = ''; B.fac = v; B.dets = []; B.units = []; B.open = null; } else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
     if (ds.bu) { const en = B.units.find((x) => x.k === ds.bu); if (en) { if (ds.bw != null) { const j = +ds.bw; en.woff = (en.woff || []).filter((x) => x !== j); if (!t0.checked) en.woff.push(j); } else if (ds.bg != null) { en.wg = en.wg || {}; en.wg[ds.bg] = Math.max(0, +t0.value || 0); } else if (ds.ba != null) { const j = +ds.ba; en.aoff = (en.aoff || []).filter((x) => x !== j); if (!t0.checked) en.aoff.push(j); } else en[ds.bk] = ['models', 'pts'].includes(ds.bk) ? Math.max(0, +t0.value || 0) : t0.value; bsave(); render(); } return; }
     const el = e.target;
     if ((el.id === 'pdfNew' || el.id === 'pdfEnrich') && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importPdfFile(f, el.id === 'pdfNew' ? 'new' : 'enrich'); return; }

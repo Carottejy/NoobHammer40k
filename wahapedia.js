@@ -13,7 +13,7 @@ const Wahap = (() => {
     T, isEn, norm,
     reg(id, data) { facs[id] = data; (waiters[id] || []).forEach((f) => f()); },
     regIndex(d) { index = d; },
-    ready() { return index ? Promise.resolve(index) : (indexWait = indexWait || load(base + 'index.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')).then(() => index)); },
+    ready() { return index ? Promise.resolve(index) : (indexWait = indexWait || load(base + 'index.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')).then(() => { if (!index) throw new Error('Base illisible'); return index; }).catch((e) => { indexWait = null; throw e; })); },
     index() { return index; },
     async faction(id) { if (facs[id]) return facs[id]; await load(base + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); return facs[id]; },
     cached(id) { return facs[id] || null; },
