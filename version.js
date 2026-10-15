@@ -1,6 +1,16 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.12.0';
+var APP_VERSION = '1.12.2';
 var APP_RELEASES = [
+  { v: '1.12.2', date: '2026-10-15', notes: [
+    'Création de liste : choix du seigneur de bataille (👑), repris dans l\'armée et dans le code YellowScribe.',
+    'Correctif : les descriptifs d\'aptitudes ne commencent plus par un titre parasite avec des chiffres (ex. « CHEF24.22 »).'
+  ] },
+  { v: '1.12.1', date: '2026-10-15', notes: [
+    'Création de liste : zones repliables (réglages, chapitre, détachements, ajout, chaque unité) + « Tout replier / déplier ».',
+    'Création de liste : les unités peuvent être renommées (le nom est repris dans l\'armée).',
+    'Partie : les stratagèmes dont la cible ne correspond pas aux mots-clés de l\'unité sont masqués (bouton pour les afficher).',
+    'Armées importées : détachements, règles, stratagèmes et améliorations traduits en français automatiquement.'
+  ] },
   { v: '1.12.0', date: '2026-10-15', notes: [
     'Création de liste (Space Marines) : choix du chapitre ; les détachements et unités propres à un autre chapitre sont masqués.',
     'Mots-clés : affichés sur les unités, recherche par nom ou mot-clé, filtre par mot-clé (Création de liste et Base), touche un mot-clé d\'une fiche pour lister les unités qui l\'ont.',

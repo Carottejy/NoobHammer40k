@@ -114,6 +114,7 @@
   function render() {
     if (!['home', 'game', 'army', 'build', 'db', 'enemy', 'strats', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
+    if (a && ['army', 'game', 'strats'].includes(S.tab)) frAuto(a);
     if (a) {
       let cu = a.units.find((u) => u.id === S.play.unitId);
       if (cu && hasHost(a, cu)) { S.play.unitId = cu.attachedTo; cu = a.units.find((u) => u.id === S.play.unitId); S.play.nModelsUnit = null; }
@@ -414,12 +415,14 @@
   function allStrats() { return CORE_STRATS.concat(S.customStrats.filter((s) => !s.armyId || s.armyId === S.armyId).map((s) => Object.assign({ custom: true }, s))); }
   const stratTurn = (s) => (s.turns && s.turns[S.phase]) || s.turn;
   function stratPanel(u, defend) {
-    const list = allStrats().filter((s) => s.phases.includes(S.phase) && (stratTurn(s) === 'either' || (S.mine ? stratTurn(s) === 'mine' : stratTurn(s) === 'opp')));
+    let list = allStrats().filter((s) => s.phases.includes(S.phase) && (stratTurn(s) === 'either' || (S.mine ? stratTurn(s) === 'mine' : stratTurn(s) === 'opp')));
     const used = (S.used[stratKey()] || []);
     let h = `<div class="card"><h2>Stratagèmes possibles maintenant</h2><p class="muted">${S.mine ? 'Ton tour' : 'Tour adverse'} · ${phaseLabel(S.phase)} · PC : ${S.cp}. Une unité ne peut bénéficier que d'<b>un</b> stratagème par phase, et un stratagème ne peut être joué qu'une fois par phase.</p>`;
     if (!list.length) return h + '<p class="muted">Aucun stratagème de base à cette phase. Ajoute les stratagèmes de ton détachement dans l\'onglet « Stratagèmes ».</p></div>';
     const okKw = (s) => !u || !s.target || Kw.ok(s.target, u, 'strat');
-    list.sort((a, b) => (okKw(b) ? 1 : 0) - (okKw(a) ? 1 : 0));
+    const bad = list.filter((s) => !okKw(s)); const showBad = !!S.ui.showKwNo;
+    list = list.filter((s) => okKw(s) || showBad); list.sort((a, b) => (okKw(b) ? 1 : 0) - (okKw(a) ? 1 : 0));
+    if (u && bad.length) h += `<div class="chips" style="margin-bottom:8px">${chip((showBad ? 'Masquer' : 'Afficher') + ' les ' + bad.length + ' stratagème(s) non compatibles avec les mots-clés de ' + esc(u.name), showBad, 'data-act="setUi" data-path="showKwNo" data-val="' + (showBad ? '' : '1') + '"')}</div>`;
     h += list.map((s) => stratCard(s, u, used, okKw(s))).join('');
     return h + '</div>';
   }
@@ -464,7 +467,7 @@
   /* ----- Ligne d'unité (mon armée / adverse) : effectifs et rattachement des meneurs/appuis ----- */
   function unitRow(who, ar, u) {
     const role = roleOf(u);
-    let h = `<div class="unit-item col${alive(u) ? '' : ' dead'}"><div class="row sp"><div><b>${alive(u) ? '' : '☠ '}${esc(u.name)}</b>${alive(u) ? '' : ' <span class="tag">détruite</span>'}<div class="muted">${u.pts ? esc(u.pts) + ' pts' + (u.ptsNote ? ' (' + esc(u.ptsNote) + ')' : '') + ' · ' : ''}${role ? (role === 'support' ? 'Appui' : 'Meneur') + ' · ' : ''}${u.hasProfile || (u.weapons || []).length ? '✅ ' + (u.weapons || []).length + ' arme(s)' : '⚠️ sans profil'}${u.T ? ' · E' + esc(u.T) + ' Sv' + esc(u.sv) : ''}</div></div>${who === 'mine' ? `<button class="btn small ghost" data-act="editUnit" data-val="${u.id}">Éditer</button>` : ''}</div>`;
+    let h = `<div class="unit-item col${alive(u) ? '' : ' dead'}"><div class="row sp"><div><b>${alive(u) ? '' : '☠ '}${u.warlord ? '👑 ' : ''}${esc(u.name)}</b>${alive(u) ? '' : ' <span class="tag">détruite</span>'}<div class="muted">${u.pts ? esc(u.pts) + ' pts' + (u.ptsNote ? ' (' + esc(u.ptsNote) + ')' : '') + ' · ' : ''}${role ? (role === 'support' ? 'Appui' : 'Meneur') + ' · ' : ''}${u.hasProfile || (u.weapons || []).length ? '✅ ' + (u.weapons || []).length + ' arme(s)' : '⚠️ sans profil'}${u.T ? ' · E' + esc(u.T) + ' Sv' + esc(u.sv) : ''}</div></div>${who === 'mine' ? `<button class="btn small ghost" data-act="editUnit" data-val="${u.id}">Éditer</button>` : ''}</div>`;
     h += modelsCtl(who, u, 'Figurines');
     if (role) {
       const hosts = ar.units.filter((b) => b.id !== u.id && !roleOf(b));
@@ -1051,8 +1054,10 @@
   /* ----- Création de liste (données Wahapedia) ----- */
   const BKEY = 'noobammer.build.v1';
   const FORMATS = [['500', 'Escarmouche (500)'], ['1000', 'Incursion (1000)'], ['2000', 'Force de frappe (2000)'], ['3000', 'Offensive (3000)'], ['0', 'Libre']];
-  const bdef = () => ({ fac: '', ch: '', kw: '', allEnh: false, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
+  const bdef = () => ({ fac: '', ch: '', kw: '', allEnh: false, warlord: '', fold: {}, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
   const B = (() => { try { return Object.assign(bdef(), JSON.parse(localStorage.getItem(BKEY) || '{}')); } catch (e) { return bdef(); } })();
+  B.fold = B.fold || {};
+  const fh = (id, title, right) => `<div class="row sp fold" data-act="bFold" data-val="${id}" style="cursor:pointer"><h2 style="margin:0">${B.fold[id] ? '▸' : '▾'} ${title}</h2>${right || ''}</div>`;
   const bsave = () => { try { localStorage.setItem(BKEY, JSON.stringify(B)); } catch (e) { /* ignoré */ } };
   const bfac = () => (B.fac ? Wahap.cached(B.fac) : null);
   const bdef1 = (f, id) => f.units.find((x) => x.id === id);
@@ -1093,22 +1098,24 @@
       if (!B.loading) { B.loading = true; Wahap.ready().then(() => { B.loading = false; render(); }).catch((e) => { B.loading = false; B.err = e.message; render(); }); }
       return h + `<div class="card">${B.err ? '<div class="warn">' + esc(B.err) + '</div>' : '<p class="muted">Chargement de la base…</p>'}</div>`;
     }
-    h += `<div class="card"><label>Faction</label><select data-bf="fac"><option value="">— choisir —</option>${ix.factions.map((f) => `<option value="${f.id}" ${f.id === B.fac ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
+    h += `<div class="card">${fh('set', 'Faction, format et nom' + (B.fac ? ' · ' + esc((ix.factions.find((x) => x.id === B.fac) || {}).name || '') : ''))}<div ${B.fold.set ? 'hidden' : ''}><label>Faction</label><select data-bf="fac"><option value="">— choisir —</option>${ix.factions.map((f) => `<option value="${f.id}" ${f.id === B.fac ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
       <div class="row" style="margin-top:8px"><div style="flex:1"><label>Format</label><select data-bf="fmt">${FORMATS.map((x) => `<option value="${x[0]}" ${x[0] === B.fmt ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></div>
       <div style="width:110px"><label>Limite (pts)</label><input type="number" inputmode="numeric" data-bf="limit" value="${B.limit || ''}"></div></div>
-      <label style="margin-top:8px">Nom de la liste</label><input type="text" data-bf="name" value="${esc(B.name)}" placeholder="Ma liste"></div>`;
+      <label style="margin-top:8px">Nom de la liste</label><input type="text" data-bf="name" value="${esc(B.name)}" placeholder="Ma liste"></div></div>`;
     if (B.msg) h += `<div class="note">${esc(B.msg)}</div>`;
     if (!B.fac) return h + '<p class="muted">Choisis une faction pour commencer.</p>';
-    if (chList()) h += `<div class="card"><label>Chapitre</label><select data-bf="ch"><option value="" ${B.ch ? '' : 'selected'}>— tous les chapitres —</option><option value="codex" ${B.ch === 'codex' ? 'selected' : ''}>Chapitre générique (Codex)</option>${chList().map((c) => `<option value="${c[0]}" ${B.ch === c[0] ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select><p class="muted">Le chapitre filtre les détachements et les unités qui lui sont propres.</p></div>`;
+    if (chList()) h += `<div class="card">${fh('ch', 'Chapitre' + (B.ch ? ' · ' + esc(chLabel()) : ''))}<div ${B.fold.ch ? 'hidden' : ''}><label>Chapitre</label><select data-bf="ch"><option value="" ${B.ch ? '' : 'selected'}>— tous les chapitres —</option><option value="codex" ${B.ch === 'codex' ? 'selected' : ''}>Chapitre générique (Codex)</option>${chList().map((c) => `<option value="${c[0]}" ${B.ch === c[0] ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select><p class="muted">Le chapitre filtre les détachements et les unités qui lui sont propres.</p></div></div>`;
     const f = bfac();
     if (!f) { if (B.facErr === B.fac) return h + `<div class="card"><div class="warn">Faction introuvable (fichier data/wahapedia/${esc(B.fac)}.js manquant ?).</div><button class="btn small" data-act="bRetry">Réessayer</button></div>`; if (!B.facLoad) { B.facLoad = true; Wahap.faction(B.fac).then(() => { B.facLoad = false; if (!Wahap.cached(B.fac)) B.facErr = B.fac; render(); }).catch(() => { B.facLoad = false; B.facErr = B.fac; render(); }); } return h + '<div class="card"><p class="muted">Chargement de la faction…</p></div>'; }
     const dp = f.detachments.filter((d) => B.dets.includes(d.id)).reduce((s, d) => s + (+d.dp || 0), 0);
-    h += `<div class="card"><h2>Détachements${B.dets.length ? ' · ' + dp + ' pt(s)' : ''}</h2><div class="chips">${f.detachments.filter((d) => chOkDet(d) || B.dets.includes(d.id)).map((d) => `<button class="chip ${B.dets.includes(d.id) ? 'on' : ''}" data-act="bDet" data-val="${d.id}">${esc(T0(d.name))} (${esc(d.dp || "?")})</button>`).join('')}</div>${chList() && B.ch ? `<p class="muted">${f.detachments.filter((d) => !chOkDet(d)).length} détachement(s) masqué(s) pour : ${esc(chLabel())}.</p>` : ''}
-      ${B.dets.map((id) => { const d = f.detachments.find((x) => x.id === id); return d ? `<details class="note"><summary><b>${wt(d.name)}</b></summary>${(d.abilities || []).map((a) => `<div style="margin-top:6px"><b>${wt(a.name)}</b><div>${wt(a.text)}</div></div>`).join('')}</details>` : ''; }).join('')}</div>`;
+    h += `<div class="card">${fh('det', 'Détachements' + (B.dets.length ? ' · ' + dp + ' pt(s)' : ''))}<div ${B.fold.det ? 'hidden' : ''}><div class="chips" style="margin-top:8px">${f.detachments.filter((d) => chOkDet(d) || B.dets.includes(d.id)).map((d) => `<button class="chip ${B.dets.includes(d.id) ? 'on' : ''}" data-act="bDet" data-val="${d.id}">${esc(T0(d.name))} (${esc(d.dp || "?")})</button>`).join('')}</div>${chList() && B.ch ? `<p class="muted">${f.detachments.filter((d) => !chOkDet(d)).length} détachement(s) masqué(s) pour : ${esc(chLabel())}.</p>` : ''}
+      ${B.dets.map((id) => { const d = f.detachments.find((x) => x.id === id); return d ? `<details class="note"><summary><b>${wt(d.name)}</b></summary>${(d.abilities || []).map((a) => `<div style="margin-top:6px"><b>${wt(a.name)}</b><div>${wt(a.text)}</div></div>`).join('')}</details>` : ''; }).join('')}</div></div>`;
     const pts = B.units.reduce((s, e) => s + bCost(f, e), 0), over = B.limit && pts > B.limit;
-    h += `<div class="card"><div class="row sp"><b style="${over ? 'color:#e5484d' : ''}">${pts}${B.limit ? ' / ' + B.limit : ''} pts</b><span class="muted">${B.units.length} unité(s) · ${B.units.reduce((s, e) => s + (+e.models || 0), 0)} fig.</span></div>${over ? '<div class="warn">Au-dessus de la limite du format.</div>' : ''}</div>`;
-    h += `<div class="card"><h2>Ajouter une unité</h2><div class="chips"><button class="chip ${B.grp ? '' : 'on'}" data-act="bGrp" data-val="">Toutes</button>${BGRPS.map((g) => `<button class="chip ${B.grp === g ? 'on' : ''}" data-act="bGrp" data-val="${g}">${g}</button>`).join('')}</div>
-      <div class="row" style="margin-top:8px"><input type="search" id="bq" placeholder="Nom ou mot-clé (français ou anglais)…" value="${esc(B.q)}" autocomplete="off" style="flex:1"><select data-bf="kw" style="width:42%"><option value="">Mot-clé…</option>${bKwOpts(f).map(([k, n]) => `<option value="${esc(k)}" ${B.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></div><div id="bres" style="margin-top:6px">${bResults(f)}</div></div>`;
+    if (B.warlord && !B.units.some((x) => x.k === B.warlord)) B.warlord = '';
+    const wlc = B.units.filter((x) => { const d = bdef1(f, x.id); return d && kwOf(d).some((k) => k === 'personnage' || k === 'heros epique'); });
+    h += `<div class="card"><div class="row sp"><b style="${over ? 'color:#e5484d' : ''}">${pts}${B.limit ? ' / ' + B.limit : ''} pts</b><span class="muted">${B.units.length} unité(s) · ${B.units.reduce((s, e) => s + (+e.models || 0), 0)} fig.</span></div>${wlc.length ? `<label style="margin-top:8px">👑 Seigneur de bataille</label><select data-bf="warlord"><option value="">— non choisi —</option>${wlc.map((x) => `<option value="${x.k}" ${B.warlord === x.k ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>` : '<p class="muted">Ajoute un personnage pour choisir ton seigneur de bataille.</p>'}${B.units.length ? '<div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bFoldAll" data-val="1">Tout replier</button><button class="btn small ghost" data-act="bFoldAll" data-val="">Tout déplier</button></div>' : ''}${over ? '<div class="warn">Au-dessus de la limite du format.</div>' : ''}</div>`;
+    h += `<div class="card">${fh('add', 'Ajouter une unité')}<div ${B.fold.add ? 'hidden' : ''}><div class="chips" style="margin-top:8px"><button class="chip ${B.grp ? '' : 'on'}" data-act="bGrp" data-val="">Toutes</button>${BGRPS.map((g) => `<button class="chip ${B.grp === g ? 'on' : ''}" data-act="bGrp" data-val="${g}">${g}</button>`).join('')}</div>
+      <div class="row" style="margin-top:8px"><input type="search" id="bq" placeholder="Nom ou mot-clé (français ou anglais)…" value="${esc(B.q)}" autocomplete="off" style="flex:1"><select data-bf="kw" style="width:42%"><option value="">Mot-clé…</option>${bKwOpts(f).map(([k, n]) => `<option value="${esc(k)}" ${B.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></div><div id="bres" style="margin-top:6px">${bResults(f)}</div></div></div>`;
     h += B.units.map((e, i) => bUnitCard(f, e, i)).join('');
     h += `<div class="card"><button class="btn" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>✅ Créer l'armée</button> <button class="btn small danger" data-act="bReset">Vider</button><p class="muted">Points calculés d'après le Munitorum Field Manual (selon la taille et le rang de l'unité) ; tu peux les forcer dans « Points ». Les améliorations et équipements ajoutent leur coût.</p></div>`;
     return h;
@@ -1135,14 +1142,16 @@
   function bUnitCard(f, e, i) {
     const d = bdef1(f, e.id); if (!d) return '';
     const sizes = bSizes(d, bOrd(e)); const open = B.open === e.k, host = e.to && B.units.find((x) => x.k === e.to);
-    let h = `<div class="card"><div class="row sp"><b>${esc(T0(d.name))}</b><span class="muted">${bCost(f, e)} pts</span></div>
+    const fd = !!B.fold['u' + e.k];
+    let h = `<div class="card"><div class="row sp fold" data-act="bFold" data-val="u${e.k}" style="cursor:pointer"><b>${fd ? '▸' : '▾'} ${B.warlord === e.k ? '👑 ' : ''}${esc(e.nm || T0(d.name))}</b><span class="muted">${bCost(f, e)} pts</span></div><div ${fd ? 'hidden' : ''}>
+      <label style="margin-top:6px">Nom de l'unité${e.nm ? ' <span class="muted">(' + esc(T0(d.name)) + ')</span>' : ''}</label><input type="text" data-bu="${e.k}" data-bk="nm" value="${esc(e.nm || '')}" placeholder="${esc(T0(d.name))}">
       <div class="kws">${kwShow(d).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>
-      <div class="muted">${esc(bgrp(d))}${host ? ' · rejoint ' + esc(T0(bdef1(f, host.id).name)) : ''}${e.enh ? ' · ' + esc((bEnhs(f).find((x) => x.key === e.enh) || {}).name || '') : ''}</div>
+      <div class="muted">${esc(bgrp(d))}${host ? ' · rejoint ' + esc(host.nm || T0(bdef1(f, host.id).name)) : ''}${e.enh ? ' · ' + esc((bEnhs(f).find((x) => x.key === e.enh) || {}).name || '') : ''}</div>
       <div class="row" style="margin-top:6px"><div style="flex:1"><label>Figurines</label>${sizes.length ? `<select data-bu="${e.k}" data-bk="models">${sizes.map((z) => `<option value="${z[0]}" ${z[0] === +e.models ? 'selected' : ''}>${z[0]}</option>`).join('')}</select>` : `<input type="number" inputmode="numeric" data-bu="${e.k}" data-bk="models" value="${e.models}">`}</div><div style="flex:1"><label>Points${bAuto(f, e) ? ' (auto ' + bAuto(f, e) + ')' : ''}</label><input type="number" inputmode="numeric" data-bu="${e.k}" data-bk="pts" value="${e.pts || ''}" placeholder="${bAuto(f, e) || ''}"></div></div>
       <div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bOpen" data-val="${e.k}">${open ? 'Fermer' : '⚙️ Options'}</button><button class="btn small ghost" data-act="bDup" data-val="${e.k}">Dupliquer</button><button class="btn small danger" data-act="bDel" data-val="${e.k}">Retirer</button></div>`;
     if (open) {
       const hosts = (d.leads || []).length ? B.units.filter((x) => x.k !== e.k && d.leads.includes(x.id)) : [];
-      if ((d.leads || []).length) h += `<label style="margin-top:8px">Rejoint (meneur / appui)</label><select data-bu="${e.k}" data-bk="to"><option value="">— aucune —</option>${hosts.map((x) => `<option value="${x.k}" ${x.k === e.to ? 'selected' : ''}>${esc(T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>${hosts.length ? '' : '<div class="muted">Ajoute d\'abord une unité compatible : ' + d.leads.map((id) => { const u = bdef1(f, id); return u ? esc(T0(u.name)) : ''; }).filter(Boolean).slice(0, 6).join(', ') + '</div>'}`;
+      if ((d.leads || []).length) h += `<label style="margin-top:8px">Rejoint (meneur / appui)</label><select data-bu="${e.k}" data-bk="to"><option value="">— aucune —</option>${hosts.map((x) => `<option value="${x.k}" ${x.k === e.to ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>${hosts.length ? '' : '<div class="muted">Ajoute d\'abord une unité compatible : ' + d.leads.map((id) => { const u = bdef1(f, id); return u ? esc(T0(u.name)) : ''; }).filter(Boolean).slice(0, 6).join(', ') + '</div>'}`;
       if (canEnh(d)) { const used = new Set(B.units.filter((x) => x.k !== e.k).map((x) => x.enh)); h += `<label style="margin-top:8px">Amélioration</label><select data-bu="${e.k}" data-bk="enh"><option value="">— aucune —</option>${bEnhs(f).filter((x) => !used.has(x.key) && (B.allEnh || x.key === e.enh || enhOk(x, d))).map((x) => `<option value="${esc(x.key)}" ${x.key === e.enh ? 'selected' : ''}>${esc(x.name)} (${x.cost} pts)</option>`).join('')}</select>${B.dets.length ? `<label class="chk"><input type="checkbox" data-bf="allEnh" ${B.allEnh ? 'checked' : ''}> Afficher aussi les améliorations non compatibles avec les mots-clés (${bEnhs(f).filter((x) => !used.has(x.key) && !enhOk(x, d)).length})</label>` : '<div class="muted">Choisis un détachement pour voir ses améliorations.</div>'}`; }
       if (d.pc && d.pc.w.length) h += `<label style="margin-top:8px">Équipements payants (quantité)</label>${d.pc.w.map((w, j) => `<div class="row sp"><span>${wt(w[0])} <span class="muted">+${w[1]} pts</span></span><input type="number" inputmode="numeric" style="width:70px" data-bu="${e.k}" data-bg="${j}" value="${(e.wg || {})[j] || 0}"></div>`).join('')}`;
       if ((d.weapons || []).length) h += `<label style="margin-top:8px">Armes (décoche pour retirer)</label>${d.weapons.map((w, j) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-bw="${j}" ${(e.woff || []).includes(j) ? '' : 'checked'}> ${wt(w.name)} <span class="muted">${esc(w.range)} · A${esc(w.A)} F${esc(w.S)} PA${esc(w.AP)} D${esc(w.D)}${w.ab ? ' · ' + esc(w.ab) : ''}</span></label>`).join('')}`;
@@ -1150,7 +1159,7 @@
       if (abs.length) h += `<label style="margin-top:8px">Aptitudes</label>${abs.map(([a, j]) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-ba="${j}" ${(e.aoff || []).includes(j) ? '' : 'checked'}> ${wt(a.name)}${a.param ? ' ' + esc(a.param) : ''}</label>`).join('')}`;
       if (d.loadout) h += `<div class="muted" style="margin-top:6px">${wt(d.loadout)}</div>`;
     }
-    return h + '</div>';
+    return h + '</div></div>';
   }
   /* Texte YellowScribe (format application GW, noms anglais) depuis l'armée courante */
   function yellowNeed(a) {
@@ -1168,12 +1177,12 @@
     const L = [`${a.name} (${pts} points)`, '', fn, detNames.join(' / '), '', ''];
     const sec = { Chefs: 'CHARACTERS', Appuis: 'SUPPORT', Troupes: 'BATTLELINE', 'Véhicules & monstres': 'OTHER DATASHEETS', Transports: 'DEDICATED TRANSPORTS', Autres: 'OTHER DATASHEETS' };
     const grp = (u) => { const r = find(u); return r ? bgrp(r.d) : (roleOf(u) ? 'Chefs' : 'Autres'); };
-    let warlord = false;
+    const anyWl = a.units.some((u) => u.warlord); let warlord = false;
     BGRPS.concat(['Autres']).forEach((g) => {
       const us = a.units.filter((u) => grp(u) === g); if (!us.length) return; L.push(sec[g], '');
       us.forEach((u) => {
         const r = find(u); L.push(`${cap(r ? (r.d.en || en(r.d.name)) : u.name.replace(/\s*#\d+$/, ''))} (${+u.pts || 0} points)`);
-        if (g === 'Chefs' && !warlord) { warlord = true; L.push('  • Warlord'); }
+        if (g === 'Chefs' && !warlord && (anyWl ? u.warlord : true)) { warlord = true; L.push('  • Warlord'); }
         if (u.enhancement) { let e = u.enhancement; if (fdata) fdata.detachments.forEach((d) => (d.enh || []).forEach((x) => { if (Wahap.norm(Wahap.T(x.name)) === Wahap.norm(u.enhancement)) e = x.e || en(x.name); })); L.push('  • Enhancements: ' + e); }
         if (u.attachedTo) { const h = a.units.find((x) => x.id === u.attachedTo); if (h) { const rh = find(h); L.push('  • Attached to: ' + cap(rh ? (rh.d.en || en(rh.d.name)) : h.name.replace(/\s*#\d+$/, ''))); } }
         const seen = new Set(); (u.weapons || []).forEach((w) => { let n = w.name; const m = r && r.d.weapons.find((x) => Wahap.T(x.name) === w.name); if (m && m.e) n = m.e; n = cap(String(n).split(/ [-–] /)[0]); if (n && !seen.has(n)) { seen.add(n); L.push('  • ' + n); } });
@@ -1191,13 +1200,13 @@
       if (need.length) { if (!ysState.loading) { ysState.loading = true; Promise.all(need.map((id) => Wahap.faction(id).catch(() => null))).then(() => { ysState.loading = false; need.forEach((id) => { if (!Wahap.cached(id)) ysState.err = 'Données de faction introuvables.'; }); render(); }); } body = '<p class="muted">Chargement des noms anglais…</p>'; }
       else body = `<textarea id="ysTxt" rows="8" readonly style="width:100%;font-size:12px">${esc(yellowFromArmy(a))}</textarea><div class="row" style="margin-top:6px"><button class="btn small" data-act="bCopy">📋 Copier</button><a class="btn small ghost" href="https://yellowscribe.link" target="_blank" rel="noopener">Ouvrir YellowScribe</a></div>`;
     }
-    return `<div class="card"><h2>Code YellowScribe</h2><p class="muted">Texte au format « application GW » (noms anglais), à coller dans <b>yellowscribe.link</b> pour obtenir le fichier Tabletop Simulator. Armes listées sans quantité ; le premier chef est marqué Warlord.</p>${body}</div>`;
+    return `<div class="card"><h2>Code YellowScribe</h2><p class="muted">Texte au format « application GW » (noms anglais), à coller dans <b>yellowscribe.link</b> pour obtenir le fichier Tabletop Simulator. Armes listées sans quantité ; le seigneur de bataille choisi (sinon le premier chef) est marqué Warlord.</p>${body}</div>`;
   }
   function bBuildArmy() {
     const f = bfac(); const ix = Wahap.index();
     const idmap = {}; const units = B.units.map((e) => {
       const d = bdef1(f, e.id); const d2 = Object.assign({}, d, { weapons: (d.weapons || []).filter((w, j) => !(e.woff || []).includes(j)), abilities: (d.abilities || []).filter((a, j) => !(e.aoff || []).includes(j)) });
-      const u = Wahap.toApp(d2, uid); if (B.ch && B.ch !== 'codex' && !u.factionKw.includes(B.ch)) u.factionKw.push(B.ch); idmap[e.k] = u.id; u.pts = bCost(f, e); u.ptsNote = bWg(f, e) ? 'dont équipements ' + bWg(f, e) + ' pts' : ''; u.models = String(e.models || ''); u.section = bgrp(d); u.role = d.support ? 'support' : (d.leads || []).length ? 'leader' : '';
+      const u = Wahap.toApp(d2, uid); if (B.ch && B.ch !== 'codex' && !u.factionKw.includes(B.ch)) u.factionKw.push(B.ch); idmap[e.k] = u.id; if (e.nm) u.name = e.nm; if (B.warlord === e.k) u.warlord = true; u.pts = bCost(f, e); u.ptsNote = bWg(f, e) ? 'dont équipements ' + bWg(f, e) + ' pts' : ''; u.models = String(e.models || ''); u.section = bgrp(d); u.role = d.support ? 'support' : (d.leads || []).length ? 'leader' : '';
       const en = bEnhs(f).find((x) => x.key === e.enh);
       if (en) { u.enhancement = en.name; u.options = [en.name]; u.abilities.push({ name: 'Amélioration — ' + en.name, text: T0(en.text), phases: AlnPdf.phasesFromText(T0(en.text), en.name), en: Wahap.isEn(en.text) }); }
       return u;
@@ -1208,6 +1217,33 @@
     const a = { chapter: B.ch && B.ch !== 'codex' ? B.ch : '', id: uid(), name: B.name || (fname + ' — ' + (B.limit || 'liste') + ' pts'), faction: fname, detachments: dets.map((d) => T0(d.name) + ` (${d.dp} pt${+d.dp > 1 ? 's' : ''})`), alnUrl: '', total: { points: units.reduce((s, u) => s + u.pts, 0), models: units.reduce((s, u) => s + (+u.models || 0), 0), units: units.length }, units };
     S.armies.push(a); S.armyId = a.id; S.armyRules[a.id] = []; dets.forEach((d) => addDetTo(a, d));
     S.play.unitId = null; S.play.nModelsUnit = null; S.play.weaponIdx = 0; return a;
+  }
+  /* Armées importées (PDF/ALN) : détachements, règles, stratagèmes et améliorations remplacés par la version française de la base */
+  const frBusy = new Set();
+  async function frDets(a) {
+    await Wahap.ready(); const nz = Wahap.norm;
+    let ids = Wahap.facIds(a.faction); if (!ids.length) ids = Wahap.index().factions.map((f) => f.id);
+    await Promise.all(ids.map((id) => Wahap.faction(id).catch(() => null)));
+    const dets = []; ids.forEach((id) => { const f = Wahap.cached(id); if (f) f.detachments.forEach((d) => dets.push(d)); });
+    a.detachments = (a.detachments || []).map((entry) => {
+      const m = String(entry).match(/^(.*?)(\s*\(\d+\s*pts?\))?$/); const n = m[1];
+      const d = dets.find((x) => nz(x.e) === nz(n)); if (!d || nz(Wahap.T(d.name)) === nz(n)) return entry;
+      S.customStrats = S.customStrats.filter((x) => !(x.armyId === a.id && nz(x.detachment) === nz(n)));
+      S.armyRules[a.id] = (S.armyRules[a.id] || []).filter((r) => nz(r.name) !== nz('Détachement ' + n));
+      addDetTo(a, d);
+      a.units.forEach((u) => (d.enh || []).forEach((en) => {
+        if (!u.enhancement || nz(u.enhancement) !== nz(en.e)) return;
+        const old = u.enhancement, fr = Wahap.T(en.name); u.enhancement = fr;
+        u.options = (u.options || []).map((o) => (nz(o) === nz(old) ? fr : o));
+        u.abilities = (u.abilities || []).map((x) => (nz(x.name).includes(nz(old)) ? Object.assign({}, x, { name: 'Amélioration — ' + fr, text: Wahap.T(en.text), en: Wahap.isEn(en.text) }) : x));
+      }));
+      return Wahap.T(d.name) + (m[2] || '');
+    });
+  }
+  function frAuto(a) {
+    if (!a || a.frDone || frBusy.has(a.id) || !(a.detachments || []).length) return;
+    frBusy.add(a.id);
+    frDets(a).catch(() => {}).then(() => { frBusy.delete(a.id); a.frDone = 1; save(); render(); });
   }
   function addDetTo(a, d) {
     let n = 0; (d.strats || []).forEach((s) => {
@@ -1325,6 +1361,8 @@
     },
     bRetry() { B.err = ''; B.facErr = ''; B.loading = false; B.facLoad = false; },
     bGrp(v) { B.grp = v; bsave(); },
+    bFold(id) { B.fold[id] = !B.fold[id]; bsave(); },
+    bFoldAll(v) { B.units.forEach((e) => { B.fold['u' + e.k] = !!v; }); bsave(); },
     bAdd(id) { const f = bfac(); const d = f && bdef1(f, id); if (!d) return; const k = uid(); B.units.push({ k, id, models: ((d.pc && d.pc.t.length && d.pc.t[0][1].length) ? d.pc.t[0][1][0][0] : 1), pts: 0, wg: {}, to: '', enh: '', woff: [], aoff: [] }); B.open = k; B.msg = ''; bsave(); },
     bOpen(k) { B.open = B.open === k ? null : k; },
     bDup(k) { const e = B.units.find((x) => x.k === k); if (!e) return; const c = JSON.parse(JSON.stringify(e)); c.k = uid(); c.enh = ''; c.to = ''; B.units.splice(B.units.indexOf(e) + 1, 0, c); bsave(); },
@@ -1481,7 +1519,7 @@
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
     if (e.target.dataset && e.target.dataset.dbkw !== undefined) { dbs.kw = e.target.value; dbs.unit = null; render(); return; }
     const t0 = e.target, ds = t0.dataset || {};
-    if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.facErr = ''; B.fac = v; B.dets = []; B.units = []; B.open = null; B.ch = ''; B.kw = ''; } else if (ds.bf === 'ch') bChapter(v); else if (ds.bf === 'kw') B.kw = v; else if (ds.bf === 'allEnh') B.allEnh = !!t0.checked; else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
+    if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.facErr = ''; B.fac = v; B.dets = []; B.units = []; B.open = null; B.ch = ''; B.kw = ''; } else if (ds.bf === 'ch') bChapter(v); else if (ds.bf === 'kw') B.kw = v; else if (ds.bf === 'warlord') B.warlord = v; else if (ds.bf === 'allEnh') B.allEnh = !!t0.checked; else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
     if (ds.bu) { const en = B.units.find((x) => x.k === ds.bu); if (en) { if (ds.bw != null) { const j = +ds.bw; en.woff = (en.woff || []).filter((x) => x !== j); if (!t0.checked) en.woff.push(j); } else if (ds.bg != null) { en.wg = en.wg || {}; en.wg[ds.bg] = Math.max(0, +t0.value || 0); } else if (ds.ba != null) { const j = +ds.ba; en.aoff = (en.aoff || []).filter((x) => x !== j); if (!t0.checked) en.aoff.push(j); } else en[ds.bk] = ['models', 'pts'].includes(ds.bk) ? Math.max(0, +t0.value || 0) : t0.value; bsave(); render(); } return; }
     const el = e.target;
     if ((el.id === 'pdfNew' || el.id === 'pdfEnrich') && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importPdfFile(f, el.id === 'pdfNew' ? 'new' : 'enrich'); return; }
