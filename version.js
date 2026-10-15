@@ -1,6 +1,16 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.7.1';
+var APP_VERSION = '1.8.1';
 var APP_RELEASES = [
+  { v: '1.8.1', date: '2026-10-15', notes: [
+    'Base Wahapedia : ~1 800 noms d\'armes traduits en français (profils compris, ex. « Lance-missiles - krak »).',
+    'Les noms et textes encore en anglais restent repérés « EN ».'
+  ] },
+  { v: '1.8.0', date: '2026-10-15', notes: [
+    'Nouvel onglet « Base » : 1 501 fiches d\'unités Wahapedia (11e) avec profils, armes, aptitudes, mots-clés, meneurs possibles, et les détachements (règles, améliorations, stratagèmes).',
+    'Utiliser une fiche comme cible, l\'ajouter à son armée, ou ajouter les stratagèmes d\'un détachement à son armée.',
+    'À l\'import d\'un PDF ALN, les unités sans arme (ex. Custodiens Allarus) sont complétées automatiquement depuis la base.',
+    'Traduction française en cours : les textes pas encore traduits sont repérés « EN ».'
+  ] },
   { v: '1.7.1', date: '2026-10-15', notes: ['Les mises à jour s\'affichent dès la réouverture de l\'appli (chargement réseau d\'abord, cache hors connexion).'] },
   { v: '1.7.0', date: '2026-10-15', notes: [
     'Numéro de version et notes de version dans l\'onglet Infos.',

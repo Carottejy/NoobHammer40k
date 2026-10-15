@@ -123,9 +123,9 @@
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil'], ['game', '🎲', 'Partie'], ['army', '🛡️', 'Armée']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse'], ['strats', '📜', 'Strat.']] : []).concat([['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil'], ['game', '🎲', 'Partie'], ['army', '🛡️', 'Armée'], ['db', '📚', 'Base']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse'], ['strats', '📜', 'Strat.']] : []).concat([['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, info: viewInfo }[S.tab]();
+    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, db: viewDb, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
   }
@@ -510,6 +510,7 @@
     if (res && res.units.length) {
       S.enemy = { id: uid(), name: (res.faction ? res.faction + ' — ' : '') + (res.name || 'Armée adverse'), faction: res.faction, detachments: res.detachments.map((d) => d.name + (d.dp != null ? ` (${d.dp} pt${d.dp > 1 ? 's' : ''})` : '')), total: res.total, units: res.units.map(unitFromParsed), rules: res.rules.slice(), strats: res.strats.map((s) => Object.assign({ id: 'e_' + uid() }, s)) };
       linkParsed(S.enemy.units, res.units); S.ui.enemyMsg = `Armée adverse importée : ${S.enemy.units.length} unité(s), ${res.rules.length} règle(s), ${res.strats.length} stratagème(s).`;
+      Wahap.fill(S.enemy.units, Wahap.facIds(res.faction)).then((n) => { if (n) { S.ui.enemyMsg += `\n+ ${n} unité(s) complétée(s) depuis la base.`; render(); } }).catch(() => {});
     } else {
       let text = '';
       try { text = await readPdf(file); } catch (x) { S.ui.enemyMsg = 'Impossible de lire ce PDF (' + (err || (x && x.message) || 'erreur') + ').'; render(); return; }
@@ -930,6 +931,7 @@
     S.armyRules[a.id] = res.rules.slice();
     res.strats.forEach((s) => S.customStrats.push(Object.assign({ id: 'c_' + uid(), armyId: a.id }, s)));
     S.ui.importMsg = summary(a, res); S.ui.profMsg = ''; render();
+    Wahap.fill(a.units, Wahap.facIds(res.faction)).then((n) => { if (n) { S.ui.importMsg += `\n+ ${n} unité(s) sans arme complétée(s) depuis la base Wahapedia.`; render(); } }).catch(() => {});
   }
   async function runFetch(autoOnly) {
     const a = army(); if (!a || !a.alnUrl) return;
@@ -955,6 +957,72 @@
   }
 
   /* ----- Infos ----- */
+
+  /* ----- Base Wahapedia ----- */
+  const dbs = { fac: '', q: '', mode: 'units', id: null, unit: null, detFac: '', det: null, msg: '', err: '' };
+  const wt = (x) => (Wahap.isEn(x) ? esc(Wahap.T(x)) + ' <span class="tag">EN</span>' : esc(x || '').replace(/\n/g, '<br>'));
+  function splitWTE(t) {
+    const s = String(t || '').replace(/\r/g, ''); const rx = /(?:^|\n)\s*(WHEN|TARGET|EFFECT|RESTRICTIONS|QUAND|CIBLE|EFFET|RESTRICTIONS?)\s*:\s*/gi; const marks = []; let m;
+    while ((m = rx.exec(s))) marks.push({ k: m[1].toLowerCase(), i: m.index, e: rx.lastIndex });
+    const o = { when: '', target: '', effect: '' };
+    marks.forEach((k, n) => { const v = s.slice(k.e, n + 1 < marks.length ? marks[n + 1].i : undefined).trim(); if (/when|quand/.test(k.k)) o.when = v; else if (/target|cible/.test(k.k)) o.target = v; else o.effect = (o.effect ? o.effect + ' ' : '') + (/restr/.test(k.k) ? 'Restrictions : ' : '') + v; });
+    if (!marks.length) o.effect = s.trim();
+    return o;
+  }
+  function viewDb() {
+    let h = '<h1>Base de données</h1>';
+    const ix = Wahap.index();
+    if (!ix) {
+      if (!dbs.loading) { dbs.loading = true; Wahap.ready().then(() => { dbs.loading = false; render(); }).catch((e) => { dbs.loading = false; dbs.err = e.message; render(); }); }
+      return h + `<div class="card">${dbs.err ? '<div class="warn">' + esc(dbs.err) + '</div>' : '<p class="muted">Chargement de la base…</p>'}</div>`;
+    }
+    const facOpts = ix.factions.map((f) => `<option value="${f.id}" ${f.id === (dbs.mode === 'det' ? dbs.detFac : dbs.fac) ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+    h += `<div class="card"><p class="muted">Données Wahapedia (11e édition) : ${ix.units.length} fiches. Les textes encore non traduits sont repérés <span class="tag">EN</span>.</p>
+      <div class="chips"><button class="chip ${dbs.mode === 'units' ? 'on' : ''}" data-act="dbMode" data-val="units">Unités</button><button class="chip ${dbs.mode === 'det' ? 'on' : ''}" data-act="dbMode" data-val="det">Détachements</button></div>
+      <label style="margin-top:8px">Faction</label><select data-dbfac="1"><option value="">${dbs.mode === 'det' ? '— choisir —' : 'Toutes'}</option>${facOpts}</select>
+      ${dbs.mode === 'units' ? '<label style="margin-top:8px">Recherche</label><input type="search" id="dbq" placeholder="Nom (français ou anglais)…" value="' + esc(dbs.q) + '" autocomplete="off">' : ''}</div>`;
+    if (dbs.msg) h += `<div class="note">${esc(dbs.msg)}</div>`;
+    if (dbs.mode === 'det') return h + dbDetView();
+    if (dbs.unit) return h + dbUnitView(dbs.unit);
+    h += `<div class="card" id="dbres">${dbResults()}</div>`;
+    return h;
+  }
+  function dbResults() {
+    const r = Wahap.search(dbs.q, dbs.fac);
+    if (!dbs.q && !dbs.fac) return '<p class="muted">Choisis une faction ou tape un nom.</p>';
+    return (r.map((u) => `<div class="unit-item"><div><b>${esc(Wahap.T(u.n))}</b>${Wahap.isEn(u.n) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${esc(Wahap.factionName(u.f))} · ${esc(u.r)}</div></div><button class="btn small" data-act="dbOpen" data-val="${u.id}">Ouvrir</button></div>`).join('') || '<p class="muted">Aucun résultat.</p>') + (r.length >= 80 ? '<p class="muted">Affinement conseillé : seuls les 80 premiers sont affichés.</p>' : '');
+  }
+  function dbUnitView(d) {
+    const ix = Wahap.index(); const nameOf = (id) => { const e = ix.units.find((x) => x.id === id); return e ? Wahap.T(e.n) : id; };
+    const m0 = (d.models || [])[0] || {};
+    let h = `<div class="card"><div class="row sp"><h2 style="margin:0">${wt(d.name)}</h2><button class="btn small ghost" data-act="dbBack">← Liste</button></div>
+      <div class="muted">${esc(Wahap.factionName(d.fac))} · ${esc(d.role)}</div>`;
+    h += (d.models || []).map((m) => `<div class="muted" style="margin-top:6px">${(d.models.length > 1 ? '<b>' + wt(m.name) + '</b> — ' : '')}M${esc(m.M)} · E${esc(m.T)} · Sv ${esc(m.Sv)}${m.inv ? '/' + esc(m.inv) + '++' : ''} · PV ${esc(m.W)} · CD ${esc(m.Ld)} · CO ${esc(m.OC)}</div>`).join('');
+    h += `<div class="chips" style="margin-top:8px">${(d.kw || []).concat(d.fkw || []).map((k) => `<span class="chip">${esc(Wahap.T(k))}</span>`).join('')}</div>`;
+    h += `<div class="row" style="margin-top:10px">${S.enemy ? '' : '<button class="btn small" data-act="dbTarget">🎯 Utiliser comme cible</button>'}${army() ? '<button class="btn small ghost" data-act="dbAdd">➕ Ajouter à mon armée</button>' : ''}</div></div>`;
+    if ((d.weapons || []).length) h += `<div class="card"><h2>Armes</h2><ul class="fxlist">${d.weapons.map((w) => `<li>${wt(w.name)}${w.ab ? ' [' + esc(w.ab) + ']' : ''} — ${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}</li>`).join('')}</ul></div>`;
+    if ((d.abilities || []).length) h += `<div class="card"><h2>Aptitudes</h2>${d.abilities.map((a) => `<details class="note"><summary><b>${wt(a.name) || esc(a.type)}</b>${a.param ? ' ' + esc(a.param) : ''} <span class="muted">${esc(a.type)}</span></summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
+    if (d.loadout) h += `<div class="card"><h2>Équipement</h2><div>${wt(d.loadout)}</div></div>`;
+    if ((d.leads || []).length) h += `<div class="card"><h2>Peut rejoindre</h2><div class="muted">${d.leads.map((i) => esc(nameOf(i))).join(' · ')}</div>${d.leaderNote ? '<div class="note">' + wt(d.leaderNote) + '</div>' : ''}</div>`;
+    if ((d.ledBy || []).length) h += `<div class="card"><h2>Meneurs possibles</h2><div class="muted">${d.ledBy.map((i) => esc(nameOf(i))).join(' · ')}</div></div>`;
+    return h;
+  }
+  function dbDetView() {
+    if (!dbs.detFac) return '';
+    const f = Wahap.cached(dbs.detFac);
+    if (!f) { Wahap.faction(dbs.detFac).then(() => render()).catch((e) => { dbs.err = e.message; render(); }); return '<div class="card"><p class="muted">Chargement…</p></div>'; }
+    if (dbs.det) {
+      const d = f.detachments.find((x) => x.id === dbs.det); if (!d) { dbs.det = null; return ''; }
+      let h = `<div class="card"><div class="row sp"><h2 style="margin:0">${wt(d.name)}</h2><button class="btn small ghost" data-act="dbBack">← Détachements</button></div><div class="muted">${esc(d.dp)} pt(s) de détachement</div>
+        ${army() && d.strats.length ? '<button class="btn small" style="margin-top:8px" data-act="dbAddStrats">➕ Ajouter ses stratagèmes à mon armée</button>' : ''}</div>`;
+      if (d.abilities.length) h += `<div class="card"><h2>Règles</h2>${d.abilities.map((a) => `<details class="note" open><summary><b>${wt(a.name)}</b></summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
+      if (d.enh.length) h += `<div class="card"><h2>Améliorations</h2>${d.enh.map((a) => `<details class="note"><summary><b>${wt(a.name)}</b> · ${esc(a.cost)} pts</summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
+      if (d.strats.length) h += `<div class="card"><h2>Stratagèmes</h2>${d.strats.map((a) => `<details class="note"><summary><b>${wt(a.name)}</b> · ${esc(a.cp)} PC</summary><div class="muted">${esc(a.type)}</div><div>${wt(a.text)}</div></details>`).join('')}</div>`;
+      return h;
+    }
+    return `<div class="card"><h2>Détachements (${f.detachments.length})</h2>${f.detachments.map((d) => `<div class="unit-item"><div><b>${wt(d.name)}</b><div class="muted">${esc(d.dp)} pt(s) · ${d.strats.length} stratagèmes · ${d.enh.length} améliorations</div></div><button class="btn small" data-act="dbDet" data-val="${d.id}">Ouvrir</button></div>`).join('')}</div>`;
+  }
+
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
@@ -1042,6 +1110,26 @@
       g.state = snapshot(); const l = readGames(); l.unshift(g); writeGames(l);
     },
     gameQuick() { if (!army()) { alert('Importe d\'abord une armée dans l\'onglet « Armée ».'); return; } flushGameSave(); freshGame(); S.park = null; attachGameArmy('quick'); S.gameId = null; S.gameName = ''; S.inGame = true; S.tab = 'game'; S.ui = {}; },
+
+    dbMode(v) { dbs.mode = v; dbs.unit = null; dbs.det = null; dbs.msg = ''; },
+    dbBack() { if (dbs.mode === 'det') dbs.det = null; else { dbs.unit = null; dbs.id = null; } dbs.msg = ''; },
+    dbDet(id) { dbs.det = id; },
+    dbOpen(id) { dbs.msg = ''; Wahap.unit(id).then((u) => { dbs.unit = u; dbs.id = id; render(); }).catch((e) => { dbs.msg = e.message; render(); }); },
+    dbTarget() {
+      const d = dbs.unit; if (!d) return; const u = Wahap.toApp(d, uid);
+      Object.assign(S.play.target, targetFrom({ base: u, leaders: [], keywords: u.keywords.concat(u.factionKw), abilities: u.abilities, nowModels: 1 })); S.play.targetUnitId = null;
+      dbs.msg = `Cible réglée sur « ${u.name} » (1 figurine : ajuste l'effectif dans la section Cible de l'écran Partie).`;
+    },
+    dbAdd() { const a = army(); const d = dbs.unit; if (!a || !d) return; const u = Wahap.toApp(d, uid); a.units.push(u); dbs.msg = `« ${u.name} » ajoutée à « ${a.name} » (points non renseignés).`; },
+    dbAddStrats() {
+      const a = army(); const f = Wahap.cached(dbs.detFac); const d = f && f.detachments.find((x) => x.id === dbs.det); if (!a || !d) return;
+      let n = 0; d.strats.forEach((s) => {
+        const p = splitWTE(Wahap.T(s.text)); const t = AlnPdf.stratTiming(p.when || Wahap.T(s.text));
+        S.customStrats.push({ id: 'c_' + uid(), armyId: a.id, name: Wahap.T(s.name), detachment: Wahap.T(d.name), cp: +s.cp || 1, when: p.when, target: p.target, effect: p.effect, phases: t.phases, turn: t.turn, turns: t.turns }); n++;
+      });
+      (d.abilities || []).forEach((r) => { (S.armyRules[a.id] = S.armyRules[a.id] || []).push({ name: Wahap.T(r.name), phases: AlnPdf.phasesFromText(Wahap.T(r.text), Wahap.T(r.name)), text: Wahap.T(r.text) }); });
+      dbs.msg = `${n} stratagème(s) et ${(d.abilities || []).length} règle(s) ajoutés à « ${a.name} ».`;
+    },
     gameResume() {
       if (S.park) { if (S.park.armyId && S.armies.some((x) => x.id === S.park.armyId)) S.armyId = S.park.armyId; if (S.park.enemy && !S.enemy) S.enemy = S.park.enemy; S.park = null; }
       else { const c = S.armies.find((x) => x.gameOf && (x.gameOf === S.gameId || (!S.gameId && x.gameOf === 'quick'))); if (c) S.armyId = c.id; }
@@ -1185,7 +1273,9 @@
     const fn = actions[el.dataset.act]; if (!fn) return;
     fn(el.dataset.val, el); render();
   });
+  document.addEventListener('input', (e) => { if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } });
   document.addEventListener('change', (e) => {
+    if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } render(); return; }
     const el = e.target;
     if ((el.id === 'pdfNew' || el.id === 'pdfEnrich') && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importPdfFile(f, el.id === 'pdfNew' ? 'new' : 'enrich'); return; }
     if (el.id === 'pdfEnemy' && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importEnemyPdf(f); return; }
