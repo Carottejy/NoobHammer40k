@@ -75,8 +75,9 @@ const AlnPdf = (() => {
   const isUnitHeader = (r) => {
     if (r.cells.length !== 2) return false;
     const [a, b] = r.cells;
-    return PTS_RE.test(b.s) && /\p{L}{3}/u.test(a.s) && !/\p{Ll}/u.test(a.s.replace(/\[\d+x\]/i, ''));
+    return PTS_RE.test(b.s) && /\p{L}{3}/u.test(a.s) && !/\p{Ll}/u.test(a.s.replace(ROLE_RE, '').replace(/\[\d+x\]/i, ''));
   };
+  const ROLE_RE = /^(Meneur|Appui)\s*:\s*/i;
   const LABEL_RE = /^(Equipement|Équipement|Aptitudes|Optimisations?|Mots-cl[ée]s de faction|Mots-cl[ée]s)\s*:\s*(.*)$/i;
   const colKey = (h) => {
     const n = norm(h).replace(/[^a-z/]/g, '');
@@ -88,12 +89,56 @@ const AlnPdf = (() => {
     return { mult: m && m[1] ? +m[1] : 1, tag: m && m[2] ? m[2] : '', name: titleCase(m ? m[3].trim() : cell), models: m && m[4] ? +m[4] : null };
   }
 
+  /* Tableau d'armes : les noms et capacités peuvent passer sur plusieurs lignes, centrés autour de la ligne de chiffres. */
+  function parseWeaponRows(rows, h) {
+    const numeric = [], nameFr = [], abFr = [];
+    const jn = (cs) => cs.reduce((s, c) => joinTxt(s, c.s), '');
+    const TK = [/^(\d+|m[êe]l[ée]e)$/i, /^[\dD+]+$/i, /^(\d\+|n\/?a|-)$/i, /^(\d+|D[\dD+]*)$/i, /^-?\d+$/, /^[\dD+]+$/i];
+    rows.forEach((r) => {
+      const nm = r.cells.filter((c) => c.x < h.xR - 12), rest = r.cells.filter((c) => c.x >= h.xR - 12);
+      const toks = []; rest.forEach((c, ci) => c.s.split(/\s+/).filter(Boolean).forEach((t) => toks.push({ t, ci })));
+      if (toks.length >= 6 && TK.every((re, k) => re.test(toks[k].t))) {
+        const last = toks[5]; const leftover = [];
+        const sameCell = toks.filter((q) => q.ci === last.ci).map((q) => q.t); const used = toks.slice(0, 6).filter((q) => q.ci === last.ci).length;
+        const tail = sameCell.slice(used).join(' '); if (tail) leftover.push(tail);
+        rest.slice(last.ci + 1).forEach((c) => leftover.push(c.s));
+        numeric.push({ y: r.y, name: jn(nm), mid: toks.slice(0, 6).map((q) => q.t), ab: leftover.reduce((s, x) => joinTxt(s, x), '') });
+      } else { if (nm.length) nameFr.push({ y: r.y, s: jn(nm) }); if (rest.length) abFr.push({ y: r.y, s: jn(rest) }); }
+    });
+    if (!numeric.length) return [];
+    const blocks = (frs, cont) => {
+      const out = []; let cur = null;
+      frs.sort((p, q) => q.y - p.y).forEach((f) => {
+        if (cur && cont(cur.last, f.s)) { cur.s = joinTxt(cur.s, f.s); cur.last = f.s; cur.ys.push(f.y); }
+        else { cur = { s: f.s, last: f.s, ys: [f.y] }; out.push(cur); }
+      });
+      return out.map((b) => ({ s: b.s, y: b.ys.reduce((x, y) => x + y, 0) / b.ys.length, lower: /^\p{Ll}/u.test(b.s) }));
+    };
+    const nB = blocks(nameFr, (prev, cur) => /^\p{Ll}/u.test(cur) || /[-‑–]$/.test(prev));
+    const aB = blocks(abFr, (prev, cur) => /[-‑–,:]$/.test(prev) || /^\p{Ll}/u.test(cur) || /^Non-/.test(cur));
+    const near = (b) => {
+      const d = numeric.map((n, i) => ({ i, d: Math.abs(n.y - b.y) })).sort((p, q) => p.d - q.d);
+      if (d.length > 1 && Math.abs(d[0].d - d[1].d) < 1) { const up = numeric[d[0].i].y > numeric[d[1].i].y ? d[0] : d[1], dn = up === d[0] ? d[1] : d[0]; return (b.lower ? up : dn).i; }
+      return d[0].i;
+    };
+    const pieces = numeric.map((n) => ({ name: n.name ? [{ y: n.y, s: n.name }] : [], ab: n.ab ? [{ y: n.y, s: n.ab }] : [] }));
+    nB.forEach((b) => pieces[near(b)].name.push({ y: b.y, s: b.s }));
+    aB.forEach((b) => pieces[near(b)].ab.push({ y: b.y, s: b.s }));
+    const text = (arr) => arr.sort((p, q) => q.y - p.y).reduce((s, x) => joinTxt(s, x.s), '');
+    return numeric.map((n, i) => {
+      const c = n.mid; const melee = /m[êe]l[ée]e/i.test(c[0]);
+      return { name: text(pieces[i].name), range: c[0], A: c[1], skill: c[2], S: c[3], AP: c[4], D: c[5], abilities: text(pieces[i].ab).replace(/^[-–]$/, ''), type: melee ? 'melee' : 'ranged' };
+    });
+  }
+
   function parseUnitBlock(head, rows, section) {
     const [nameCell, ptsCell] = head.cells;
-    const hn = parseHeaderName(nameCell.s);
+    const rm = nameCell.s.match(ROLE_RE);
+    const hn = parseHeaderName(nameCell.s.replace(ROLE_RE, ''));
     const pm = ptsCell.s.match(PTS_RE);
-    const u = { name: hn.name, tag: hn.tag, mult: hn.mult, models: hn.models, pts: +pm[1] + (pm[2] ? +pm[2] : 0), ptsNote: pm[2] ? `base ${pm[1]} + ${pm[2]}` : '', section, M: '', T: '', sv: '', inv: '', W: '', Ld: '', OC: '', weapons: [], abilities: [], keywords: [], factionKw: [], equipment: '', subModels: [], enhancement: null };
-    let mode = 'stats', statHead = null, subName = '', abNames = [], extraKnown = [], descRows = [];
+    const u = { role: rm ? (/^appui/i.test(rm[1]) ? 'support' : 'leader') : '', name: hn.name, tag: hn.tag, mult: hn.mult, models: hn.models, pts: +pm[1] + (pm[2] ? +pm[2] : 0), ptsNote: pm[2] ? `base ${pm[1]} + ${pm[2]}` : '', section, M: '', T: '', sv: '', inv: '', W: '', Ld: '', OC: '', weapons: [], abilities: [], keywords: [], factionKw: [], equipment: '', subModels: [], enhancement: null };
+    let mode = 'stats', statHead = null, wHead = null, wrows = [], subName = '', abNames = [], extraKnown = [], descRows = [];
+    u.profiles = [];
     for (const r of rows) {
       const f = flat(r);
       if (mode === 'desc') { descRows.push(r); continue; }
@@ -110,23 +155,30 @@ const AlnPdf = (() => {
       }
       if (mode === 'stats' || mode === 'weapons' || mode === 'labels') {
         if (r.cells.length >= 5 && r.cells.filter((c) => colKey(c.s)).length >= 5) { statHead = r.cells.map((c) => colKey(c.s)); continue; }
-        if (statHead && r.cells.length >= 5 && !u.T && /^\d/.test(r.cells[0].s)) {
+        const looksStat = statHead && r.cells.length >= 5 && /^\d+"?$/.test(r.cells[0].s) && /^\d+\+?(?:\s*\/\s*\d\+\+?)?$/.test((r.cells[2] || {}).s || '') && mode !== 'labels';
+        if (looksStat) {
           const o = {}; r.cells.forEach((c, i) => { if (statHead[i]) o[statHead[i]] = c.s; });
+          const extra = r.cells.length > statHead.length ? r.cells.slice(statHead.length).map((c) => c.s).join(' ') : '';
           const svm = String(o.sv || '').match(/(\d)\+(?:\s*\/\s*(\d)\+\+?)?/);
-          Object.assign(u, { M: o.M || '', T: o.T || '', W: o.W || '', Ld: o.Ld || '', OC: o.OC || '', sv: svm ? svm[1] + '+' : o.sv || '', inv: svm && svm[2] ? svm[2] : '' });
-          mode = 'weapons'; continue;
-        }
-        if (/^Port[ée]e$/i.test(r.cells[0].s) || r.cells.some((c) => /^Port[ée]e$/i.test(c.s))) { mode = 'weapons'; continue; }
-        if (mode === 'weapons' && r.cells.length >= 7) {
-          const c = r.cells.map((x) => x.s);
-          const melee = /m[êe]l[ée]e/i.test(c[1]);
-          u.weapons.push({ name: c[0], range: c[1], A: c[2], skill: c[3], S: c[4], AP: c[5], D: c[6], abilities: (c[7] || '').replace(/^[-–]$/, ''), type: melee ? 'melee' : 'ranged' });
+          const prof = { name: extra, M: o.M || '', T: o.T || '', W: o.W || '', Ld: o.Ld || '', OC: o.OC || '', sv: svm ? svm[1] + '+' : o.sv || '', inv: svm && svm[2] ? svm[2] : '' };
+          u.profiles.push(prof);
+          if (!u.T) { Object.assign(u, { M: prof.M, T: prof.T, W: prof.W, Ld: prof.Ld, OC: prof.OC, sv: prof.sv, inv: prof.inv }); mode = 'weapons'; }
           continue;
         }
+        const pc = r.cells.find((c) => /^Port[ée]e\b/i.test(c.s));
+        if (pc) {
+          const dc = r.cells.find((c) => c.s === 'D');
+          wHead = { xR: pc.x, xD: dc ? dc.x : pc.x + 150 }; mode = 'weapons'; continue;
+        }
+        if (mode === 'weapons' && wHead) { wrows.push(r); continue; }
+        if (mode === 'weapons' && !wHead && r.cells.length === 1 && u.profiles.length) { const p = u.profiles[u.profiles.length - 1]; p.name = joinTxt(p.name, f); continue; }
         if (r.cells.length === 1 && !/:/.test(f) && u.T) { subName = f; mode = 'labels'; continue; }
       }
       if (mode === 'labels') { if (r.cells.length === 1 && !/:/.test(f)) { subName = f; continue; } descRows.push(r); mode = 'desc'; }
     }
+
+    if (wHead) u.weapons = parseWeaponRows(wrows, wHead);
+    if (u.profiles.length < 2) delete u.profiles;
 
     /* — Aptitudes décrites (colonne gauche = nom, colonne droite = texte) — */
     const known = [...abNames, ...(u.enhancement ? [u.enhancement.raw] : []), ...extraKnown].map(norm);
@@ -162,10 +214,14 @@ const AlnPdf = (() => {
   }
 
   /* ---------- Stratagèmes ---------- */
-  function parseStrats(rows) {
+  function parseStrats(rows, detNames) {
     const out = []; let cur = null;
     const qc = rows.flatMap((r) => r.cells).find((c) => /^quand\s*:/i.test(c.s));
-    const colX = qc ? qc.x : null;
+    let colX = qc ? qc.x : null;
+    if (colX == null) {
+      const xs = rows.flatMap((r) => r.cells).filter((c) => /^\d+\s*PC$/i.test(c.s)).map((c) => c.x).sort((p, q) => p - q);
+      if (xs.length) colX = xs[Math.floor(xs.length / 2)];
+    }
     if (colX == null) return [];
     rows.forEach((r) => {
       let left = '', right = '', cost = null;
@@ -179,13 +235,20 @@ const AlnPdf = (() => {
       if (left) cur.left = joinTxt(cur.left, left);
       if (right) cur.text = joinTxt(cur.text, right);
     });
+    const dets = (detNames || []).slice().sort((p, q) => q.length - p.length);
     return out.map((s) => {
-      const full = s.left; const ix = full.indexOf(' : ');
-      const detachment = ix > 0 ? full.slice(0, ix).trim() : '', name = ix > 0 ? full.slice(ix + 3).trim() : full;
+      const full = s.left.replace(/\s+/g, ' ').trim();
+      let detachment = '', name = '';
+      const hit = dets.find((d) => norm(full).startsWith(norm(d)));
+      if (hit) { detachment = hit; name = full.slice(hit.length).replace(/^\s*[:\-–]\s*/, '').trim(); }
+      else { const ix = full.indexOf(' : '); detachment = ix > 0 ? full.slice(0, ix).trim() : ''; name = ix > 0 ? full.slice(ix + 3).trim() : full; }
       const labels = [...s.text.matchAll(/(Quand|Cible|Effet|Restrictions?)\s*:/gi)];
       const part = (re) => { const i = labels.findIndex((l) => re.test(l[1])); if (i < 0) return ''; const st = labels[i].index + labels[i][0].length, en = i + 1 < labels.length ? labels[i + 1].index : s.text.length; return s.text.slice(st, en).trim(); };
-      const when = part(/^quand$/i), target = part(/^cible$/i), effect = [part(/^effet$/i), part(/^restrictions?$/i) ? 'Restrictions : ' + part(/^restrictions?$/i) : ''].filter(Boolean).join(' ');
-      const t = stratTiming(when);
+      let when = part(/^quand$/i); const target = part(/^cible$/i);
+      let effect = [part(/^effet$/i), part(/^restrictions?$/i) ? 'Restrictions : ' + part(/^restrictions?$/i) : ''].filter(Boolean).join(' ');
+      if (!when && labels.length && labels[0].index > 0) when = s.text.slice(0, labels[0].index).trim();
+      if (!labels.length) { const sm = s.text.match(/^(.+?[.!])\s+(?=\p{Lu})/u); when = sm ? sm[1] : s.text; effect = s.text; }
+      const t = stratTiming(when || s.text);
       return { name, detachment, cp: s.cp, when, target, effect, phases: t.phases, turn: t.turn, turns: t.turns };
     }).filter((s) => s.name);
   }
@@ -224,7 +287,15 @@ const AlnPdf = (() => {
     const hs = rows.flatMap((r) => r.cells.map((c) => c.h || 0)).filter(Boolean).sort((a, b) => a - b);
     const bodyH = hs.length ? hs[Math.floor(hs.length / 2)] : 8;
     let section = '', blockHead = null, block = [], tail = [];
-    const flush = () => { if (blockHead) { const u = parseUnitBlock(blockHead, block, section); res.units.push(u); } blockHead = null; block = []; };
+    let lastHost = -1;
+    const flush = () => {
+      if (blockHead) {
+        const u = parseUnitBlock(blockHead, block, section);
+        if (u.role) u.attachedToIdx = lastHost; else lastHost = res.units.length;
+        res.units.push(u);
+      }
+      blockHead = null; block = [];
+    };
     for (; i < rows.length; i++) {
       const r = rows[i], f = flat(r);
       if (/^Total$/i.test(f)) { flush(); const nx = rows[i + 1] ? flat(rows[i + 1]) : ''; const m = nx.match(/(\d+)\s*points?(?:\s*-\s*(\d+)\s*figurines?)?(?:\s*-\s*(\d+)\s*unit)?/i); if (m) res.total = { points: +m[1], models: m[2] ? +m[2] : null, units: m[3] ? +m[3] : null }; tail = rows.slice(i + 2); break; }
@@ -236,11 +307,12 @@ const AlnPdf = (() => {
       if (blockHead) block.push(r);
     }
     flush();
-    res.strats = parseStrats(tail);
+    res.strats = parseStrats(tail, res.detachments.map((d) => d.name));
 
     /* Duplication [2X] + règles communes d'armée + règles de détachement */
-    const expanded = [];
-    res.units.forEach((u) => { for (let k = 0; k < (u.mult || 1); k++) expanded.push(Object.assign({}, u, { name: (u.mult || 1) > 1 ? `${u.name} #${k + 1}` : u.name, weapons: u.weapons.map((w) => Object.assign({}, w)), abilities: u.abilities.map((a) => Object.assign({}, a)) })); });
+    const expanded = []; const firstCopy = [];
+    res.units.forEach((u, oi) => { firstCopy[oi] = expanded.length; for (let k = 0; k < (u.mult || 1); k++) expanded.push(Object.assign({}, u, { name: (u.mult || 1) > 1 ? `${u.name} #${k + 1}` : u.name, weapons: u.weapons.map((w) => Object.assign({}, w)), abilities: u.abilities.map((a) => Object.assign({}, a)) })); });
+    expanded.forEach((u) => { if (u.attachedToIdx != null && u.attachedToIdx >= 0) u.attachedToExp = firstCopy[u.attachedToIdx]; delete u.attachedToIdx; });
     const counts = new Map();
     res.units.forEach((u) => u.abilities.forEach((a) => {
       if (!a.text || !/\bamie?s?\b/i.test(a.text)) return;

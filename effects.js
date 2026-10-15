@@ -43,6 +43,16 @@ const Effects = (() => {
     [/([+\-−]\s?\d)\s*en a\b/g, (m) => ({ extraA: num(m[1]) })],
     [/([+\-−]\s?\d)\s*en pa\b/g, (m) => ({ apImp: num(m[1]) })],
     [/([+\-−]\s?\d)\s*en d\b/g, (m) => ({ dmg: num(m[1]) })],
+    [/ajoutez (\d) aux caracteristiques? d'attaques?/g, (m) => ({ extraA: +m[1] })],
+    [/ajoutez (\d) a la caracteristique de force/g, (m) => ({ strength: +m[1] })],
+    [/ajoutez (\d) a la caracteristique de degats/g, (m) => ({ dmg: +m[1] })],
+    [/ajoutez (\d) a la caracteristique de pa\b/g, (m) => ({ apImp: +m[1] })],
+    [/ameliorez de (\d) la caracteristique de pa\b/g, (m) => ({ apImp: +m[1] })],
+    [/ameliorez de (\d) la caracteristique de capacite de (?:tir|combat)/g, (m) => ({ hit: +m[1] })],
+    [/ajoutez (\d) au jet de touche/g, (m) => ({ hit: +m[1] })],
+    [/ajoutez (\d) au jet de blessure/g, (m) => ({ wound: +m[1] })],
+    [/soustrayez (\d) au jet de touche/g, (m) => ({ hit: -m[1] })],
+    [/soustrayez (\d) au jet de blessure/g, (m) => ({ wound: -m[1] })],
     [/relancer les jets de touche de 1\b/g, () => ({ rrHit: 'ones' })],
     [/relancer les jets de touche(?! de 1\b)/g, () => ({ rrHit: 'all' })],
     [/relancer les jets de blessure de 1\b/g, () => ({ rrWound: 'ones' })],
@@ -82,7 +92,7 @@ const Effects = (() => {
     const weaponReq = weaponReqOf(t);
     const globalT = t.replace(/\bsi\b[^.;]*/g, ' ');
     const baseConds = [...lead, ...condsFromText(opts.condText ? norm(opts.condText) + ' ' + globalT : globalT)];
-    const DEF = /cibl\w+ cette unite|allouees? a cette|cible cette unite/;
+    const DEF = /cibl\w+ cette unite|allouees? a cette|cible cette unite|cible votre unite|ciblent votre unite/;
     const found = [];
     TOKENS.forEach(([re, fn, wantsQual]) => {
       re.lastIndex = 0; let m;

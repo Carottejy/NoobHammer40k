@@ -32,3 +32,11 @@ Va sur https://github.com, « Sign up », crée un compte gratuit (pseudo, e-mai
 
 ## Mettre à jour plus tard
 Sur le dépôt : **Add file → Upload files**, glisse les nouveaux fichiers (ils remplacent les anciens), **Commit changes**. L'appli se met à jour à la prochaine ouverture avec internet.
+
+## Mises à jour automatiques
+
+L'application vérifie toute seule s'il existe une nouvelle version (au lancement, au retour sur l'app, puis toutes les 30 min). Si oui, un bandeau « Nouvelle version disponible » apparaît : un appui sur **Mettre à jour** recharge l'app, sans perdre vos armées ni vos parties.
+
+Pour publier une mise à jour : remplacez les fichiers de votre dépôt GitHub par ceux de la nouvelle archive (commit). Les téléphones la détecteront à la prochaine ouverture (le fichier `sw.js` change à chaque version, c'est lui qui déclenche la détection).
+
+Ceci ne fonctionne qu'avec l'hébergement https ; en ouvrant le fichier directement sur l'ordinateur (file://), il suffit de remplacer les fichiers.

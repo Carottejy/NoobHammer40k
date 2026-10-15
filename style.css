@@ -69,3 +69,13 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 10px 0; }
 .mdl { margin-top: 6px; }
 .strat.sel { border-color: var(--accent); }
 details.eu { margin: 4px 0 8px; }
+
+.updbar{position:fixed;left:12px;right:12px;bottom:12px;z-index:50;display:flex;align-items:center;gap:8px;padding:10px 12px;border-radius:12px;background:var(--accent,#c9a227);color:#111;box-shadow:0 4px 18px rgba(0,0,0,.4);font-weight:600}
+.updbar span{flex:1}
+.updbar button{border:0;border-radius:8px;padding:8px 12px;font-weight:700;background:#111;color:#fff}
+.updbar button.ghost{background:transparent;color:#111;padding:8px}
+
+.unit-item.dead > .row:first-child b, .unit-item.dead > .row:first-child .muted{color:#888;text-decoration:line-through;text-decoration-thickness:1px}
+.unit-item.dead{opacity:.6}
+.unit-item.dead .mdl{opacity:1}
+select option.dead{color:#888}
