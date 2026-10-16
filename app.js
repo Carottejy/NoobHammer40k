@@ -754,7 +754,6 @@
     h += `<div class="card"><div class="row sp"><h2 style="margin:0">Unités (${a.units.length})</h2><button class="btn small" data-act="addUnit">+ Unité</button></div>
       ${a.units.map((u) => unitRow('mine', a, u)).join('') || '<p class="muted">Aucune unité pour l\'instant.</p>'}
       ${a.units.length ? '<button class="btn small ghost" style="margin-top:8px" data-act="resetModels" data-who="mine">↺ Rétablir tous les effectifs</button>' : ''}</div>`;
-    h += yellowCard(a);
     const rules = S.armyRules[a.id] || [];
     h += `<div class="card"><h2>Règles d'armée / détachement</h2><p class="muted">Une règle par ligne : <code>Nom | phases | texte</code> (phases : cmd, mvt, tir, charge, combat, def, all).</p>
       <textarea data-act-change="saveRules" data-bind-rules="1" placeholder="Oath of Moment | tir,combat | Relance les touches contre l'unité choisie">${esc(abilitiesToText(rules))}</textarea></div>`;
@@ -779,7 +778,6 @@
     const rules = (S.armyRules[a.id] || []).filter((r) => r && r.name);
     h += `<div class="card"><h2>Règles d'armée et de détachement</h2>${rules.length ? rules.map((r) => `<details class="note"><summary><b>${esc(r.name)}</b></summary><div>${esc(r.text || '').replace(/\n/g, '<br>')}</div></details>`).join('') : '<p class="muted" style="margin:0">Aucune règle enregistrée pour cette armée.</p>'}</div>`;
     h += `<div class="card"><h2>Unités (${a.units.length})</h2>${a.units.map(unitDetail).join('') || '<p class="muted">Aucune unité.</p>'}</div>`;
-    h += yellowCard(a);
     return h;
   }
   function viewArmy() {
@@ -1095,7 +1093,7 @@
   /* ----- Création de liste (données Wahapedia) ----- */
   const BKEY = 'noobammer.build.v1';
   const FORMATS = [['500', 'Escarmouche (500)'], ['1000', 'Incursion (1000)'], ['2000', 'Force de frappe (2000)'], ['3000', 'Offensive (3000)'], ['0', 'Libre']];
-  const bdef = () => ({ cm: 'build', editId: '', fac: '', ch: '', kw: '', allEnh: false, warlord: '', fold: {}, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
+  const bdef = () => ({ cm: '', editId: '', fac: '', ch: '', kw: '', allEnh: false, warlord: '', fold: {}, fmt: '1000', limit: 1000, name: '', dets: [], units: [], open: null, q: '', grp: '', msg: '' });
   const B = (() => { try { return Object.assign(bdef(), JSON.parse(localStorage.getItem(BKEY) || '{}')); } catch (e) { return bdef(); } })();
   B.fold = B.fold || {};
   const fh = (id, title, right) => `<div class="row sp fold" data-act="bFold" data-val="${id}" style="cursor:pointer"><h2 style="margin:0">${B.fold[id] ? '▸' : '▾'} ${title}</h2>${right || ''}</div>`;
@@ -1132,16 +1130,17 @@
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
   function creatorTabs() {
-    return `<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${(B.cm === 'edit' ? 'edit' : 'build') === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div>`;
+    return `<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${B.cm === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div>`;
   }
   function viewBuild() {
     const head = creatorTabs();
+    if (B.cm !== 'edit' && B.cm !== 'build') return head + '<p class="muted">Choisis une option pour commencer.</p>';
     if (B.cm === 'edit') {
       const lib = libArmies(); const a = army();
       let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
       if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
-      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ou importe-en une.</p>';
+      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l'onglet Armées.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
       h += armyBody(a);
       if (!S.editUnit) h += profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
@@ -1984,7 +1983,7 @@
 
   /* ---------- Actions ---------- */
   const actions = {
-    tab(v) { S.tab = v; },
+    tab(v) { if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
     setUi(v, el) { S.ui[el.dataset.path] = v; },
     toggle(v, el) { setPath(el.dataset.path, !getPath(el.dataset.path)); },
@@ -2180,7 +2179,7 @@
     asMore() { AS.seed++; actions.asRun(); },
     asOpen(i) { if (asLoadB(+i)) S.tab = 'build'; },
     asCreate(i) { if (!asLoadB(+i)) return; const a = bBuildArmy(); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée par l'assistant : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
-    bCm(v) { B.cm = v; S.editUnit = null; bsave(); },
+    bCm(v) { B.cm = B.cm === v ? '' : v; S.editUnit = null; bsave(); },
     bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
     bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
     bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },

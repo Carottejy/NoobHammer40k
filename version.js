@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.27.1';
+var APP_VERSION = '1.28.0';
 var APP_RELEASES = [
+  { v: '1.28.0', date: '2026-10-16', notes: [
+    'Creator : on arrive sur « Nouvelle liste / Modifier une armée », les options se déplient au clic.',
+    'Creator : code YellowScribe retiré.'
+  ] },
   { v: '1.27.1', date: '2026-10-16', notes: [
     'PDF : aptitudes complètes (plus de texte tronqué) ; les règles de déploiement / transport / téléportation sont ignorées.'
   ] },
