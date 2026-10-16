@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.20.0';
+var APP_VERSION = '1.21.0';
 var APP_RELEASES = [
+  { v: '1.21.0', date: '2026-10-16', notes: [
+    'Parties : « Nouvelle partie » est un bouton. Il propose partie locale (liste adverse facultative) ou en ligne (par code ou en invitant un ami), le choix de ta liste, puis la création.',
+    'Le bouton « Partie rapide » est supprimé. Rejoindre une partie par code ou invitation reste dans une carte à part.'
+  ] },
   { v: '1.20.0', date: '2026-10-16', notes: [
     'Parties : c\'est la partie qui a une liste associée (et non l\'inverse). Elle s\'affiche en tête de la partie, et tu peux en changer depuis l\'onglet Armées pendant la partie.',
     'Les listes de la bibliothèque ne portent plus aucune mention de partie.'

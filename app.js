@@ -644,13 +644,12 @@
   }
   function onlineCard() {
     const n = S.net, st = net.status;
-    let h = `<div class="card"><h2>Partie en ligne</h2>`;
+    let h = `<div class="card"><h2>${S.inGame ? 'Partie en ligne' : 'Rejoindre une partie'}</h2>`;
     if (location.protocol === 'file:') h += `<div class="warn">Tu as ouvert l'appli depuis un fichier : la partie en ligne a besoin que l'appli soit hébergée en HTTPS (voir le guide HEBERGER.md).</div>`;
     if (st === 'off') {
       h += `<p class="muted">Joue à deux : chacun voit la liste, les effectifs et les stratagèmes de l'autre, et le round / la phase / les PC se synchronisent. Il faut internet des deux côtés.</p>
         ${frInvitesHtml()}${txt('Ton pseudo', 'net.nick')}
-        <div class="row" style="margin-top:10px"><button class="btn" data-act="netHost">Créer une partie en ligne</button></div>
-        <hr><label>Rejoindre avec un code</label><div class="row"><input type="text" id="joinCode" maxlength="8" placeholder="Code (5 caractères)" style="flex:1;text-transform:uppercase" value=""><button class="btn" data-act="netJoin">Rejoindre</button></div>
+        ${S.inGame ? '<div class="row" style="margin-top:10px"><button class="btn" data-act="netHost">Créer une partie en ligne</button></div><hr>' : ''}<label>Rejoindre une partie avec un code</label><div class="row"><input type="text" id="joinCode" maxlength="8" placeholder="Code (5 caractères)" style="flex:1;text-transform:uppercase" value=""><button class="btn" data-act="netJoin">Rejoindre</button></div>
         ${n.code ? `<hr><div class="row sp"><span class="muted">Dernière partie : code <b>${esc(n.code)}</b> (${n.role === 'h' ? 'créée par toi' : 'rejointe'})</span><button class="btn small ghost" data-act="netResume">Reprendre</button></div>` : ''}`;
     } else {
       h += `<div style="text-align:center;margin:8px 0"><div class="muted">Code de la partie</div><div style="font-size:2rem;font-weight:800;letter-spacing:.25em;color:var(--accent)">${esc(n.code)}</div></div>`;
@@ -1942,15 +1941,34 @@
     h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
+  function newGameCard() {
+    const ng = S.ui.ng || {}; const a = army(); const lib = libArmies();
+    const quick = !S.gameId && hasQuick() ? `<div class="note">Une partie rapide non enregistrée est en cours (round ${S.round}) : <button class="btn small" data-act="gameResume">Continuer</button></div>` : '';
+    if (!ng.open) return `${quick}<button class="btn" style="width:100%;margin-bottom:12px" data-act="ngToggle">➕ Nouvelle partie</button>`;
+    const seg = (act, cur, items) => `<div class="seg">${items.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-act="${act}" data-val="${v}">${l}</button>`).join('')}</div>`;
+    let h = `${quick}<div class="card"><div class="row sp"><h2 style="margin:0">Nouvelle partie</h2><button class="btn small ghost" data-act="ngToggle">Fermer</button></div>
+      <label style="margin-top:8px">Type de partie</label>${seg('ngMode', ng.mode || '', [['local', '🏠 Locale'], ['online', '🌐 En ligne']])}`;
+    if (!ng.mode) return h + '<p class="muted">Locale : vous jouez à la même table. En ligne : chacun sur son appareil, avec un code ou en invitant un ami.</p></div>';
+    h += `<label>Ma liste d'armée</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
+      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglets Armées ou Creator).</div>'}
+      <label style="margin-top:8px">Nom de la partie (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
+    if (ng.mode === 'local') {
+      h += S.enemy ? `<div class="note" style="margin-top:8px">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Retirer</button>'}</div>`
+        : '<details style="margin-top:8px"><summary>Armée adverse (facultatif)</summary>' + enemyImportCard() + '</details><p class="muted">Tu pourras aussi l\'ajouter plus tard, pendant la partie.</p>';
+    } else {
+      const on = frOn();
+      h += `<label style="margin-top:8px">Comment inviter l'adversaire ?</label>${seg('ngOnline', ng.online || 'code', [['code', '🔑 Avec un code'], ['friend', '👥 Inviter un ami']])}`;
+      if ((ng.online || 'code') === 'code') h += '<p class="muted">Un code à 5 caractères sera créé : donne-le à ton adversaire, qui le saisit dans « Rejoindre une partie ».</p>';
+      else if (!on) h += '<div class="warn">Connecte-toi à ton compte (page d\'accueil) pour inviter un ami.</div>';
+      else if (!FR.friends.length) h += '<div class="muted">Tu n\'as pas encore d\'ami : ajoute-en depuis la page d\'accueil.</div>';
+      else h += `<div class="chips">${FR.friends.map((f) => `<button type="button" class="chip${ng.friend === f.uid ? ' on' : ''}" data-act="ngFriend" data-val="${esc(f.uid)}">${esc(f.pseudo)}</button>`).join('')}</div>`;
+    }
+    const can = !!a && (ng.mode === 'local' || (ng.online || 'code') === 'code' || !!ng.friend);
+    return h + `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="gameCreate" ${can ? '' : 'disabled'}>🎲 Créer la partie</button></div></div>`;
+  }
   function viewHub() {
-    const a = army();
-    let h = `<h1>Parties</h1><div class="card"><h2>Nouvelle partie</h2>
-      <label>Nom de la partie</label><input type="text" id="newGameName" placeholder="${esc(defaultGameName())}">
-      <label style="margin-top:8px">Liste d'armée de la partie</label><select data-bind="armyId">${libArmies().map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
-      ${S.enemy ? `<div class="note">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Retirer</button>'}</div>` : '<details><summary>Ajouter l\'armée adverse (facultatif)</summary>' + enemyImportCard() + '</details><p class="muted">L\'armée adverse n\'est liée qu\'à cette partie. Tu pourras aussi l\'ajouter ensuite, ou jouer en ligne ci-dessous pour la recevoir.</p>'}
-      <div class="row" style="margin-top:8px"><button class="btn" data-act="gameCreate">Créer la partie</button><button class="btn ghost" data-act="gameQuick">Partie rapide</button></div>
-      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée dans l\'onglet « Creator ».</div>'}</div>`;
-    if (!S.gameId && hasQuick()) h = h.replace('<h2>Nouvelle partie</h2>', '<h2>Nouvelle partie</h2><div class="note">Une partie rapide non enregistrée est en cours (round ' + S.round + ') : <button class="btn small" data-act="gameResume">Continuer</button></div>');
+    let h = `<h1>Parties</h1>` + newGameCard();
+    h += frInvitesHtml() ? `<div class="card"><h2>Invitations</h2>${frInvitesHtml()}</div>` : '';
     h += onlineCard() + gamesCard();
     return h;
   }
@@ -1997,14 +2015,31 @@
       S.enemy = Object.assign(makeArmy(r, null), { rules: [], strats: [] }); S.play.targetUnitId = null;
       S.ui.enemyMsg = `Armée adverse importée : ${S.enemy.units.length} unité(s). Sans profils : ajoute un PDF ALN pour avoir armes et aptitudes.`;
     },
+    ngToggle() { const ng = S.ui.ng || {}; S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, ng, { open: !ng.open }) }); },
+    ngMode(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { mode: v }) }); },
+    ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
+    ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
     gameCreate() {
-      const a = army(); if (!a) { alert('Importe ou crée d\'abord une armée dans l\'onglet « Creator ».'); return; }
-      const name = (document.getElementById('newGameName').value || '').trim() || defaultGameName();
+      const a = army(); if (!a) { alert('Importe ou crée d\'abord une armée.'); return; }
+      const ng = S.ui.ng || {}; const typed = (S.ui.ngName || '').trim();
+      if (ng.mode === 'online') {
+        if (S.enemy && !S.enemy.live && !confirm('Créer une partie en ligne ? Ton armée adverse locale sera remplacée par celle de ton adversaire.')) return;
+        if (!S.net.nick || !S.net.nick.trim()) S.net.nick = (frOn() && syCfg().s.pseudo) || 'Joueur';
+        const code = newCode(); ensureGame(typed || ('Partie en ligne ' + code)); netStart('h', code);
+        S.ui = { gameMsg: '✓ Partie en ligne créée (code ' + code + ').' };
+        if ((ng.online || 'code') === 'friend' && ng.friend) {
+          const f = FR.friends.find((x) => x.uid === ng.friend);
+          frReq('/rest/v1/game_invites', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ from_user: syCfg().s.uid, to_user: ng.friend, code }) })
+            .then(() => { S.ui = Object.assign({}, S.ui, { gameMsg: '✓ Partie créée. Invitation envoyée à ' + (f ? f.pseudo : 'ton ami') + ' (code ' + code + ').' }); render(); })
+            .catch((e) => { S.ui = Object.assign({}, S.ui, { gameMsg: 'Partie créée (code ' + code + ') mais invitation non envoyée : ' + e.message }); render(); });
+        }
+        return;
+      }
+      const name = typed || defaultGameName();
       flushGameSave(); freshGame(); const g = { id: uid(), name, at: Date.now() }; S.park = null; attachGameArmy(g.id);
       S.gameId = g.id; S.gameName = name; S.inGame = true; S.tab = 'game'; S.ui = { gameMsg: `✓ Partie « ${name} » créée.` };
       g.state = snapshot(); const l = readGames(); l.unshift(g); writeGames(l);
     },
-    gameQuick() { if (!army()) { alert('Importe ou crée d\'abord une armée dans l\'onglet « Creator ».'); return; } flushGameSave(); freshGame(); S.park = null; attachGameArmy('quick'); S.gameId = null; S.gameName = ''; S.inGame = true; S.tab = 'game'; S.ui = {}; },
 
     bDet(id) { const i = B.dets.indexOf(id); if (i >= 0) { B.dets.splice(i, 1); B.units.forEach((e) => { if (e.enh && e.enh.startsWith(id + '|')) e.enh = ''; }); } else B.dets.push(id); bsave(); },
     dbRetry() { dbs.err = ''; dbs.loading = false; },
