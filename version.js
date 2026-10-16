@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.35.0';
+var APP_VERSION = '1.35.1';
 var APP_RELEASES = [
+  { v: '1.35.1', date: '2026-10-16', notes: ['Données : texte de « Brandir la Bannière » corrigé (Ancien, Gardelame, Terminator, Héros de Compagnie, Gardiens d\'Ultramar).'] },
   { v: '1.35.0', date: '2026-10-16', notes: ['Creator : « Voir le détail » de l\'unité directement dans le Creator (unités à ajouter et unités de la liste), sans changer d\'onglet.'] },
   { v: '1.34.1', date: '2026-10-16', notes: ['Creator : lien « Datasheet » aussi sur les unités à ajouter.'] },
   { v: '1.34.0', date: '2026-10-16', notes: ['Creator : points affichés sur les unités ajoutables, seules celles qui rentrent dans les points restants sont proposées (« Points insuffisants » sinon).','Creator : lien « Datasheet » sur chaque unité de la liste.'] },
