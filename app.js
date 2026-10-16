@@ -124,8 +124,9 @@
     if (!S.inGame && a && a.gameOf && !S.park) restoreLib();
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
-    if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
+    if (!S.inGame && S.tab === 'strats') S.tab = 'game';
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
@@ -494,7 +495,7 @@
   function viewEnemy() {
     const e = S.enemy;
     let h = '<h1>Armée adverse</h1>';
-    if (!e) return h + (S.net.code ? '<div class="note">En attente de la liste de l\'adversaire (partie en ligne)…</div>' : '') + enemyImportCard();
+    if (!e) return h + (S.net.code && net.status !== 'off' ? '<div class="note">En attente de la liste de l\'adversaire (partie en ligne)…</div>' : '') + enemyImportCard();
     h += `<div class="card">${e.live ? `<div class="note">🟢 En direct${e.nick ? ' avec <b>' + esc(e.nick) + '</b>' : ''} · PC adverses : <b>${e.cp == null ? '?' : e.cp}</b>. Sa liste, ses effectifs et ses stratagèmes se mettent à jour tout seuls ; il gère ses propres pertes.</div>` : ''}${enemyUsedHtml()}<div class="row sp"><h2 style="margin:0">${esc(e.name)}</h2>${e.live ? '' : '<button class="btn small danger" data-act="removeEnemy">Retirer</button>'}</div>
       ${(e.detachments || []).map((d) => `<div class="note">${esc(d)}</div>`).join('')}${e.total ? `<p class="muted">Total : ${e.total.points} pts${e.total.models ? ' · ' + e.total.models + ' figurines' : ''}</p>` : ''}
       ${e.live ? '' : `<details><summary>Remplacer par un autre import</summary>${enemyImportCard()}</details>`}${S.ui.enemyMsg ? `<div class="note" style="white-space:pre-wrap">${esc(S.ui.enemyMsg)}</div>` : ''}</div>`;
@@ -2006,13 +2007,18 @@
   }
   function viewGame() {
     if (!S.inGame) return viewHub();
-    const head = `<div class="row sp" style="margin-bottom:8px"><button class="btn small ghost" data-act="gameClose">← Parties</button><span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie rapide'}</span><button class="btn small" data-act="gameSave">💾</button></div>${army() ? `<div class="muted" style="margin:-4px 0 8px;text-align:center">Liste associée : <b>${esc(army().name)}</b> · <span data-act="tab" data-val="army" style="color:var(--accent);cursor:pointer;text-decoration:underline">voir / changer</span></div>` : ''}${S.gameId ? `<div class="chips" style="margin-bottom:8px">${tog('Sauvegarde automatique', 'autoGame')}</div>` : '<div class="muted" style="margin-bottom:8px">Partie rapide non enregistrée : appuie sur 💾 pour la nommer et la garder.</div>'}${S.ui.gameMsg ? `<div class="note">${esc(S.ui.gameMsg)}</div>` : ''}`;
-    const online = `<details style="margin-bottom:10px"><summary>🌐 Partie en ligne${net.status === 'on' ? ' — connecté' : ''}</summary>${onlineCard()}</details>`;
-    return head + viewPlay().replace('<h1>NoobHammer40k</h1>', '') .replace(/^/, online);
+    const onlineOn = !!(S.net.code && net.status !== 'off');
+    const showE = !!S.ui.enemyView;
+    const head = `<div class="row sp" style="margin-bottom:8px"><button class="btn small ghost" data-act="gameClose">← Parties</button><span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie'}</span><button class="btn small ${showE ? '' : 'ghost'}" data-act="enemyView" data-val="${showE ? '' : '1'}" title="Liste de l'adversaire">⚔️ Adversaire</button><button class="btn small" data-act="gameSave">💾</button></div>`;
+    if (showE) return head + viewEnemy().replace('<h1>Armée adverse</h1>', '');
+    const sub = army() ? `<div class="muted" style="margin:-4px 0 8px;text-align:center">Liste associée : <b>${esc(army().name)}</b> · <span data-act="tab" data-val="army" style="color:var(--accent);cursor:pointer;text-decoration:underline">voir / changer</span></div>` : '';
+    const online = onlineOn ? `<details style="margin-bottom:10px"><summary>🌐 Partie en ligne${net.status === 'on' ? ' — connecté' : ''}</summary>${onlineCard()}</details>` : '';
+    return head + sub + viewPlay().replace('<h1>NoobHammer40k</h1>', '').replace(/^/, online);
   }
 
   /* ---------- Actions ---------- */
   const actions = {
+    enemyView(v) { S.ui.enemyView = !!v; },
     tab(v) { if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
     setUi(v, el) { S.ui[el.dataset.path] = v; },
@@ -2116,7 +2122,7 @@
         if (S.park.enemy) { S.enemy = null; S.play.targetUnitId = null; }
         restoreLib();
       }
-      S.inGame = false; S.ui.gameMsg = '';
+      S.inGame = false; S.ui.gameMsg = ''; S.ui.enemyView = false;
     },
     enemyDrop() { if (S.enemy && !S.enemy.live && confirm('Retirer l\'armée adverse ?')) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } },
     netHost() {
