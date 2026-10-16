@@ -1,2 +1,2 @@
 /* Configuration du compte en ligne (Supabase). Ces deux valeurs sont publiques par conception (la sécurité repose sur les règles RLS de la base). */
-window.NH_CLOUD = { url: '', key: '' };
+window.NH_CLOUD = { url: 'https://qqrmozqxzeicbxwauiqt.supabase.co', key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFxcm1venF4emVpY2J4d2F1aXF0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIxMzI2OTcsImV4cCI6MjEwNzcwODY5N30.1IecRGz_ZTAhExdWYfwzYfJ_jsXZatYcFImYE0IwdpE' };
