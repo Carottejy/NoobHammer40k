@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.28.1';
+var APP_VERSION = '1.29.0';
 var APP_RELEASES = [
+  { v: '1.29.0', date: '2026-10-16', notes: ['Creator : bouton « Sauvegarder » (nouvelle liste ou modification) qui enregistre et revient à l\'accueil du Creator.'] },
   { v: '1.28.1', date: '2026-10-16', notes: ['Correction d\'une erreur de syntaxe de la v1.28.0.'] },
   { v: '1.28.0', date: '2026-10-16', notes: [
     'Creator : on arrive sur « Nouvelle liste / Modifier une armée », les options se déplient au clic.',

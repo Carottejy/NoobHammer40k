@@ -1134,16 +1134,16 @@
   }
   function viewBuild() {
     const head = creatorTabs();
-    if (B.cm !== 'edit' && B.cm !== 'build') return head + '<p class="muted">Choisis une option pour commencer.</p>';
+    if (B.cm !== 'edit' && B.cm !== 'build') return head + (B.msg ? `<div class="note">${esc(B.msg)}</div>` : '') + '<p class="muted">Choisis une option pour commencer.</p>';
     if (B.cm === 'edit') {
       const lib = libArmies(); const a = army();
       let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
-      if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
+      if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button><button class="btn small" data-act="bDone">💾 Sauvegarder</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
       if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Armées.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
       h += armyBody(a);
-      if (!S.editUnit) h += profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
+      if (!S.editUnit) h += `<div class="card"><button class="btn" data-act="bDone">💾 Sauvegarder</button></div>` + profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
       return h;
     }
     let h = head;
@@ -1176,7 +1176,7 @@
     h += `<div class="card">${fh('add', 'Ajouter une unité')}<div ${B.fold.add ? 'hidden' : ''}><div class="chips" style="margin-top:8px"><button class="chip ${B.grp ? '' : 'on'}" data-act="bGrp" data-val="">Toutes</button>${BGRPS.map((g) => `<button class="chip ${B.grp === g ? 'on' : ''}" data-act="bGrp" data-val="${g}">${g}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><input type="search" id="bq" placeholder="Nom ou mot-clé (français ou anglais)…" value="${esc(B.q)}" autocomplete="off" style="flex:1"><select data-bf="kw" style="width:42%"><option value="">Mot-clé…</option>${bKwOpts(f).map(([k, n]) => `<option value="${esc(k)}" ${B.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></div><div id="bres" style="margin-top:6px">${bResults(f)}</div></div></div>`;
     h += B.units.map((e, i) => bUnitCard(f, e, i)).join('');
-    h += `<div class="card">${B.editId ? `<button class="btn" data-act="bUpdate" ${B.units.length ? '' : 'disabled'}>💾 Mettre à jour l'armée</button> <button class="btn small ghost" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>Créer une copie</button>` : `<button class="btn" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>✅ Créer l'armée</button>`} <button class="btn small danger" data-act="bReset">Vider</button><p class="muted">Points calculés d'après le Munitorum Field Manual (selon la taille et le rang de l'unité) ; tu peux les forcer dans « Points ». Les améliorations et équipements ajoutent leur coût.</p></div>`;
+    h += `<div class="card">${B.editId ? `<button class="btn" data-act="bUpdate" ${B.units.length ? '' : 'disabled'}>💾 Sauvegarder</button> <button class="btn small ghost" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>Enregistrer comme copie</button>` : `<button class="btn" data-act="bCreate" ${B.units.length ? '' : 'disabled'}>💾 Sauvegarder</button>`} <button class="btn small danger" data-act="bReset">Vider</button><p class="muted">Points calculés d'après le Munitorum Field Manual (selon la taille et le rang de l'unité) ; tu peux les forcer dans « Points ». Les améliorations et équipements ajoutent leur coût.</p></div>`;
     return h;
   }
   function bKwOpts(f) {
@@ -2070,7 +2070,7 @@
     bDel(k) { B.units = B.units.filter((x) => x.k !== k); B.units.forEach((x) => { if (x.to === k) x.to = ''; }); bsave(); },
     bCopy() { const a = army(); const t = a ? yellowFromArmy(a) : ''; const ta = document.getElementById('ysTxt'); const ok = () => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; }; try { navigator.clipboard.writeText(t).then(() => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; render(); }, () => { if (ta) { ta.select(); document.execCommand('copy'); } ok(); }); } catch (e) { if (ta) { ta.select(); document.execCommand('copy'); } ok(); } },
     bReset() { if (confirm('Vider la liste en cours ?')) { B.units = []; B.dets = []; B.open = null; bsave(); } },
-    bCreate() { const a = bBuildArmy(); B.editId = ''; B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée depuis la liste : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
+    bCreate() { const a = bBuildArmy(); Object.assign(B, bdef()); B.msg = `Armée « ${a.name} » enregistrée : ${a.units.length} unité(s), ${a.total.points} pts.`; S.tab = 'build'; bsave(); },
     gameResume() {
       if (S.park) { if (S.park.armyId && S.armies.some((x) => x.id === S.park.armyId)) S.armyId = S.park.armyId; if (S.park.enemy && !S.enemy) S.enemy = S.park.enemy; S.park = null; }
       else { const c = S.armies.find((x) => x.gameOf && (x.gameOf === S.gameId || (!S.gameId && x.gameOf === 'quick'))); if (c) S.armyId = c.id; }
@@ -2179,9 +2179,10 @@
     asMore() { AS.seed++; actions.asRun(); },
     asOpen(i) { if (asLoadB(+i)) S.tab = 'build'; },
     asCreate(i) { if (!asLoadB(+i)) return; const a = bBuildArmy(); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée par l'assistant : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
-    bCm(v) { B.cm = B.cm === v ? '' : v; S.editUnit = null; bsave(); },
+    bCm(v) { B.msg = ''; B.cm = B.cm === v ? '' : v; S.editUnit = null; bsave(); },
     bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
-    bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
+    bUpdate() { const a = bBuildArmy(B.editId); Object.assign(B, bdef()); B.msg = `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.`; S.tab = 'build'; bsave(); },
+    bDone() { const a = army(); S.editUnit = null; B.cm = ''; B.msg = a ? `Armée « ${a.name} » enregistrée.` : ''; bsave(); },
     bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },
     armyNew() { actions.bNew(); S.tab = 'build'; },
     gameSetList() {
