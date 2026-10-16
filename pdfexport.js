@@ -34,8 +34,8 @@
   /* aptitude d'un chef / appui qui agit sur l'unité qu'il dirige */
   const LEAD_FX = /dirige|rattach|accompagn|cette unit[ée]|de l'unit[ée]|l'unit[ée] (?:qu|à|a )|unit[ée] men[ée]e|unit[ée] dirig|unit[ée] qui (?:est )?(?:dirig|accompagn)|tant que cette figurine|figurines? de cette unit/i;
   const leadFx = (x) => x && x.name && !/^(meneur|leader|appui|support|chef)\b/i.test(x.name) && !/^Amélioration/.test(x.name) && LEAD_FX.test(String(x.text || ''));
-  const SKIP_AB = /^(meneur|leader|appui|support|chef|doctrines?\b|am[ée]lioration|d[ée]ploiement|r[ée]serves? strat|discipline du codex)/i;
-  const effect = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').replace(/^[^A-Za-zÀ-ÿ0-9+\-]+/, '').replace(/\bfigurines?\b/gi, 'fig.').replace(/\bTant que\b/g, 'Si').replace(/\b(?:cette|cet) (?:unit[ée]|fig\.)\b/gi, 'elle').trim(); return clip(s, n); };
+  const SKIP_AB = /^(meneur|leader|appui|support|chef|doctrines?\b|am[ée]lioration|d[ée]ploiement|r[ée]serves? strat|discipline du codex|capacit[ée] de transport|transport|t[ée]l[ée]port|frappe|[ée]claireur|infiltrat|pouvoirs? psychique|psyker|ennemi juré|attaque de flanc)/i;
+  const effect = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').replace(/^[^A-Za-zÀ-ÿ0-9+\-]+/, '').replace(/\[[^\]]*\]/g, (m) => m.replace(/\[|\]/g, '')).replace(/\bfigurines?\b/gi, 'fig.').replace(/\bTant que\b/g, 'Si').replace(/\b(?:cette|cet) (?:unit[ée]|fig\.)\b/gi, 'elle').trim(); s = s.split(/(?<=[.!?])\s+/).filter((q) => !/^(exemple|note du concepteur|note\s*:)/i.test(q)).join(' '); if (s.length > 520) { let o = ''; s.split(/(?<=[.!?])\s+/).some((q) => { if (o && (o + ' ' + q).length > 520) return true; o += (o ? ' ' : '') + q; return false; }); s = o; } return s; };
   const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); if (s.length <= n) return s; let c = s.slice(0, n); const sp = c.lastIndexOf(' '); if (sp > n * 0.5) c = c.slice(0, sp); return c.replace(/[\s,;:.\-]+$/, '').replace(/\s+(?:de|du|des|la|le|les|à|au|aux|si|un|une|qu'|d'|l'|et|ou|en)$/i, '') + '...'; };
 
   function build(a, rules, strats) {
@@ -51,7 +51,7 @@
     const figs = units.reduce((t, u) => t + (+u.models || 0), 0);
     /* Colonnes calquées sur le tableur « Salamander Listes » ; colonnes chiffrées au plus étroit */
     const fixed = 17 + 13 + 11 + 26 + 12 + 14 + 12 + 20 + 17 + 14 + 17 + 14 + 15 + 12; // hors Figurine, Aptitude, Arme, Mots-clés d'arme
-    const flex = CW - fixed; const fW = Math.round(flex * 0.20), aW = Math.round(flex * 0.31), wW = Math.round(flex * 0.23);
+    const flex = CW - fixed; const fW = Math.round(flex * 0.17), aW = Math.round(flex * 0.42), wW = Math.round(flex * 0.20);
     const COLS = [['Pt', 17], ['Figurine', fW], ['Nb', 13], ['M', 14], ['E', 12], ['SV', 27], ['PV', 13], ['CD', 15], ['CO', 13], ['Aptitude', aW], ['Arme', wW], ['P', 20], ['A', 24], ['C/T', 18], ['F', 15], ['PA', 17], ['D', 15], ["Mots-clés d'arme", 0]];
     COLS[17][1] = CW - COLS.reduce((t, c) => t + c[1], 0);
     const NU = 10;
@@ -102,7 +102,7 @@
           .concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 })) : [])
           .concat(sub.reduce((acc, x) => acc.concat(wrapSegs([{ s: x, c: RED }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 }))), []));
         const abil = []; const seen = {}; (u.abilities || []).forEach((x) => { if (x && x.name && !SKIP_AB.test(x.name) && !seen[x.name]) { seen[x.name] = 1; abil.push(x); } });
-        const asegs = []; abil.forEach((x, i) => { const red = r.lead && leadFx(x) ? RED : undefined; if (i) asegs.push({ s: ' \x95 ', g: 0.5 }); const tx = x.text ? effect(x.text, clipN) : x.name; asegs.push({ s: tx, c: red, g: red ? undefined : 0.1 }); });
+        const asegs = []; abil.forEach((x, i) => { const red = r.lead && leadFx(x) ? RED : undefined; if (i) asegs.push({ s: ' \x95 ', g: 0.5 }); const tx = x.text ? effect(x.text, 99999) : x.name; asegs.push({ s: tx, c: red, g: red ? undefined : 0.1 }); });
         const abL = wrapSegs(asegs, sz.body - 0.3, COLS[9][1] - 5).map((l) => ({ l, size: sz.body - 0.3, lh: lh - 0.2 }));
         const kw = (u.keywords || []).concat(u.factionKw || []);
         const kwL = kw.length ? wrapSegs([{ s: 'Mots-clés : ', b: true, g: 0.3 }, { s: kw.join(', '), g: 0.35 }], sz.body - 0.6, CW - 6) : [];
@@ -155,7 +155,7 @@
           if (tx && pclip) wrapSegs([{ s: clip(tx, pclip), g: 0.25 }], ps - 0.5, SW - 8).forEach((l) => lines.push({ l, size: ps - 0.5, gap: 0 }));
         }); return lines.reduce((q, o) => q + o.size * 1.18 + o.gap, 0); };
         const availH = tops[0] - (M + 12) - 7 * s * 1.9 - 4;
-        [300, 200, 130, 80, 0].some((pc) => mk(pc) <= availH);
+        [900, 450, 300, 200, 130, 80, 0].some((pc) => mk(pc) <= availH);
         let li = 0;
         pages.forEach((pg, pi) => {
           if (li >= lines.length) return;
@@ -173,10 +173,10 @@
     /* une seule page A4 : on cherche la meilleure combinaison (police la plus grande d'abord, puis texte plus court) */
     let pages = null, best = -1;
     const ok = (pg) => pg.length === 1 && !pg.overflow;
-    const combos = [[0, 160], [0, 110], [2, 110], [2, 80], [3, 80], [3, 55], [3, 35], [4, 35]];
+    const combos = [[0, 0], [2, 0], [3, 0], [4, 0]];
     /* pour chaque réglage, la plus grande police qui tient ; on garde le meilleur (à égalité, le moins condensé) */
-    combos.forEach(([mode, cn]) => { for (let s = 1.4; s >= 0.4; s -= 0.02) { if (s <= best + 0.001) break; const pg = render(s, mode, cn); if (ok(pg)) { best = s; pages = pg; break; } } });
-    if (!pages) pages = render(0.4, 4, 30);
+    combos.forEach(([mode, cn]) => { for (let s = 1.4; s >= 0.3; s -= 0.02) { if (s <= best + 0.001) break; const pg = render(s, mode, cn); if (ok(pg)) { best = s; pages = pg; break; } } });
+    if (!pages) pages = render(0.3, 4, 30);
 
     const n = pages.length; const objs = []; const add = (t) => { objs.push(t); return objs.length; };
     add('<< /Type /Catalog /Pages 2 0 R >>');
