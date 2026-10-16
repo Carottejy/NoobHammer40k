@@ -2,7 +2,7 @@
 var APP_VERSION = '1.17.0';
 var APP_RELEASES = [
   { v: '1.17.0', date: '2026-10-16', notes: [
-    'Synchronisation entre appareils (Infos) : tes armées et tes parties sont conservées dans un Gist secret de ton compte GitHub (jeton avec la seule permission « gist »), avec fusion automatique entre téléphone et PC.'
+    'Comptes (Infos) : crée un compte (pseudo, email, mot de passe) pour retrouver tes armées et tes parties sur tous tes appareils, avec fusion automatique. Prépare la future liste d\'amis.'
   ] },
   { v: '1.16.2', date: '2026-10-16', notes: [
     'Lisibilité : les mots-clés sélectionnés (orange sur orange) et les listes déroulantes (texte clair sur fond blanc) sont de nouveau lisibles.'

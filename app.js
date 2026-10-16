@@ -1694,26 +1694,37 @@
       <div class="card"><h2>Données</h2><button class="btn danger" data-act="resetAll">Tout effacer</button></div>`;
   }
 
-  /* ----- Synchronisation entre appareils (Gist GitHub secret, fusion à trois voies) ----- */
-  var SY = { busy: false, msg: '', err: '', timer: null, applying: false };
-  const SKEY = 'noobammer.sync.v1', SFILE = 'noobhammer40k.json', SDESC = 'NoobHammer40k sync';
+  /* ----- Compte en ligne + synchronisation entre appareils (Supabase, fusion à trois voies) ----- */
+  var SY = { busy: false, msg: '', err: '', timer: null, applying: false, mode: 'login', chg: false };
+  const SKEY = 'noobammer.sync.v2';
+  const cloud = () => (window.NH_CLOUD && NH_CLOUD.url && NH_CLOUD.key ? { url: NH_CLOUD.url.replace(/\/+$/, ''), key: NH_CLOUD.key } : null);
   const syCfg = () => { try { return JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (e) { return null; } };
   const sySet = (c) => { try { if (c) localStorage.setItem(SKEY, JSON.stringify(c)); else localStorage.removeItem(SKEY); } catch (e) { /* ignoré */ } };
   const syHash = (o) => { const s = JSON.stringify(o); let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h) + ':' + s.length; };
-  async function syGh(cfg, path, opt) {
-    const r = await fetch('https://api.github.com' + path, Object.assign({ headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json' } }, opt || {}, opt && opt.body ? { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' } } : {}));
-    if (r.status === 401) throw new Error('Jeton refusé par GitHub (expiré ou incorrect).');
-    if (r.status === 404) throw new Error('Gist introuvable (supprimé ?).');
-    if (!r.ok) throw new Error('GitHub a répondu ' + r.status + '.');
-    return r.json();
+  const syErr = (j, st) => {
+    const m = String((j && (j.msg || j.error_description || j.message || j.error)) || '');
+    if (/invalid login/i.test(m)) return 'Email ou mot de passe incorrect.';
+    if (/already registered|already been registered/i.test(m)) return 'Un compte existe déjà avec cet email.';
+    if (/email not confirmed/i.test(m)) return 'Confirme ton email (lien reçu par mail), puis connecte-toi.';
+    if (/password/i.test(m) && /(least|short|weak)/i.test(m)) return 'Mot de passe trop court (6 caractères minimum).';
+    if (/database error saving/i.test(m)) return 'Pseudo déjà pris ou invalide.';
+    if (/rate limit|too many/i.test(m)) return 'Trop de tentatives, réessaie dans un instant.';
+    if (/pseudo|profiles/i.test(m) && /(unique|duplicate)/i.test(m)) return 'Ce pseudo est déjà pris.';
+    return m || ('Erreur ' + st + '.');
+  };
+  async function syReq(path, opt, token) {
+    const c = cloud(); if (!c) throw new Error('Compte en ligne non configuré.');
+    const o = opt || {}; const headers = Object.assign({ apikey: c.key, Authorization: 'Bearer ' + (token || c.key) }, o.body ? { 'Content-Type': 'application/json' } : {}, o.headers || {});
+    let r; try { r = await fetch(c.url + path, Object.assign({}, o, { headers })); } catch (e) { throw new Error('Hors ligne ou serveur inaccessible.'); }
+    let j = null; try { j = await r.json(); } catch (e) { /* corps vide */ }
+    if (!r.ok) { const er = new Error(syErr(j, r.status)); er.status = r.status; throw er; }
+    return j;
   }
-  async function syEnsureGist(cfg) {
-    if (cfg.gist) return cfg.gist;
-    const l = await syGh(cfg, '/gists?per_page=100');
-    const g = l.find((x) => x.description === SDESC && x.files && x.files[SFILE]);
-    if (g) return (cfg.gist = g.id);
-    const n = await syGh(cfg, '/gists', { method: 'POST', body: JSON.stringify({ description: SDESC, public: false, files: { [SFILE]: { content: '{"v":1,"armies":{},"games":{}}' } } }) });
-    return (cfg.gist = n.id);
+  const sySession = (j, prev) => ({ access: j.access_token, refresh: j.refresh_token, exp: Date.now() + (j.expires_in || 3600) * 1000, uid: j.user.id, email: j.user.email, pseudo: ((j.user.user_metadata || {}).pseudo) || (prev && prev.pseudo) || '' });
+  async function syToken(cfg) {
+    if (cfg.s.exp - Date.now() > 60000) return cfg.s.access;
+    try { const j = await syReq('/auth/v1/token?grant_type=refresh_token', { method: 'POST', body: JSON.stringify({ refresh_token: cfg.s.refresh }) }); cfg.s = sySession(j, cfg.s); sySet(cfg); return cfg.s.access; }
+    catch (e) { if (e.status >= 400 && e.status < 500) { cfg.s = null; sySet(Object.assign({}, cfg, { s: null })); throw new Error('Session expirée : reconnecte-toi.'); } throw e; }
   }
   function syLocal() {
     const armies = {}; libArmies().forEach((a) => { armies[a.id] = { army: a, rules: S.armyRules[a.id] || [], strats: S.customStrats.filter((s) => s.armyId === a.id) }; });
@@ -1723,7 +1734,7 @@
   /* Fusion à trois voies par élément : local / distant / dernier état synchronisé (base) */
   function syMerge(L, R, base) {
     const out = { v: 1, armies: {}, games: {} }; let conflicts = 0;
-    [['armies', (x) => x.army && x.army.name], ['games', (x) => x.name]].forEach(([k]) => {
+    ['armies', 'games'].forEach((k) => {
       const ids = Array.from(new Set(Object.keys(L[k] || {}).concat(Object.keys(R[k] || {}), Object.keys(base[k] || {}))));
       ids.forEach((id) => {
         const l = (L[k] || {})[id], r = (R[k] || {})[id], b = (base[k] || {})[id];
@@ -1760,40 +1771,56 @@
     if (!S.armies.some((a) => a.id === S.armyId && !a.gameOf)) restoreLib();
   }
   async function syncRun(manual) {
-    const cfg = syCfg(); if (!cfg || !cfg.token || SY.busy) return;
+    const cfg = syCfg(); if (!cfg || !cfg.s || SY.busy || !cloud()) return;
     SY.busy = true; if (manual) { SY.err = ''; SY.msg = 'Synchronisation…'; render(); }
     try {
-      const id = await syEnsureGist(cfg);
-      const g = await syGh(cfg, '/gists/' + id); const f = g.files && g.files[SFILE];
-      let remote = { v: 1, armies: {}, games: {} };
-      if (f) { const txt = f.truncated ? await (await fetch(f.raw_url)).text() : f.content; try { remote = JSON.parse(txt) || remote; } catch (e) { throw new Error('Fichier distant illisible.'); } }
+      const tok = await syToken(cfg);
+      const rows = await syReq('/rest/v1/sync_docs?select=doc&user_id=eq.' + cfg.s.uid, {}, tok);
+      const remote = (rows && rows[0] && rows[0].doc) || { v: 1, armies: {}, games: {} };
       remote.armies = remote.armies || {}; remote.games = remote.games || {};
       const L = syLocal(); const base = cfg.base || { armies: {}, games: {} };
       const m = syMerge(L, remote, base);
       const mh = { armies: {}, games: {} }; ['armies', 'games'].forEach((k) => Object.keys(m[k]).forEach((i) => { mh[k][i] = syHash(m[k][i]); }));
       const same = (a, b) => { const ka = Object.keys(a), kb = Object.keys(b); return ka.length === kb.length && ka.every((i) => b[i] && syHash(a[i]) === syHash(b[i])); };
       const changeLocal = !(same(m.armies, L.armies) && same(m.games, L.games));
-      const changeRemote = !(same(m.armies, remote.armies) && same(m.games, remote.games));
-      const payload = { v: 1, armies: m.armies, games: m.games };
-      if (changeRemote) await syGh(cfg, '/gists/' + id, { method: 'PATCH', body: JSON.stringify({ files: { [SFILE]: { content: JSON.stringify(payload) } } }) });
+      const changeRemote = !(same(m.armies, remote.armies) && same(m.games, remote.games)) || !rows.length;
+      if (changeRemote) await syReq('/rest/v1/sync_docs?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: cfg.s.uid, doc: { v: 1, armies: m.armies, games: m.games }, updated_at: new Date().toISOString() }) }, tok);
       if (changeLocal) { SY.chg = true; SY.applying = true; syApply(m); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } SY.applying = false; }
       cfg.base = mh; cfg.last = Date.now(); sySet(cfg);
       SY.err = ''; SY.msg = (changeLocal || changeRemote ? 'Synchronisé : ' + (changeLocal ? 'données reçues' : '') + (changeLocal && changeRemote ? ' et ' : '') + (changeRemote ? 'données envoyées' : '') : 'Déjà à jour') + (m.conflicts ? ' · ' + m.conflicts + ' conflit(s) : copie « (autre appareil) » créée' : '') + '.';
     } catch (e) { SY.applying = false; SY.err = e.message || 'Échec de la synchronisation.'; SY.msg = ''; }
     SY.busy = false; if (manual || SY.err || SY.chg) render(); SY.chg = false;
   }
-  function syncSoon() { if (SY.applying || !syCfg()) return; clearTimeout(SY.timer); SY.timer = setTimeout(() => syncRun(false), 6000); }
+  async function syAuth(mode) {
+    const g = (id) => ((document.getElementById(id) || {}).value || '').trim();
+    const email = g('sy-email'), pw = (document.getElementById('sy-pw') || {}).value || '', pseudo = g('sy-pseudo');
+    SY.email = email; SY.pseudo = pseudo;
+    if (!email || !pw) { SY.err = 'Renseigne email et mot de passe.'; SY.msg = ''; render(); return; }
+    if (mode === 'signup' && !/^[A-Za-z0-9_\-]{3,20}$/.test(pseudo)) { SY.err = 'Pseudo : 3 à 20 caractères (lettres, chiffres, _ ou -).'; SY.msg = ''; render(); return; }
+    SY.busy = true; SY.err = ''; SY.msg = mode === 'signup' ? 'Création du compte…' : 'Connexion…'; render();
+    try {
+      let j;
+      if (mode === 'signup') {
+        j = await syReq('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password: pw, data: { pseudo } }) });
+        if (!j.access_token) { SY.busy = false; SY.msg = 'Compte créé. Confirme ton email (lien reçu par mail), puis connecte-toi.'; SY.mode = 'login'; render(); return; }
+      } else j = await syReq('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email, password: pw }) });
+      sySet({ s: sySession(j), base: { armies: {}, games: {} }, last: 0 }); SY.busy = false; SY.msg = ''; await syncRun(true);
+    } catch (e) { SY.busy = false; SY.err = e.message; SY.msg = ''; render(); }
+  }
+  function syncSoon() { if (SY.applying || !syCfg() || !syCfg().s) return; clearTimeout(SY.timer); SY.timer = setTimeout(() => syncRun(false), 6000); }
   function syncCard() {
-    const c = syCfg();
-    let h = '<div class="card"><h2>Synchronisation entre appareils</h2>';
-    if (!c || !c.token) {
-      h += `<p class="muted" style="margin-top:0">Garde tes armées et tes parties sur tous tes appareils (téléphone, PC…). Elles sont stockées dans un <b>Gist secret</b> de ton compte GitHub, sans autre service.</p>
-        <ol class="muted" style="padding-left:18px;margin:6px 0"><li><a href="https://github.com/settings/tokens/new?scopes=gist&description=NoobHammer40k" target="_blank" rel="noopener" style="color:var(--accent)">Crée un jeton GitHub</a> (classique, coche seulement « gist »).</li><li>Colle-le ici, puis fais pareil sur chaque appareil avec le même jeton.</li></ol>
-        <label>Jeton GitHub</label><input type="password" id="synctok" autocomplete="off" placeholder="ghp_…"><div class="muted">Le jeton reste uniquement sur cet appareil. Il ne donne accès qu'à tes Gists.</div>
-        <button class="btn" style="margin-top:8px" data-act="syncOn" ${SY.busy ? 'disabled' : ''}>🔗 Connecter</button>`;
+    const c = syCfg(); let h = '<div class="card"><h2>Compte et synchronisation</h2>';
+    if (!cloud()) h += '<p class="muted" style="margin:0">Le compte en ligne n\'est pas encore activé sur ce site (configuration du service manquante).</p>';
+    else if (!c || !c.s) {
+      h += `<p class="muted" style="margin-top:0">Crée un compte pour retrouver tes armées et tes parties sur tous tes appareils (téléphone, PC…).</p>
+        <div class="seg"><button type="button" class="${SY.mode === 'login' ? 'on' : ''}" data-act="syMode" data-val="login">Se connecter</button><button type="button" class="${SY.mode === 'signup' ? 'on' : ''}" data-act="syMode" data-val="signup">Créer un compte</button></div>
+        ${SY.mode === 'signup' ? `<label>Pseudo</label><input type="text" id="sy-pseudo" value="${esc(SY.pseudo || '')}" autocomplete="nickname" maxlength="20" placeholder="Ton pseudo (visible de tes amis)">` : ''}
+        <label>Email</label><input type="text" id="sy-email" value="${esc(SY.email || '')}" inputmode="email" autocomplete="email" placeholder="toi@exemple.fr">
+        <label style="margin-top:8px">Mot de passe</label><input type="password" id="sy-pw" autocomplete="${SY.mode === 'signup' ? 'new-password' : 'current-password'}" placeholder="6 caractères minimum">
+        <button class="btn" style="margin-top:10px" data-act="${SY.mode === 'signup' ? 'syncUp' : 'syncIn'}" ${SY.busy ? 'disabled' : ''}>${SY.mode === 'signup' ? 'Créer mon compte' : 'Me connecter'}</button>`;
     } else {
-      h += `<p style="margin-top:0">✅ Connecté${c.last ? ' · dernière synchro : ' + esc(new Date(c.last).toLocaleString('fr-FR')) : ''}</p><p class="muted">Synchronisation automatique à l'ouverture, au retour sur l'appli et peu après chaque modification.</p>
-        <div class="row"><button class="btn grow" data-act="syncNow" ${SY.busy ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn ghost" data-act="syncOff">Déconnecter</button></div>`;
+      h += `<p style="margin-top:0">✅ Connecté : <b>${esc(c.s.pseudo || c.s.email)}</b> <span class="muted">${esc(c.s.email)}</span></p><p class="muted">${c.last ? 'Dernière synchro : ' + esc(new Date(c.last).toLocaleString('fr-FR')) + '. ' : ''}Synchronisation automatique à l'ouverture, au retour sur l'appli et peu après chaque modification.</p>
+        <div class="row"><button class="btn grow" data-act="syncNow" ${SY.busy ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn ghost" data-act="syncOff">Se déconnecter</button></div>`;
     }
     if (SY.msg) h += `<div class="note" style="margin-top:8px">${esc(SY.msg)}</div>`;
     if (SY.err) h += `<div class="warn" style="margin-top:8px">${esc(SY.err)}</div>`;
@@ -2053,9 +2080,11 @@
       } catch (e) { alert('JSON invalide.'); }
     },
     resetAll() { if (confirm('Effacer toutes les données de l\'appli ?' + (syCfg() ? '\n\nLa synchronisation sera déconnectée pour ne pas effacer tes autres appareils.' : ''))) { sySet(null); S = defaults(); } },
-    syncOn() { const t = (document.getElementById('synctok') || {}).value; if (!t || !t.trim()) { SY.err = 'Colle ton jeton GitHub.'; return; } sySet({ token: t.trim(), gist: '', base: { armies: {}, games: {} }, last: 0 }); SY.err = ''; SY.msg = ''; syncRun(true); },
+    syMode(v) { SY.mode = v; SY.err = ''; SY.msg = ''; },
+    syncIn() { syAuth('login'); },
+    syncUp() { syAuth('signup'); },
     syncNow() { syncRun(true); },
-    syncOff() { if (confirm('Déconnecter la synchronisation sur cet appareil ? Tes données restent ici et dans le Gist.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; } },
+    syncOff() { if (confirm('Te déconnecter sur cet appareil ? Tes données restent ici et dans ton compte.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; } },
   };
 
   document.addEventListener('click', (e) => {
