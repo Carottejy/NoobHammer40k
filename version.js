@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.21.1';
+var APP_VERSION = '1.21.2';
 var APP_RELEASES = [
+  { v: '1.21.2', date: '2026-10-16', notes: [
+    'Armées : suppression du message au-dessus de « Nouvelle liste » et de la mention « (autre appareil) » dans les noms.'
+  ] },
   { v: '1.21.1', date: '2026-10-16', notes: [
     'Correctif : le message « partie rapide non enregistrée en cours » ne s\'affiche plus à tort dans l\'onglet Parties.'
   ] },

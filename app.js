@@ -36,7 +36,7 @@
   }
   let S = load();
   function load() {
-    try { return normalize(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')); } catch (e) { return defaults(); /* état corrompu */ }
+    try { const st = normalize(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')); st.armies.forEach((x) => { if (x && typeof x.name === 'string') x.name = x.name.replace(/ \(autre appareil\)$/, ''); }); return st; } catch (e) { return defaults(); /* état corrompu */ }
   }
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage plein/bloqué */ } scheduleGameSave(); netPush(); syncSoon(); };
   const army = () => S.armies.find((a) => a.id === S.armyId) || null;
@@ -792,7 +792,7 @@
       return a ? h + armyBody(a) : h;
     }
     const lib = libArmies();
-    let h = `<h1>Mes armées</h1>${S.ui.importMsg ? `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>` : ''}<div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
+    let h = `<h1>Mes armées</h1><div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
     const imp = () => importCard(null) + `<div class="card"><h2>Importer un JSON</h2><p class="muted">Colle ici une armée exportée depuis NoobHammer40k (bouton « Copier » de Creator &gt; Modifier une armée).</p><textarea id="jsonBox"></textarea><div class="row" style="margin-top:8px"><button class="btn small" data-act="importJson">Importer ce JSON</button></div></div>`;
     if (!lib.length) return h + '<div class="card"><p class="muted">Aucune armée pour l\'instant : importe-la ci-dessous (PDF, texte ALN, BBCode, JSON) ou crée-la dans Creator.</p></div>' + imp();
     const open = S.ui.openArmy;
@@ -1770,7 +1770,7 @@
         else if (k === 'games') pick = (l.at || 0) >= (r.at || 0) ? l : r;
         else {
           pick = l; conflicts++;
-          const c = JSON.parse(JSON.stringify(r)); const nid = uid(); c.army.id = nid; c.army.name = (c.army.name || 'Armée') + ' (autre appareil)'; c.strats.forEach((s) => { s.armyId = nid; s.id = 'c_' + uid(); });
+          const c = JSON.parse(JSON.stringify(r)); const nid = uid(); c.army.id = nid; c.army.name = c.army.name || 'Armée'; c.strats.forEach((s) => { s.armyId = nid; s.id = 'c_' + uid(); });
           out.armies[nid] = c;
         }
         if (pick) out[k][id] = pick;
@@ -1809,7 +1809,7 @@
       if (changeRemote) await syReq('/rest/v1/sync_docs?on_conflict=user_id', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify({ user_id: cfg.s.uid, doc: { v: 1, armies: m.armies, games: m.games }, updated_at: new Date().toISOString() }) }, tok);
       if (changeLocal) { SY.chg = true; SY.applying = true; syApply(m); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } SY.applying = false; }
       cfg.base = mh; cfg.last = Date.now(); sySet(cfg);
-      SY.err = ''; SY.msg = (changeLocal || changeRemote ? 'Synchronisé : ' + (changeLocal ? 'données reçues' : '') + (changeLocal && changeRemote ? ' et ' : '') + (changeRemote ? 'données envoyées' : '') : 'Déjà à jour') + (m.conflicts ? ' · ' + m.conflicts + ' conflit(s) : copie « (autre appareil) » créée' : '') + '.';
+      SY.err = ''; SY.msg = (changeLocal || changeRemote ? 'Synchronisé : ' + (changeLocal ? 'données reçues' : '') + (changeLocal && changeRemote ? ' et ' : '') + (changeRemote ? 'données envoyées' : '') : 'Déjà à jour') + (m.conflicts ? ' · ' + m.conflicts + ' conflit(s) : les deux versions ont été conservées' : '') + '.';
     } catch (e) { SY.applying = false; SY.err = e.message || 'Échec de la synchronisation.'; SY.msg = ''; }
     SY.busy = false; if (manual || SY.err || SY.chg) render(); SY.chg = false;
   }
