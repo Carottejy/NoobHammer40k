@@ -110,6 +110,8 @@
     return h;
   }
 
+  window.addEventListener('popstate', () => { if (S.ui && S.ui.enemyView) { window.__nhEnemyHist = false; S.ui.enemyView = false; render(); } });
+
   /* ---------- Rendu ---------- */
   function render() {
     if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
@@ -2029,7 +2031,7 @@
     if (!S.inGame) return viewHub();
     const onlineOn = !!(S.net.code && net.status !== 'off');
     const showE = !!S.ui.enemyView;
-    const head = `<div class="row sp" style="margin-bottom:8px"><button class="btn small ghost" data-act="gameClose">← Parties</button><span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie'}</span><button class="btn small ${showE ? '' : 'ghost'}" data-act="enemyView" data-val="${showE ? '' : '1'}" title="Liste de l'adversaire">⚔️ Adversaire</button><button class="btn small" data-act="gameSave">💾</button></div>`;
+    const head = `<div class="row sp" style="margin-bottom:8px">${showE ? '<button class="btn small ghost" data-act="enemyView" data-val="">← Partie</button>' : '<button class="btn small ghost" data-act="gameClose">← Parties</button>'}<span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie'}</span><button class="btn small ${showE ? '' : 'ghost'}" data-act="enemyView" data-val="${showE ? '' : '1'}" title="Liste de l'adversaire">⚔️ Adversaire</button><button class="btn small" data-act="gameSave">💾</button></div>`;
     if (showE) return head + viewEnemy().replace('<h1>Armée adverse</h1>', '');
     const sub = army() ? `<div class="muted" style="margin:-4px 0 8px;text-align:center">Liste associée : <b>${esc(army().name)}</b> · <span data-act="tab" data-val="army" style="color:var(--accent);cursor:pointer;text-decoration:underline">voir / changer</span></div>` : '';
     const online = onlineOn ? `<details style="margin-bottom:10px"><summary>🌐 Partie en ligne${net.status === 'on' ? ' — connecté' : ''}</summary>${onlineCard()}</details>` : '';
@@ -2039,7 +2041,7 @@
   /* ---------- Actions ---------- */
   const actions = {
     remToggle() { S.ui.remOpen = !S.ui.remOpen; },
-    enemyView(v) { S.ui.enemyView = !!v; },
+    enemyView(v) { if (v) { S.ui.enemyView = true; if (!window.__nhEnemyHist) { window.__nhEnemyHist = true; try { history.pushState({ nh: 1 }, ''); } catch (e) { /* ignoré */ } } } else { S.ui.enemyView = false; if (window.__nhEnemyHist) { window.__nhEnemyHist = false; try { history.back(); } catch (e) { /* ignoré */ } } } },
     tab(v) { if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
     setUi(v, el) { S.ui[el.dataset.path] = v; },
