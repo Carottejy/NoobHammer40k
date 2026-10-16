@@ -118,3 +118,5 @@ select option:disabled, select option.dead { color: #9a927f; }
 .unit-item.col > details.eu { margin-top: 2px; }
 .unit-item.col > details.eu > summary { font-size: .8rem; }
 .unit-item.col { padding: 7px 0; }
+
+#bres .unit-item > div:first-child { flex: 1 1 auto; min-width: 0; }
