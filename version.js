@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.30.1';
+var APP_VERSION = '1.31.0';
 var APP_RELEASES = [
+  { v: '1.31.0', date: '2026-10-16', notes: ['Nouvelle partie locale : choix de la liste adverse (plus tard / import PDF ALN ou NoobHammer40k / une liste de l\'appli).','Les PDF exportés par NoobHammer40k contiennent la liste complète : ils se réimportent tels quels (adversaire ou onglet Armées).'] },
   { v: '1.30.1', date: '2026-10-16', notes: ['Datasheets : les noms d\'unités cités dans le texte des aptitudes sont aussi des liens.'] },
   { v: '1.30.0', date: '2026-10-16', notes: ['Datasheets : les unités citées (Peut rejoindre, Meneurs possibles) sont des liens ; « Retour » revient à la fiche précédente.'] },
   { v: '1.29.0', date: '2026-10-16', notes: ['Creator : bouton « Sauvegarder » (nouvelle liste ou modification) qui enregistre et revient à l\'accueil du Creator.'] },

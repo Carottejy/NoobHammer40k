@@ -485,7 +485,7 @@
   function enemyImportCard() {
     const m = S.ui.enemyMsg || '';
     return `<div class="card"><h2>Importer l'armée adverse</h2>
-      <p class="muted">Charge le <b>PDF ALN</b> de ton adversaire : unités, profils, armes, aptitudes, règles d'armée et stratagèmes de détachement. Tu pourras ensuite choisir tes cibles et voir laquelle est la plus rentable.</p>
+      <p class="muted">Charge un <b>PDF ALN</b> ou un <b>PDF exporté par NoobHammer40k</b> : unités, profils, armes, aptitudes, règles d'armée et stratagèmes de détachement. Tu pourras ensuite choisir tes cibles et voir laquelle est la plus rentable.</p>
       <label class="btn" style="display:inline-block;margin:0;cursor:pointer">📄 Importer un PDF<input type="file" id="pdfEnemy" accept=".pdf,application/pdf" hidden></label>
       <details style="margin-top:10px"><summary>Ou coller son export texte / BBCode</summary><textarea id="enemyText" placeholder="Orks : Liste adverse&#10;Boyz (10) : 90 pts"></textarea><button class="btn small" style="margin-top:8px" data-act="importEnemyList">Importer la liste</button></details>
       ${m ? `<div class="note" style="margin-top:8px;white-space:pre-wrap">${esc(m)}</div>` : ''}</div>`;
@@ -511,8 +511,27 @@
     if ((e.strats || []).length) h += `<div class="card"><h2>Stratagèmes adverses (${e.strats.length})</h2>${e.strats.map((s) => `<details class="note"><summary><b>${esc(s.name)}</b> · ${s.cp} PC${s.detachment ? ' · ' + esc(s.detachment) : ''}</summary><div class="muted"><b>Quand :</b> ${esc(s.when || '—')}</div>${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div><b>Effet :</b> ${esc(s.effect || '—')}</div></details>`).join('')}</div>`;
     return h;
   }
+  /* PDF exporté par NoobHammer40k : la liste complète est incluse dans le fichier */
+  async function nhFromPdf(file) {
+    try {
+      const buf = new Uint8Array(await file.arrayBuffer()); let s = ''; for (let i = 0; i < buf.length; i += 8192) s += String.fromCharCode.apply(null, buf.subarray(i, i + 8192));
+      const i = s.indexOf('NH40KDATA:'); if (i < 0) return null; let j = s.indexOf('\n', i); if (j < 0) j = s.length;
+      const d = JSON.parse(decodeURIComponent(escape(atob(s.slice(i + 10, j).trim())))); return d && d.army && Array.isArray(d.army.units) ? d : null;
+    } catch (e) { return null; }
+  }
+  /* copie d'une armée (liste de l'appli ou PDF NoobHammer) comme armée adverse, avec de nouveaux identifiants */
+  function enemyFromArmy(src, rules, strats) {
+    const c = JSON.parse(JSON.stringify(src)); const map = {};
+    c.id = uid(); delete c.gameOf; delete c.fromId; delete c.build;
+    c.units.forEach((u) => { const n = uid(); map[u.id] = n; u.id = n; delete u.cur; delete u.hp; });
+    c.units.forEach((u) => { if (u.attachedTo) u.attachedTo = map[u.attachedTo] || ''; });
+    c.rules = JSON.parse(JSON.stringify(rules || [])); c.strats = JSON.parse(JSON.stringify(strats || [])).map((s) => Object.assign(s, { id: 'e_' + uid() }, { armyId: undefined }));
+    return c;
+  }
   async function importEnemyPdf(file) {
     S.ui.enemyMsg = 'Lecture du PDF…'; render();
+    const nh = await nhFromPdf(file);
+    if (nh) { S.enemy = enemyFromArmy(nh.army, nh.rules, nh.strats); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse importée depuis un PDF NoobHammer40k : ${S.enemy.units.length} unité(s).`; render(); return; }
     let res = null, err = '';
     try { res = await parsePdfStructured(file); } catch (x) { err = x && x.message ? x.message : 'erreur'; }
     if (res && res.units.length) {
@@ -959,6 +978,7 @@
   async function importPdfFile(file, mode) {
     const key = mode === 'new' ? 'importMsg' : 'profMsg';
     S.ui[key] = 'Lecture du PDF…'; render();
+    if (mode === 'new') { const nh = await nhFromPdf(file); if (nh) { const a = JSON.parse(JSON.stringify(nh.army)); const map = {}; delete a.gameOf; delete a.fromId; a.id = uid(); a.units.forEach((u) => { const n = uid(); map[u.id] = n; u.id = n; }); a.units.forEach((u) => { if (u.attachedTo) u.attachedTo = map[u.attachedTo] || ''; }); S.armies.push(a); S.armyId = a.id; S.armyRules[a.id] = nh.rules || []; (nh.strats || []).forEach((s) => S.customStrats.push(Object.assign({}, s, { id: 'c_' + uid(), armyId: a.id }))); S.ui.importMsg = `Armée « ${a.name} » importée depuis un PDF NoobHammer40k : ${a.units.length} unité(s).`; render(); return; } }
     let res = null, err = '';
     try { res = await parsePdfStructured(file); } catch (e) { err = e && e.message ? e.message : 'erreur'; }
     if (!res || !res.units.length) {
@@ -1959,8 +1979,14 @@
       ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglets Armées ou Creator).</div>'}
       <label style="margin-top:8px">Nom de la partie (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
     if (ng.mode === 'local') {
-      h += S.enemy ? `<div class="note" style="margin-top:8px">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Retirer</button>'}</div>`
-        : '<details style="margin-top:8px"><summary>Armée adverse (facultatif)</summary>' + enemyImportCard() + '</details><p class="muted">Tu pourras aussi l\'ajouter plus tard, pendant la partie.</p>';
+      h += `<label style="margin-top:8px">Liste de l'adversaire</label>`;
+      if (S.enemy) h += `<div class="note">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Changer</button>'}</div>`;
+      else {
+        h += seg('ngEnemy', ng.enemy || '', [['', 'Plus tard'], ['pdf', '📄 Importer un PDF'], ['app', '📚 Mes listes']]);
+        if (ng.enemy === 'pdf') h += enemyImportCard();
+        else if (ng.enemy === 'app') h += lib.length ? `<div class="chips" style="margin-top:8px">${lib.map((x) => `<button type="button" class="chip" data-act="ngEnemyApp" data-val="${x.id}">${esc(x.name)}</button>`).join('')}</div>` : '<p class="muted">Aucune liste dans l\'appli.</p>';
+        else h += '<p class="muted">Tu pourras aussi l\'ajouter plus tard, pendant la partie.</p>';
+      }
     } else {
       const on = frOn();
       h += `<label style="margin-top:8px">Comment inviter l'adversaire ?</label>${seg('ngOnline', ng.online || 'code', [['code', '🔑 Avec un code'], ['friend', '👥 Inviter un ami']])}`;
@@ -2023,6 +2049,8 @@
     },
     ngToggle() { const ng = S.ui.ng || {}; S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, ng, { open: !ng.open }) }); },
     ngMode(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { mode: v }) }); },
+    ngEnemy(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { enemy: v }) }); },
+    ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
     gameCreate() {

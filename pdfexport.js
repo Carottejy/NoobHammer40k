@@ -179,7 +179,7 @@
     if (!pages) pages = render(0.3, 4, 30);
 
     const n = pages.length; const objs = []; const add = (t) => { objs.push(t); return objs.length; };
-    add('<< /Type /Catalog /Pages 2 0 R >>');
+    add('<< /Type /Catalog /Pages 2 0 R >>'); // remplacé plus bas (référence aux données NoobHammer)
     add(`<< /Type /Pages /Kids [${pages.map((_, i) => (6 + i * 2) + ' 0 R').join(' ')}] /Count ${n} >>`);
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
@@ -189,6 +189,10 @@
       add(`<< /Length ${body.length} >>\nstream\n${body}\nendstream`);
       add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${5 + i * 2} 0 R >>`);
     });
+    /* données de la liste, relisibles par NoobHammer40k à l'import */
+    let payload = '';
+    try { payload = btoa(unescape(encodeURIComponent(JSON.stringify({ v: 1, army: a, rules: rules || [], strats: strats || [] })))); } catch (e) { payload = ''; }
+    if (payload) { const dn = add(`<< /Length ${payload.length + 11} >>\nstream\nNH40KDATA:${payload}\nendstream`); objs[0] = `<< /Type /Catalog /Pages 2 0 R /NHData ${dn} 0 R >>`; }
     let out = '%PDF-1.4\n'; const off = [];
     objs.forEach((o, i) => { off.push(out.length); out += `${i + 1} 0 obj\n${o}\nendobj\n`; });
     const xr = out.length;
