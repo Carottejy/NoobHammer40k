@@ -106,3 +106,5 @@ summary { color: var(--text); }
 :root { color-scheme: dark; }
 select option, select optgroup { background: #26221b; color: #efe9dc; }
 select option:disabled, select option.dead { color: #9a927f; }
+.ulink { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--info); text-decoration: underline; cursor: pointer; }
+.ulink:active { color: var(--accent); }
