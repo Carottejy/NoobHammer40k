@@ -97,5 +97,12 @@ mark { background: #6b5b12; color: #fff; border-radius: 2px; padding: 0 1px; }
 .seg { display: flex; gap: 6px; margin: 0 0 12px; } .seg button { flex: 1; background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 10px; padding: 10px 4px; font-size: .85rem; cursor: pointer; } .seg button.on { color: var(--accent); border-color: var(--accent); font-weight: 700; }
 .army-card.on { border-color: var(--accent); }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; } .chip { background: var(--panel); color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 6px 10px; font-size: .8rem; cursor: pointer; } .chip small { opacity: .6; } .chip.on { color: var(--accent); border-color: var(--accent); font-weight: 700; } .chip.no { color: #e5484d; border-color: #e5484d; text-decoration: line-through; }
+.chip small { opacity: .75; font-size: .75em; } .chip.on small { opacity: .8; } .chip.no { background: #3a1a17; color: #ffb4a8; border-color: #e0705f; text-decoration: line-through; }
 details.unit-item > summary { display: flex; justify-content: space-between; gap: 8px; align-items: center; cursor: pointer; padding: 4px 0; }
+
+summary { color: var(--text); }
+.note > summary .muted, details.unit-item .muted { color: var(--muted); }
+.btn:disabled { opacity: .45; }
+:root { color-scheme: dark; }
+select option, select optgroup { background: #26221b; color: #efe9dc; }
+select option:disabled, select option.dead { color: #9a927f; }

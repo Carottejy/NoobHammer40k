@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.16.1';
+var APP_VERSION = '1.16.2';
 var APP_RELEASES = [
+  { v: '1.16.2', date: '2026-10-16', notes: [
+    'Lisibilité : les mots-clés sélectionnés (orange sur orange) et les listes déroulantes (texte clair sur fond blanc) sont de nouveau lisibles.'
+  ] },
   { v: '1.16.1', date: '2026-10-16', notes: [
     'Assistant : chaque unité propose son équipement de base, les options payantes retenues, la liste des armes (★ = armes utilisées en priorité) et toutes ses règles et aptitudes dépliables ; les règles et stratagèmes du détachement et le texte de l\'amélioration choisie sont consultables.',
     'Assistant : les options payantes retenues sont transmises à Creator avec la liste.'
