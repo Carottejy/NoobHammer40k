@@ -1,6 +1,15 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.15.0';
+var APP_VERSION = '1.16.1';
 var APP_RELEASES = [
+  { v: '1.16.1', date: '2026-10-16', notes: [
+    'Assistant : chaque unité propose son équipement de base, les options payantes retenues, la liste des armes (★ = armes utilisées en priorité) et toutes ses règles et aptitudes dépliables ; les règles et stratagèmes du détachement et le texte de l\'amélioration choisie sont consultables.',
+    'Assistant : les options payantes retenues sont transmises à Creator avec la liste.'
+  ] },
+  { v: '1.16.0', date: '2026-10-16', notes: [
+    'Assistant : plusieurs styles de jeu combinables, mots-clés à privilégier (✓) ou exclure (✗) avec filtre, et un champ libre en français (« beaucoup de Terminators, 2 Dreadnought, sans aéronefs… ») avec récapitulatif de ce qui a été compris.',
+    'Assistant : réglages avancés (chefs, taille des escouades, doublons, héros épiques, aéronefs).',
+    'Assistant : pour chaque unité, rôle, raisons du choix et objectif de jeu, avec profil et armes clés.'
+  ] },
   { v: '1.15.0', date: '2026-10-16', notes: [
     'Nouvel onglet « Assistant » (sans IA générative) : choisis faction, chapitre, format, style de jeu, détachement et mot-clé ; l\'appli compose 3 listes (Ligne pour les objectifs, chefs rattachés, seigneur de bataille, améliorations) à ouvrir dans Creator ou à créer directement.',
     'Correctif : un détachement sans coût de points n\'affiche plus « ( pt) ».'
