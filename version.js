@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.22.0';
+var APP_VERSION = '1.23.0';
 var APP_RELEASES = [
+  { v: '1.23.0', date: '2026-10-16', notes: [
+    'Export PDF repensé : chefs et appuis regroupés avec l\'unité qu\'ils rejoignent, bandeau d\'unité, caractéristiques encadrées, mots-clés, tableau d\'armes aligné (portée, attaques, touche, force, PA, dégâts, capacités) et aptitudes dans des encarts séparés.'
+  ] },
   { v: '1.22.0', date: '2026-10-16', notes: [
     'Armées : un seul encart « Importer une liste » avec trois onglets (PDF ALN, Texte / BBCode, JSON) ; le message bleu de confirmation est supprimé (les avertissements restent).',
     'Armées : bouton « 📄 PDF » sur chaque armée pour exporter la liste en PDF (détachements, règles, unités, équipement, armes, aptitudes).'
