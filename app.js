@@ -470,10 +470,8 @@
   }
 
   /* ----- Ligne d'unité (mon armée / adverse) : effectifs et rattachement des meneurs/appuis ----- */
-  function unitRow(who, ar, u, extra) {
-    const role = roleOf(u);
-    let h = `<div class="unit-item col${alive(u) ? '' : ' dead'}"><div class="row sp"><div><b>${alive(u) ? '' : '☠ '}${u.warlord ? '👑 ' : ''}${esc(u.name)}</b>${alive(u) ? '' : ' <span class="tag">détruite</span>'}<div class="muted">${u.pts ? esc(u.pts) + ' pts' + (u.ptsNote ? ' (' + esc(u.ptsNote) + ')' : '') + ' · ' : ''}${role ? (role === 'support' ? 'Appui' : 'Meneur') + ' · ' : ''}${u.hasProfile || (u.weapons || []).length ? '✅ ' + (u.weapons || []).length + ' arme(s)' : '⚠️ sans profil'}${u.T ? ' · E' + esc(u.T) + ' Sv' + esc(u.sv) : ''}</div></div>${who === 'mine' ? `<button class="btn small ghost" data-act="editUnit" data-val="${u.id}">Éditer</button>` : ''}</div>`;
-    h += (extra || '') + modelsCtl(who, u, 'Figurines');
+  function attachHtml(who, ar, u, role) {
+    let h = '';
     if (role) {
       const hosts = ar.units.filter((b) => b.id !== u.id && !roleOf(b));
       const clash = u.attachedTo && ar.units.some((b) => b.id !== u.id && b.attachedTo === u.attachedTo && roleOf(b) === role);
@@ -483,7 +481,29 @@
       const att = ar.units.filter((l) => l.attachedTo === u.id);
       if (att.length) h += `<div class="muted">Rattaché(s) : ${att.map((l) => esc(l.name)).join(', ')}</div>`;
     }
+    return h;
+  }
+  function unitRow(who, ar, u, extra) {
+    const role = roleOf(u);
+    let h = `<div class="unit-item col${alive(u) ? '' : ' dead'}"><div class="row sp"><div><b>${alive(u) ? '' : '☠ '}${u.warlord ? '👑 ' : ''}${esc(u.name)}</b>${alive(u) ? '' : ' <span class="tag">détruite</span>'}<div class="muted">${u.pts ? esc(u.pts) + ' pts' + (u.ptsNote ? ' (' + esc(u.ptsNote) + ')' : '') + ' · ' : ''}${role ? (role === 'support' ? 'Appui' : 'Meneur') + ' · ' : ''}${u.hasProfile || (u.weapons || []).length ? '✅ ' + (u.weapons || []).length + ' arme(s)' : '⚠️ sans profil'}${u.T ? ' · E' + esc(u.T) + ' Sv' + esc(u.sv) : ''}</div></div>${who === 'mine' ? `<button class="btn small ghost" data-act="editUnit" data-val="${u.id}">Éditer</button>` : ''}</div>`;
+    h += (extra || '') + modelsCtl(who, u, 'Figurines');
+    h += attachHtml(who, ar, u, role);
     return h + '</div>';
+  }
+
+  function enemyRow(e, u) {
+    const ro = liveEnemy('enemy'); const mx = maxModels(u), c = curModels(u), W = parseInt(u.W, 10) || 0, dead = !alive(u);
+    const bt = (act, v) => ro ? '' : `<button class="chip xs" data-act="${act}" data-who="enemy" data-id="${u.id}" data-val="${v}">${v < 0 ? '−' : '+'}</button>`;
+    const cnt = (lab, cur, max, act) => `<span class="cc">${bt(act, -1)}<b>${lab}${cur}/${max}</b>${bt(act, 1)}</span>`;
+    const role = roleOf(u);
+    const st = [u.pts ? esc(u.pts) + 'pt' : '', u.T ? 'E' + esc(u.T) : '', u.sv ? esc(u.sv) : ''].filter(Boolean).join(' ');
+    let h = `<div class="unit-item col${dead ? ' dead' : ''}"><div class="erow"><span class="nm">${dead ? '☠ ' : ''}${u.warlord ? '👑 ' : ''}${esc(u.name)}</span><span class="st">${st}</span>${cnt('', c, mx, 'models')}${mx === 1 && W > 1 && c > 0 ? cnt('PV ', curHp(u), W, 'hp') : ''}</div>`;
+    h += `<details class="eu"><summary>Voir le détail</summary>${role ? '<div class="muted">' + (role === 'support' ? 'Appui' : 'Meneur') + '</div>' : ''}${unitStatLine(u)}${(u.keywords || []).length ? `<div class="muted">${esc((u.keywords || []).concat(u.factionKw || []).join(' · '))}</div>` : ''}
+        ${u.ptsNote ? `<div class="muted">${esc(u.ptsNote)}</div>` : ''}${attachHtml('enemy', e, u, role)}
+        ${(u.weapons || []).length ? `<h3>Armes</h3><ul class="fxlist">${u.weapons.map((w) => `<li>${wLine(w)}</li>`).join('')}</ul>` : ''}
+        ${(u.abilities || []).length ? `<h3>Aptitudes</h3>${u.abilities.map(ruleNote).join('')}` : ''}
+        <button class="btn small" style="margin-top:6px" data-act="aim" data-val="${u.id}" data-go="1">🎯 Choisir comme cible</button></details></div>`;
+    return h;
   }
 
   /* ----- Armée adverse ----- */
@@ -505,10 +525,7 @@
       ${e.live ? '' : `<details><summary>Remplacer par un autre import</summary>${enemyImportCard()}</details>`}${S.ui.enemyMsg ? `<div class="note" style="white-space:pre-wrap">${esc(S.ui.enemyMsg)}</div>` : ''}</div>`;
     h += `<div class="card"><div class="row sp"><h2 style="margin:0">Unités (${e.units.length})</h2>${liveEnemy('enemy') ? '' : '<button class="btn small ghost" data-act="resetModels" data-who="enemy">↺ Rétablir effectifs</button>'}</div>`;
     e.units.forEach((u) => {
-      h += unitRow('enemy', e, u, `<details class="eu"><summary>Voir le détail</summary>${unitStatLine(u)}${(u.keywords || []).length ? `<div class="muted">${esc((u.keywords || []).concat(u.factionKw || []).join(' · '))}</div>` : ''}
-        ${(u.weapons || []).length ? `<h3>Armes</h3><ul class="fxlist">${u.weapons.map((w) => `<li>${wLine(w)}</li>`).join('')}</ul>` : ''}
-        ${(u.abilities || []).length ? `<h3>Aptitudes</h3>${u.abilities.map(ruleNote).join('')}` : ''}
-        <button class="btn small" style="margin-top:6px" data-act="aim" data-val="${u.id}" data-go="1">🎯 Choisir comme cible</button></details>`);
+      h += enemyRow(e, u);
     });
     h += '</div>';
     if ((e.rules || []).length) h += `<div class="card"><h2>Règles d'armée / détachement</h2>${e.rules.map(ruleNote).join('')}</div>`;

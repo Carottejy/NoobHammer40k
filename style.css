@@ -108,3 +108,13 @@ select option, select optgroup { background: #26221b; color: #efe9dc; }
 select option:disabled, select option.dead { color: #9a927f; }
 .ulink { background: none; border: 0; padding: 0; margin: 0; font: inherit; color: var(--info); text-decoration: underline; cursor: pointer; }
 .ulink:active { color: var(--accent); }
+
+.erow { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
+.erow .nm { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; font-size: .88rem; }
+.erow .st { color: var(--muted, #aaa); font-size: .68rem; white-space: nowrap; }
+.erow .cc { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.erow .cc b { font-size: .8rem; min-width: 0; padding: 0 2px; }
+.chip.xs { padding: 0 6px; min-height: 26px; line-height: 24px; font-size: .95rem; }
+.unit-item.col > details.eu { margin-top: 2px; }
+.unit-item.col > details.eu > summary { font-size: .8rem; }
+.unit-item.col { padding: 7px 0; }
