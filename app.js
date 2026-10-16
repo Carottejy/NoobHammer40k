@@ -793,12 +793,12 @@
     }
     const lib = libArmies();
     let h = `<h1>Mes armées</h1><div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
-    const imp = () => importCard(null) + `<div class="card"><h2>Importer un JSON</h2><p class="muted">Colle ici une armée exportée depuis NoobHammer40k (bouton « Copier » de Creator &gt; Modifier une armée).</p><textarea id="jsonBox"></textarea><div class="row" style="margin-top:8px"><button class="btn small" data-act="importJson">Importer ce JSON</button></div></div>`;
+    const imp = () => importCard(null);
     if (!lib.length) return h + '<div class="card"><p class="muted">Aucune armée pour l\'instant : importe-la ci-dessous (PDF, texte ALN, BBCode, JSON) ou crée-la dans Creator.</p></div>' + imp();
     const open = S.ui.openArmy;
     h += lib.map((x) => {
       const on = x.id === S.armyId; const isOpen = x.id === open; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
-      let c = `<div class="card army-card${on ? ' on' : ''}" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></div>`;
+      let c = `<div class="card army-card${on ? ' on' : ''}" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn small ghost" data-act="armyPdf" data-val="${x.id}" title="Exporter en PDF" style="min-height:30px;padding:4px 8px">📄 PDF</button><span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></span></div>`;
       if (isOpen) c += `<div class="row" style="margin-top:8px">${on ? '' : `<button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button>`}<button class="btn small ghost" data-act="armyEdit" data-val="${x.id}">✏️ Modifier</button><button class="btn small danger" data-act="armyDel" data-val="${x.id}">Supprimer</button></div>`;
       c += '</div>';
       if (isOpen) c += armyDetail(x);
@@ -831,14 +831,17 @@
     return `<div class="muted" style="margin-top:6px">${u.M ? 'M' + esc(u.M) + ' · ' : ''}E${esc(u.T)} · Sv ${esc(u.sv)}${u.inv ? '/' + esc(u.inv) + '++' : ''} · PV ${esc(u.W)}${u.Ld ? ' · CD ' + esc(u.Ld) : ''}${u.OC ? ' · CO ' + esc(u.OC) : ''}${u.fnp ? ' · IdD ' + esc(u.fnp) + '+' : ''}</div>`;
   }
   function importCard(a) {
-    const m = S.ui.importMsg || '';
-    return `<div class="card"><h2>Importer ma liste ALN</h2>
-      <p class="muted">Colle l'export <b>texte</b> ou <b>BBCode</b> de ta liste ALN40k : l'appli crée l'armée, les unités, les détachements et les options.</p>
+    const t = S.ui.impTab || 'pdf';
+    const msg = String(S.ui.importMsg || '').split('\n').filter((l) => l && !/^Armée «|^\d+ unité|^\d+ détachement|^\+ \d+ unité/.test(l)).join('\n');
+    let h = `<div class="card"><h2>Importer une liste</h2><div class="seg"><button type="button" class="${t === 'pdf' ? 'on' : ''}" data-act="impTab" data-val="pdf">📄 PDF ALN</button><button type="button" class="${t === 'txt' ? 'on' : ''}" data-act="impTab" data-val="txt">📝 Texte / BBCode</button><button type="button" class="${t === 'json' ? 'on' : ''}" data-act="impTab" data-val="json">{ } JSON</button></div>`;
+    if (t === 'pdf') h += `<p class="muted" style="margin-top:0">Charge le <b>PDF</b> ALN (liste + fiches) : armée, profils, armes et aptitudes sont importés en une fois.</p>
+      <label class="btn" style="display:inline-block;margin:0;cursor:pointer">📄 Choisir un PDF<input type="file" id="pdfNew" accept=".pdf,application/pdf" hidden></label>`;
+    else if (t === 'txt') h += `<p class="muted" style="margin-top:0">Colle l'export <b>texte</b> ou <b>BBCode</b> de ta liste ALN40k : l'appli crée l'armée, les unités, les détachements et les options.</p>
       <textarea id="importText" placeholder="Space Marines : Ma liste&#10;### Détachements :&#10;* …&#10;Escouade Aggressor (6) : 180 pts"></textarea>
-      <button class="btn" style="margin-top:8px" data-act="importList">Importer la liste</button>
-      <hr><p class="muted">Ou charge un <b>PDF</b> ALN (liste + fiches) : armée, profils, armes et aptitudes sont importés en une fois.</p>
-      <label class="btn ghost" style="display:inline-block;margin:0;cursor:pointer;color:var(--text)">📄 Importer un PDF<input type="file" id="pdfNew" accept=".pdf,application/pdf" hidden></label>
-      ${m ? `<div class="note" style="margin-top:8px;white-space:pre-wrap">${esc(m)}</div>` : ''}</div>${a ? profilesCard(a) : ''}`;
+      <button class="btn" style="margin-top:8px" data-act="importList">Importer la liste</button>`;
+    else h += `<p class="muted" style="margin-top:0">Colle ici une armée exportée depuis NoobHammer40k (bouton « Copier » de Creator &gt; Modifier une armée).</p><textarea id="jsonBox"></textarea><div class="row" style="margin-top:8px"><button class="btn" data-act="importJson">Importer ce JSON</button></div>`;
+    if (msg) h += `<div class="warn" style="margin-top:8px;white-space:pre-wrap">${esc(msg)}</div>`;
+    return h + `</div>${a ? profilesCard(a) : ''}`;
   }
   function profilesCard(a) {
     return `<div class="card"><h2>Profils des unités et armes</h2>
@@ -2186,6 +2189,15 @@
       const id = (document.getElementById('gameList') || {}).value; const src = S.armies.find((x) => x.id === id && !x.gameOf); if (!src || !S.inGame) return;
       if (!confirm('Associer « ' + src.name + ' » à cette partie ? Les effectifs et les pertes actuels seront remis à zéro.')) return;
       dropGameArmies(); S.libId = src.id; const c = makeGameArmy(src, S.gameId || 'quick'); S.armies.push(c); S.armyId = c.id; S.editUnit = null; S.play.unitId = null; S.play.nModelsUnit = null; S.play.weaponIdx = 0; syncTarget();
+    },
+    impTab(v) { S.ui = Object.assign({}, S.ui, { impTab: v }); },
+    armyPdf(id) {
+      const a = S.armies.find((x) => x.id === id); if (!a || !window.ArmyPdf) return;
+      try {
+        const bytes = ArmyPdf.build(a, S.armyRules[a.id] || []); const el = document.createElement('a');
+        el.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); el.download = (a.name || 'armee').replace(/[^\w\-À-ÿ ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
+        document.body.appendChild(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1500);
+      } catch (e) { alert('Export PDF impossible : ' + e.message); }
     },
     armyOpen(id) { S.ui = Object.assign({}, S.ui, { openArmy: S.ui.openArmy === id ? '' : id }); },
     armySel(id) { S.armyId = id; S.ui = Object.assign({}, S.ui, { importMsg: '' }); },
