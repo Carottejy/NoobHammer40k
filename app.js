@@ -1943,7 +1943,7 @@
   }
   function newGameCard() {
     const ng = S.ui.ng || {}; const a = army(); const lib = libArmies();
-    const quick = !S.gameId && hasQuick() ? `<div class="note">Une partie rapide non enregistrée est en cours (round ${S.round}) : <button class="btn small" data-act="gameResume">Continuer</button></div>` : '';
+    const quick = '';
     if (!ng.open) return `${quick}<button class="btn" style="width:100%;margin-bottom:12px" data-act="ngToggle">➕ Nouvelle partie</button>`;
     const seg = (act, cur, items) => `<div class="seg">${items.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-act="${act}" data-val="${v}">${l}</button>`).join('')}</div>`;
     let h = `${quick}<div class="card"><div class="row sp"><h2 style="margin:0">Nouvelle partie</h2><button class="btn small ghost" data-act="ngToggle">Fermer</button></div>

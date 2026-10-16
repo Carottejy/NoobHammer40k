@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.21.0';
+var APP_VERSION = '1.21.1';
 var APP_RELEASES = [
+  { v: '1.21.1', date: '2026-10-16', notes: [
+    'Correctif : le message « partie rapide non enregistrée en cours » ne s\'affiche plus à tort dans l\'onglet Parties.'
+  ] },
   { v: '1.21.0', date: '2026-10-16', notes: [
     'Parties : « Nouvelle partie » est un bouton. Il propose partie locale (liste adverse facultative) ou en ligne (par code ou en invitant un ami), le choix de ta liste, puis la création.',
     'Le bouton « Partie rapide » est supprimé. Rejoindre une partie par code ou invitation reste dans une carte à part.'
