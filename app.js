@@ -721,7 +721,7 @@
     const l = readGames();
     return `<div class="card"><h2>Mes parties</h2>
       ${S.ui.gameMsg ? `<div class="note">${esc(S.ui.gameMsg)}</div>` : ''}
-      ${l.map((g) => `<div class="unit-item col"><div><b>${esc(g.name)}</b>${g.id === S.gameId ? ' <span class="tag">en cours</span>' : ''}<div class="muted">${fmtDate(g.at)} · Round ${g.state.round} · ${g.state.cp} PC · ${esc(((g.state.armies || []).find((x) => x.id === g.state.armyId) || {}).name || '—')}${g.state.enemy ? ' vs ' + esc(g.state.enemy.name) : ''}</div></div>
+      ${l.map((g) => `<div class="unit-item col"><div><b>${esc(g.name)}</b>${g.id === S.gameId ? ' <span class="tag">en cours</span>' : ''}<div class="muted">${fmtDate(g.at)} · Round ${g.state.round} · ${g.state.cp} PC · liste : ${esc(((g.state.armies || []).find((x) => x.id === g.state.armyId) || {}).name || '—')}${g.state.enemy ? ' vs ' + esc(g.state.enemy.name) : ''}</div></div>
         <div class="row"><button class="btn small" data-act="gameLoad" data-val="${g.id}">Ouvrir</button><button class="btn small ghost" data-act="gameExport" data-val="${g.id}">Exporter</button><button class="btn small ghost" data-act="gameRename" data-val="${g.id}">Renommer</button><button class="btn small danger" data-act="gameDel" data-val="${g.id}">Suppr.</button></div></div>`).join('') || '<p class="muted" style="margin-top:8px">Aucune partie sauvegardée. Crée ta première partie ci-dessus.</p>'}
       <hr><div class="row"><label class="btn small ghost" style="margin:0;display:inline-block;cursor:pointer;color:var(--text)">Importer un fichier de partie<input type="file" id="gameFile" accept=".json,application/json" hidden></label></div></div>`;
   }
@@ -786,7 +786,10 @@
   function viewArmy() {
     const a = army();
     if (S.inGame) {
-      let h = `<h1>Armée de la partie</h1><div class="card"><b>${esc(a ? a.name : '—')}</b><p class="muted">Cette copie appartient à la partie « ${esc(S.gameName || 'Partie rapide')} » : tes pertes n'affectent pas ta bibliothèque. Pour changer d'armée, crée une autre partie.</p><div class="row"><button class="btn small ghost" data-act="renameArmy">Renommer</button></div></div>`;
+      const others = libArmies();
+      let h = `<h1>Liste de la partie</h1><div class="card"><b>${esc(a ? a.name : '—')}</b>${a ? `<div class="muted">${esc(a.faction || '')}${a.chapter ? ' · ' + esc(a.chapter) : ''}${a.total ? ' · ' + a.total.points + ' pts' : ''}</div>` : ''}<p class="muted">C'est la liste associée à « ${esc(S.gameName || 'Partie rapide')} ». Les pertes et les effectifs sont propres à la partie : ta liste d'origine n'est jamais modifiée.</p>
+        ${others.length ? `<label>Changer de liste</label><div class="row"><select id="gameList" style="flex:1">${others.map((x) => `<option value="${x.id}" ${x.id === S.libId ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select><button class="btn small" data-act="gameSetList">Appliquer</button></div><div class="muted">Remet les effectifs à zéro pour la nouvelle liste.</div>` : ''}
+        <div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="renameArmy">Renommer</button></div></div>`;
       return a ? h + armyBody(a) : h;
     }
     const lib = libArmies();
@@ -1943,7 +1946,7 @@
     const a = army();
     let h = `<h1>Parties</h1><div class="card"><h2>Nouvelle partie</h2>
       <label>Nom de la partie</label><input type="text" id="newGameName" placeholder="${esc(defaultGameName())}">
-      <label style="margin-top:8px">Mon armée</label><select data-bind="armyId">${libArmies().map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
+      <label style="margin-top:8px">Liste d'armée de la partie</label><select data-bind="armyId">${libArmies().map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
       ${S.enemy ? `<div class="note">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Retirer</button>'}</div>` : '<details><summary>Ajouter l\'armée adverse (facultatif)</summary>' + enemyImportCard() + '</details><p class="muted">L\'armée adverse n\'est liée qu\'à cette partie. Tu pourras aussi l\'ajouter ensuite, ou jouer en ligne ci-dessous pour la recevoir.</p>'}
       <div class="row" style="margin-top:8px"><button class="btn" data-act="gameCreate">Créer la partie</button><button class="btn ghost" data-act="gameQuick">Partie rapide</button></div>
       ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée dans l\'onglet « Creator ».</div>'}</div>`;
@@ -1953,7 +1956,7 @@
   }
   function viewGame() {
     if (!S.inGame) return viewHub();
-    const head = `<div class="row sp" style="margin-bottom:8px"><button class="btn small ghost" data-act="gameClose">← Parties</button><span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie rapide'}</span><button class="btn small" data-act="gameSave">💾</button></div>${S.gameId ? `<div class="chips" style="margin-bottom:8px">${tog('Sauvegarde automatique', 'autoGame')}</div>` : '<div class="muted" style="margin-bottom:8px">Partie rapide non enregistrée : appuie sur 💾 pour la nommer et la garder.</div>'}${S.ui.gameMsg ? `<div class="note">${esc(S.ui.gameMsg)}</div>` : ''}`;
+    const head = `<div class="row sp" style="margin-bottom:8px"><button class="btn small ghost" data-act="gameClose">← Parties</button><span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie rapide'}</span><button class="btn small" data-act="gameSave">💾</button></div>${army() ? `<div class="muted" style="margin:-4px 0 8px;text-align:center">Liste associée : <b>${esc(army().name)}</b> · <span data-act="tab" data-val="army" style="color:var(--accent);cursor:pointer;text-decoration:underline">voir / changer</span></div>` : ''}${S.gameId ? `<div class="chips" style="margin-bottom:8px">${tog('Sauvegarde automatique', 'autoGame')}</div>` : '<div class="muted" style="margin-bottom:8px">Partie rapide non enregistrée : appuie sur 💾 pour la nommer et la garder.</div>'}${S.ui.gameMsg ? `<div class="note">${esc(S.ui.gameMsg)}</div>` : ''}`;
     const online = `<details style="margin-bottom:10px"><summary>🌐 Partie en ligne${net.status === 'on' ? ' — connecté' : ''}</summary>${onlineCard()}</details>`;
     return head + viewPlay().replace('<h1>NoobHammer40k</h1>', '') .replace(/^/, online);
   }
@@ -2144,6 +2147,11 @@
     bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
     bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },
     armyNew() { actions.bNew(); S.tab = 'build'; },
+    gameSetList() {
+      const id = (document.getElementById('gameList') || {}).value; const src = S.armies.find((x) => x.id === id && !x.gameOf); if (!src || !S.inGame) return;
+      if (!confirm('Associer « ' + src.name + ' » à cette partie ? Les effectifs et les pertes actuels seront remis à zéro.')) return;
+      dropGameArmies(); S.libId = src.id; const c = makeGameArmy(src, S.gameId || 'quick'); S.armies.push(c); S.armyId = c.id; S.editUnit = null; S.play.unitId = null; S.play.nModelsUnit = null; S.play.weaponIdx = 0; syncTarget();
+    },
     armyOpen(id) { S.ui = Object.assign({}, S.ui, { openArmy: S.ui.openArmy === id ? '' : id }); },
     armySel(id) { S.armyId = id; S.ui = Object.assign({}, S.ui, { importMsg: '' }); },
     armyEdit(id) { S.armyId = id; B.cm = 'edit'; S.editUnit = null; bsave(); S.tab = 'build'; },

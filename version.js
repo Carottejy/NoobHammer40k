@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.19.0';
+var APP_VERSION = '1.20.0';
 var APP_RELEASES = [
+  { v: '1.20.0', date: '2026-10-16', notes: [
+    'Parties : c\'est la partie qui a une liste associée (et non l\'inverse). Elle s\'affiche en tête de la partie, et tu peux en changer depuis l\'onglet Armées pendant la partie.',
+    'Les listes de la bibliothèque ne portent plus aucune mention de partie.'
+  ] },
   { v: '1.19.0', date: '2026-10-16', notes: [
     'Armées : liste compacte (nom, faction, points). Touche une armée pour voir son détail : détachements, règles d\'armée et de détachement, puis unités repliées (nom, figurines, points) que tu dépliles pour voir profil, équipement, armes et aptitudes.'
   ] },
