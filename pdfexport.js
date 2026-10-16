@@ -21,7 +21,7 @@
         const ww = tw(word, size, sg.b), sp = tw(' ', size, sg.b) * (line.length ? 1 : 0);
         if (line.length && x + sp + ww > width) { lines.push(line); line = []; x = 0; }
         const lead = line.length ? ' ' : '';
-        line.push({ s: lead + word, b: sg.b, g: sg.g }); x += (lead ? tw(' ', size, sg.b) : 0) + ww;
+        line.push({ s: lead + word, b: sg.b, g: sg.g, c: sg.c }); x += (lead ? tw(' ', size, sg.b) : 0) + ww;
       });
     });
     if (line.length) lines.push(line);
@@ -29,105 +29,146 @@
   }
   const shortAb = (s) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > 26 ? s.slice(0, 25) + '.' : s; };
 
-  function build(a, rules) {
-    const PW = 842, PH = 595, M = 22, CW = PW - 2 * M;
+  const RED = '0.78 0.08 0.08';
+  const normN = (s) => String(s || '').toLowerCase().replace(/\(\d+\)/g, '').replace(/\s+/g, ' ').trim();
+  /* aptitude d'un chef / appui qui agit sur l'unité qu'il dirige */
+  const LEAD_FX = /dirige|rattach|accompagn|cette unit[ée]|de l'unit[ée]|l'unit[ée] (?:qu|à|a )|unit[ée] men[ée]e|unit[ée] dirig|unit[ée] qui (?:est )?(?:dirig|accompagn)|tant que cette figurine|figurines? de cette unit/i;
+  const leadFx = (x) => x && x.name && !/^(meneur|leader|appui|support|chef)\b/i.test(x.name) && !/^Amélioration/.test(x.name) && LEAD_FX.test(String(x.text || ''));
+  const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '.' : s; };
+
+  function build(a, rules, strats) {
+    const PW = 842, PH = 595, M = 20;
+    strats = (strats || []).filter((s) => s && s.name);
+    const SW = strats.length ? 168 : 0, GAP = strats.length ? 6 : 0, CW = PW - 2 * M - SW - GAP, FULL = PW - 2 * M;
     const units = a.units || []; const byId = {}; units.forEach((u) => { byId[u.id] = u; });
     const att = {}; units.forEach((u) => { if (u.attachedTo && byId[u.attachedTo] && u.attachedTo !== u.id) (att[u.attachedTo] = att[u.attachedTo] || []).push(u); });
     const attached = new Set(); Object.keys(att).forEach((k) => att[k].forEach((u) => attached.add(u.id)));
-    const rows = []; let gi = 0;
-    units.filter((u) => !attached.has(u.id)).forEach((u) => { const grp = (att[u.id] || []).length ? ++gi : 0; rows.push({ u, g: grp, lead: null }); (att[u.id] || []).forEach((e) => rows.push({ u: e, g: grp, lead: u })); });
+    const groups = [];
+    units.filter((u) => !attached.has(u.id)).forEach((u) => groups.push([{ u, lead: null }].concat((att[u.id] || []).map((e) => ({ u: e, lead: u })))));
     const pts = a.total && a.total.points != null ? a.total.points : units.reduce((t, u) => t + (+u.pts || 0), 0);
     const figs = units.reduce((t, u) => t + (+u.models || 0), 0);
-    /* Colonnes, calquées sur le tableur « Salamander Listes » : Pt | Figurine | Nb | M E SV PV CD CO | Aptitude | Arme P A C/T F PA D | Mots-clés d'arme */
-    const COLS = [['Pt', 22], ['Figurine', 98], ['Nb', 16], ['M', 17], ['E', 14], ['SV', 32], ['PV', 16], ['CD', 18], ['CO', 16], ['Aptitude', 156], ['Arme', 108], ['P', 24], ['A', 26], ['C/T', 22], ['F', 18], ['PA', 20], ['D', 17], ["Mots-clés d'arme", CW - 640]];
-    const NU = 10; // colonnes « unité » (0..9) ; armes = 10..17
+    /* Colonnes calquées sur le tableur « Salamander Listes » ; colonnes chiffrées au plus étroit */
+    const fixed = 17 + 13 + 11 + 26 + 12 + 14 + 12 + 20 + 17 + 14 + 17 + 14 + 15 + 12; // hors Figurine, Aptitude, Arme, Mots-clés d'arme
+    const flex = CW - fixed; const fW = Math.round(flex * 0.20), aW = Math.round(flex * 0.31), wW = Math.round(flex * 0.23);
+    const COLS = [['Pt', 17], ['Figurine', fW], ['Nb', 13], ['M', 14], ['E', 12], ['SV', 27], ['PV', 13], ['CD', 15], ['CO', 13], ['Aptitude', aW], ['Arme', wW], ['P', 20], ['A', 24], ['C/T', 18], ['F', 15], ['PA', 17], ['D', 15], ["Mots-clés d'arme", 0]];
+    COLS[17][1] = CW - COLS.reduce((t, c) => t + c[1], 0);
+    const NU = 10;
 
-    function render(s, mode) {
-      const pages = []; let cur = null, y = 0;
+    function render(s, mode, clipN) {
+      const pages = []; let cur = null, y = 0; const tops = [];
       const emit = (c) => cur.push(c);
       const newPage = () => { cur = []; pages.push(cur); y = PH - M; };
-      const sz = { sub: 8, head: 6.8 * s, name: 7.4 * s, body: 6.3 * s };
+      const sz = { sub: 8.5, head: 7 * s, name: 7.8 * s, body: 6.8 * s };
       const fillRect = (x, top, w, h, g) => emit(`${g} g ${x.toFixed(1)} ${(top - h).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re f 0 g`);
       const strokeRect = (x, top, w, h, lw) => emit(`${lw} w ${x.toFixed(1)} ${(top - h).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re S`);
       const vline = (x, y1, y2, lw) => emit(`${lw} w ${x.toFixed(1)} ${y1.toFixed(1)} m ${x.toFixed(1)} ${y2.toFixed(1)} l S`);
       const hline = (x1, x2, yy, lw) => emit(`${lw} w ${x1.toFixed(1)} ${yy.toFixed(1)} m ${x2.toFixed(1)} ${yy.toFixed(1)} l S`);
-      const seg = (sg, x, base, size) => { const gg = sg.g != null; emit(`${gg ? sg.g + ' g ' : ''}BT /${sg.b ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(1)} ${base.toFixed(1)} Td (${esc(sg.s)}) Tj ET${gg ? ' 0 g' : ''}`); return tw(sg.s, size, sg.b); };
+      const seg = (sg, x, base, size) => { const col = sg.c ? sg.c + ' rg ' : (sg.g != null ? sg.g + ' g ' : ''); emit(`${col}BT /${sg.b ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(1)} ${base.toFixed(1)} Td (${esc(sg.s)}) Tj ET${col ? ' 0 g' : ''}`); return tw(sg.s, size, sg.b); };
       const lineOut = (segs, x, base, size) => { let cx = x; segs.forEach((sg) => { cx += seg(sg, cx, base, size); }); };
       const textLine = (t, x, size, bold, gray) => { y -= size * 1.25; seg({ s: clean(t), b: bold, g: gray }, x, y + size * 0.22, size); };
-      const ctr = (t, i, base, size, bold) => { const x = xs[i] + (COLS[i][1] - tw(t, size, bold)) / 2; seg({ s: t, b: bold }, x, base, size); };
-
       const xs = []; let ax = M; COLS.forEach((c) => { xs.push(ax); ax += c[1]; });
       const xEnd = M + CW;
+      const ctr = (t, i, base, size, bold, col) => { const x = xs[i] + (COLS[i][1] - tw(t, size, bold)) / 2; seg({ s: t, b: bold, c: col }, x, base, size); };
+
       newPage();
-      textLine(a.name || 'Armée', M, 15, true); y -= 1;
+      textLine(a.name || 'Armée', M, 16, true); y -= 1;
       textLine([a.faction, a.chapter, pts + ' pts', units.length + ' unités', figs ? figs + ' figurines' : ''].filter(Boolean).join('  -  '), M, sz.sub + 1, false, 0.25);
       if ((a.detachments || []).length) { y -= 1; textLine('Détachement : ' + a.detachments.join('  |  '), M, sz.sub, true); }
       const rl = (rules || []).filter((r) => r && r.name);
-      if (rl.length) { const ls = wrapSegs([{ s: "Règles d'armée et de détachement : ", b: true }].concat(rl.map((r, i) => ({ s: (i ? ' - ' : '') + r.name, g: 0.25 }))), sz.sub - 0.5, CW); ls.forEach((l) => { y -= (sz.sub - 0.5) * 1.25; lineOut(l, M, y + 1.6, sz.sub - 0.5); }); }
-      y -= 5;
+      if (rl.length) { const ls = wrapSegs([{ s: "Règles d'armée et de détachement : ", b: true }].concat(rl.map((r, i) => ({ s: (i ? ' - ' : '') + r.name, g: 0.25 }))), sz.sub - 0.5, FULL); ls.forEach((l) => { y -= (sz.sub - 0.5) * 1.25; lineOut(l, M, y + 1.6, sz.sub - 0.5); }); }
+      y -= 5; tops[0] = y;
 
-      const header = () => { const hh = sz.head * 1.9; fillRect(M, y, CW, hh, 0.8); strokeRect(M, y, CW, hh, 0.6); COLS.forEach((c, i) => { if (i) vline(xs[i], y, y - hh, 0.4); const left = i === 1 || i === 9 || i === 10 || i === 17; if (left) seg({ s: c[0], b: true }, xs[i] + 3, y - hh + sz.head * 0.62, sz.head); else ctr(c[0], i, y - hh + sz.head * 0.62, sz.head, true); }); y -= hh; };
+      const header = () => { if (pages.length > 1) tops[pages.length - 1] = y; const hh = sz.head * 1.9; fillRect(M, y, CW, hh, 0.8); strokeRect(M, y, CW, hh, 0.6); COLS.forEach((c, i) => { if (i) vline(xs[i], y, y - hh, 0.4); const left = i === 1 || i === 9 || i === 10 || i === 17; if (left) seg({ s: c[0], b: true }, xs[i] + 3, y - hh + sz.head * 0.62, sz.head); else ctr(c[0], i, y - hh + sz.head * 0.62, sz.head * Math.min(1, (c[1] - 1.5) / Math.max(tw(c[0], sz.head, true), 1)), true); }); y -= hh; };
       header();
-      let lastLead = null;
-      rows.forEach((r) => {
-        const u = r.u; const pad = 2, lh = sz.body * 1.2, lhn = sz.name * 1.2;
-        // --- armes : une ligne par arme, colonnes alignées
+
+      /* mise en forme d'un bloc : renvoie sa hauteur et une fonction de dessin */
+      const layout = (r) => {
+        const u = r.u; const pad = 2, lh = sz.body * 1.18, lhn = sz.name * 1.18;
+        const sergEq = []; (u.subModels || []).forEach((m) => String(m.equipment || '').split(/\s*,\s*/).forEach((e) => { const k = normN(e); if (k) sergEq.push(k); }));
+        const isSerg = (w) => { const k = normN(w.name); return sergEq.some((e) => e === k || e.includes(k) || k.includes(e)); };
         const all = (u.weapons || []).slice(); const rg = all.filter((w) => !isMelee(w)), ml = all.filter(isMelee);
         let ws = rg.concat(ml);
         if (mode >= 2) { const sr = rg.slice().sort((p, q) => score(q) - score(p)).slice(0, 4), sm = ml.slice().sort((p, q) => score(q) - score(p)).slice(0, 2); ws = sr.concat(sm); }
         const rest = all.length - ws.length;
-        const wrows = ws.map((w) => { const kl = wrapSegs([{ s: w.abilities || '', g: 0.25 }], sz.body - 0.4, COLS[17][1] - 5); const nl = wrapSegs([{ s: w.name, b: true }], sz.body, COLS[10][1] - 5); return { w, nl, kl, h: Math.max(nl.length, kl.length, 1) * lh + 1.2 }; });
+        const wrows = ws.map((w) => { const red = u.subModels && u.subModels.length && isSerg(w); const kl = wrapSegs([{ s: w.abilities || '', g: 0.25 }], sz.body - 0.4, COLS[17][1] - 5); const nl = wrapSegs([{ s: w.name, b: true, c: red ? RED : undefined }], sz.body, COLS[10][1] - 5); return { w, nl, kl, red, h: Math.max(nl.length, kl.length, 1) * lh + 1.2 }; });
         if (rest > 0) wrows.push({ more: ` +${rest} autre(s) arme(s)`, nl: [], kl: [], h: lh + 1.2 });
         const wh = wrows.reduce((t, o) => t + o.h, 0);
-        // --- cellules « unité » (fusionnées sur la hauteur du bloc)
         const tags = [r.lead ? (u.role === 'support' ? 'Appui' : 'Chef') + ' > ' + r.lead.name : '', u.warlord ? 'Seigneur de guerre' : '', u.enhancement ? '* ' + u.enhancement : ''].filter(Boolean).join(' / ');
-        const nameL = wrapSegs([{ s: (r.lead ? '+ ' : '') + u.name, b: true }], sz.name, COLS[1][1] - 5).map((l) => ({ l, size: sz.name, lh: lhn })).concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 })) : []);
+        const sub = tl(u);
+        function tl() { return (u.subModels || []).filter((m) => m && (m.name || m.equipment)).map((m) => (m.name ? m.name + ' : ' : '') + (m.equipment || '')); }
+        const nameL = wrapSegs([{ s: (r.lead ? '+ ' : '') + u.name, b: true }], sz.name, COLS[1][1] - 5).map((l) => ({ l, size: sz.name, lh: lhn }))
+          .concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 })) : [])
+          .concat(sub.reduce((acc, x) => acc.concat(wrapSegs([{ s: x, c: RED }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 }))), []));
         const abil = []; const seen = {}; (u.abilities || []).forEach((x) => { if (x && x.name && !/^Amélioration/.test(x.name) && !seen[x.name]) { seen[x.name] = 1; abil.push(x); } });
-        const asegs = []; abil.forEach((x, i) => { if (i) asegs.push({ s: ' ' }); asegs.push({ s: x.name + (mode === 0 && x.text ? ' :' : ''), b: true }); if (mode === 0 && x.text) { const t = String(x.text).replace(/\s+/g, ' ').trim(); asegs.push({ s: ' ' + (t.length > 110 ? t.slice(0, 109) + '.' : t), g: 0.2 }); } else if (i < abil.length - 1) asegs.push({ s: ',', b: true }); });
+        const asegs = []; abil.forEach((x, i) => { const red = r.lead && leadFx(x) ? RED : undefined; if (i) asegs.push({ s: ' ' }); const withText = mode === 0 && x.text; asegs.push({ s: x.name + (withText ? ' :' : (i < abil.length - 1 ? ',' : '')), b: true, c: red }); if (withText) { const tx = clip(x.text, clipN); asegs.push({ s: ' ' + tx, g: red ? undefined : 0.2, c: red }); } });
         const abL = wrapSegs(asegs, sz.body - 0.3, COLS[9][1] - 5).map((l) => ({ l, size: sz.body - 0.3, lh: lh - 0.2 }));
         const kw = (u.keywords || []).concat(u.factionKw || []);
         const kwL = kw.length ? wrapSegs([{ s: 'Mots-clés : ', b: true, g: 0.3 }, { s: kw.join(', '), g: 0.35 }], sz.body - 0.6, CW - 6) : [];
         const kwH = kwL.length * (lh - 0.5) + (kwL.length ? 1.5 : 0);
         const uh = Math.max(nameL.reduce((t, o) => t + o.lh, 0), abL.reduce((t, o) => t + o.lh, 0), 1);
-        const bh = Math.max(wh, uh) + pad * 2 + kwH;
-        if (y - bh < M + 12) { newPage(); header(); }
-        const top = y, mainH = bh - kwH;
-        if (r.lead) fillRect(M, top, CW, bh, 0.95);
-        else if (lastLead === null && false) { /* rien */ }
-        // grille
-        strokeRect(M, top, CW, bh, 0.5);
-        COLS.forEach((c, i) => { if (i) vline(xs[i], top, top - mainH, 0.25); });
-        if (kwH) hline(M, xEnd, top - mainH, 0.25);
-        if (r.lead) emit(`1.8 w ${(M + 0.9).toFixed(1)} ${top.toFixed(1)} m ${(M + 0.9).toFixed(1)} ${(top - bh).toFixed(1)} l S`);
-        // unité
-        const mid = top - mainH / 2 - sz.body * 0.3;
-        const st = [u.pts || '', u.models || '', u.M || '', u.T || '', u.sv ? (u.sv + (u.inv ? '/' + u.inv + '++' : '')) : '', u.W || '', u.Ld || '', u.OC || ''];
-        const stI = [0, 2, 3, 4, 5, 6, 7, 8];
-        st.forEach((v, k) => { const i = stI[k]; const t = clean(String(v)); if (!t) return; const sz2 = sz.body + 0.3; const wdt = tw(t, sz2, k === 0); const fit = Math.min(1, (COLS[i][1] - 2) / Math.max(wdt, 1)); ctr(t, i, mid, sz2 * fit, k === 0); });
-        let cy = top - pad - Math.max(0, (mainH - pad * 2 - nameL.reduce((t, o) => t + o.lh, 0)) / 2) ; nameL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[1] + 3, cy + o.lh * 0.28, o.size); });
-        cy = top - pad; abL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[9] + 3, cy + o.lh * 0.28, o.size); });
-        // armes
-        cy = top - pad;
-        wrows.forEach((o, k) => {
-          if (k) hline(xs[NU], xEnd, cy, 0.2);
-          const base = cy - lh + lh * 0.28 - 0.4;
-          if (o.more) { seg({ s: o.more, g: 0.45 }, xs[NU] + 3, base, sz.body); }
-          else {
-            const w = o.w; let yy = cy; o.nl.forEach((l) => { yy -= lh; lineOut(l, xs[10] + 3, yy + lh * 0.28 - 0.4, sz.body); });
-            const vals = [isMelee(w) ? 'CC' : (w.range || ''), w.A, w.skill, w.S, w.AP, w.D];
-            vals.forEach((v, j) => { const t = clean(String(v == null ? '' : v)); const i = 11 + j; const f = Math.min(1, (COLS[i][1] - 2) / Math.max(tw(t, sz.body), 1)); ctr(t, i, base, sz.body * f, false); });
-            yy = cy; o.kl.forEach((l) => { yy -= lh; lineOut(l, xs[17] + 3, yy + lh * 0.28 - 0.4, sz.body - 0.4); });
-          }
-          cy -= o.h;
-        });
-        if (kwH) { let ky = top - mainH - 0.5; kwL.forEach((l) => { ky -= lh - 0.5; lineOut(l, M + 3, ky + (lh - 0.5) * 0.28, sz.body - 0.6); }); }
-        y -= bh;
+        const mainH = Math.max(wh, uh) + pad * 2, bh = mainH + kwH;
+        const draw = (top) => {
+          if (r.lead) fillRect(M, top, CW, bh, 0.95);
+          strokeRect(M, top, CW, bh, 0.5);
+          COLS.forEach((c, i) => { if (i) vline(xs[i], top, top - mainH, 0.25); });
+          if (kwH) hline(M, xEnd, top - mainH, 0.25);
+          if (r.lead) emit(`1.8 w ${(M + 0.9).toFixed(1)} ${top.toFixed(1)} m ${(M + 0.9).toFixed(1)} ${(top - bh).toFixed(1)} l S`);
+          const mid = top - mainH / 2 - sz.body * 0.3;
+          const st = [u.pts || '', u.models || '1', u.M || '', u.T || '', u.sv ? (u.sv + (u.inv ? '/' + u.inv + '++' : '')) : '', u.W || '', u.Ld || '', u.OC || ''];
+          const stI = [0, 2, 3, 4, 5, 6, 7, 8];
+          st.forEach((v, k) => { const i = stI[k]; const tx = clean(String(v)); if (!tx) return; const s2 = sz.body + 0.3; const fit = Math.min(1, (COLS[i][1] - 1.5) / Math.max(tw(tx, s2, k === 0), 1)); ctr(tx, i, mid, s2 * fit, k === 0); });
+          let cy = top - pad - Math.max(0, (mainH - pad * 2 - nameL.reduce((t, o) => t + o.lh, 0)) / 2);
+          nameL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[1] + 3, cy + o.lh * 0.28, o.size); });
+          cy = top - pad; abL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[9] + 3, cy + o.lh * 0.28, o.size); });
+          cy = top - pad;
+          wrows.forEach((o, k) => {
+            if (k) hline(xs[NU], xEnd, cy, 0.2);
+            const base = cy - lh + lh * 0.28 - 0.4;
+            if (o.more) seg({ s: o.more, g: 0.45 }, xs[NU] + 3, base, sz.body);
+            else {
+              const w = o.w; let yy = cy; o.nl.forEach((l) => { yy -= lh; lineOut(l, xs[10] + 3, yy + lh * 0.28 - 0.4, sz.body); });
+              [isMelee(w) ? 'CC' : (w.range || ''), w.A, w.skill, w.S, w.AP, w.D].forEach((v, j) => { const tx = clean(String(v == null ? '' : v)); const i = 11 + j; const f = Math.min(1, (COLS[i][1] - 1.5) / Math.max(tw(tx, sz.body), 1)); ctr(tx, i, base, sz.body * f, false, o.red ? RED : undefined); });
+              yy = cy; o.kl.forEach((l) => { yy -= lh; lineOut(l, xs[17] + 3, yy + lh * 0.28 - 0.4, sz.body - 0.4); });
+            }
+            cy -= o.h;
+          });
+          if (kwH) { let ky = top - mainH - 0.5; kwL.forEach((l) => { ky -= lh - 0.5; lineOut(l, M + 3, ky + (lh - 0.5) * 0.28, sz.body - 0.6); }); }
+        };
+        return { bh, draw };
+      };
+      groups.forEach((g) => {
+        const bl = g.map(layout); const gh = bl.reduce((t, b) => t + b.bh, 0);
+        if (y - gh < M + 12 && y < tops[pages.length - 1] - 40) { newPage(); header(); }
+        bl.forEach((b) => { if (y - b.bh < M + 12) { newPage(); header(); } b.draw(y); y -= b.bh; });
       });
+
+      /* colonne de droite : stratagèmes propres à la liste */
+      if (strats.length) {
+        const px = M + CW + GAP; const ps = 6.2 * Math.max(1, Math.min(s, 1.15));
+        const lines = []; let lastDet = null;
+        strats.forEach((st) => {
+          if (st.detachment && st.detachment !== lastDet) { lastDet = st.detachment; wrapSegs([{ s: st.detachment, b: true, g: 0.2 }], ps + 0.3, SW - 8).forEach((l) => lines.push({ l, size: ps + 0.3, gap: 3 })); }
+          wrapSegs([{ s: st.name, b: true }, { s: ' (' + (st.cp || 1) + ' PC)', g: 0.3 }], ps, SW - 8).forEach((l, i) => lines.push({ l, size: ps, gap: i ? 0 : 3 }));
+          const tx = [st.when, st.effect].filter(Boolean).join(' - ');
+          if (tx) wrapSegs([{ s: clip(tx, clipN + 60), g: 0.25 }], ps - 0.5, SW - 8).forEach((l) => lines.push({ l, size: ps - 0.5, gap: 0 }));
+        });
+        let li = 0;
+        pages.forEach((pg, pi) => {
+          if (li >= lines.length) return;
+          cur = pg; const top = pi === 0 ? tops[0] : tops[pi] != null ? tops[pi] : PH - M; let yy = top;
+          const hh = 7 * s * 1.9; fillRect(px, yy, SW, hh, 0.8); strokeRect(px, yy, SW, hh, 0.6); seg({ s: pi === 0 ? 'Stratagèmes de la liste' : 'Stratagèmes (suite)', b: true }, px + 3, yy - hh + 7 * s * 0.62, 7 * s); yy -= hh;
+          const start = yy; let used = 0;
+          while (li < lines.length) { const o = lines[li]; const need = o.size * 1.18 + o.gap; if (yy - need < M + 12) break; yy -= need; lineOut(o.l, px + 4, yy + o.size * 0.28, o.size); li++; used = 1; }
+          strokeRect(px, start, SW, start - yy + 3, 0.5);
+        });
+        if (li < lines.length) pages.overflow = true;
+      }
       return pages;
     }
+    const hasMore = (pg) => pg.overflow;
     let pages = null;
-    outer: for (let mode = 0; mode <= 2; mode++) for (let s = 1.3; s >= 0.6; s -= 0.05) { pages = render(s, mode); if (pages.length === 1) break outer; }
-    if (pages.length > 1) pages = render(0.9, 2);
+    outer: for (let mode = 0; mode <= 2; mode++) for (let s = 1.35; s >= 1.0; s -= 0.05) for (const cn of [200, 120]) { if (mode > 0 && cn === 120) continue; pages = render(s, mode, cn); if (pages.length === 1 && !hasMore(pages)) break outer; }
+    if (pages.length > 1 || hasMore(pages)) { pages = null; for (const cn of [200, 140, 90]) { pages = render(1.05, 2, cn); if (!hasMore(pages)) break; } }
 
     const n = pages.length; const objs = []; const add = (t) => { objs.push(t); return objs.length; };
     add('<< /Type /Catalog /Pages 2 0 R >>');
@@ -135,7 +176,7 @@
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
     add('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
     pages.forEach((p, i) => {
-      const foot = `0.4 g BT /F1 6.5 Tf ${M} 12 Td (NoobHammer40k  -  ${n > 1 ? 'page ' + (i + 1) + '/' + n + '  -  ' : ''}liste de ${clean(a.name || '')}) Tj ET 0 g`;
+      const foot = `0.4 g BT /F1 6.5 Tf ${M} 10 Td (NoobHammer40k  -  ${n > 1 ? 'page ' + (i + 1) + '/' + n + '  -  ' : ''}liste de ${clean(a.name || '')}) Tj ET 0 g`;
       const body = p.join('\n') + '\n' + foot;
       add(`<< /Length ${body.length} >>\nstream\n${body}\nendstream`);
       add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PW} ${PH}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${5 + i * 2} 0 R >>`);

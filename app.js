@@ -2194,7 +2194,7 @@
     armyPdf(id) {
       const a = S.armies.find((x) => x.id === id); if (!a || !window.ArmyPdf) return;
       try {
-        const bytes = ArmyPdf.build(a, S.armyRules[a.id] || []); const el = document.createElement('a');
+        const bytes = ArmyPdf.build(a, S.armyRules[a.id] || [], S.customStrats.filter((s) => s.armyId === a.id)); const el = document.createElement('a');
         el.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })); el.download = (a.name || 'armee').replace(/[^\w\-À-ÿ ]+/g, '').trim().replace(/\s+/g, '_') + '.pdf';
         document.body.appendChild(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1500);
       } catch (e) { alert('Export PDF impossible : ' + e.message); }

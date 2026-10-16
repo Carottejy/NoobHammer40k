@@ -1,6 +1,11 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.25.0';
+var APP_VERSION = '1.26.0';
 var APP_RELEASES = [
+  { v: '1.26.0', date: '2026-10-16', notes: [
+    'PDF : police plus grande, colonnes chiffrées au plus étroit, « Nb » = 1 pour les figurines seules.',
+    'PDF : équipements des sergents en rouge, aptitudes des chefs/appuis agissant sur leur unité en rouge, chefs et appuis gardés avec leur unité.',
+    'PDF : colonne de droite avec les stratagèmes non génériques de la liste.'
+  ] },
   { v: '1.25.0', date: '2026-10-16', notes: [
     'Export PDF repensé comme ton tableur Salamander : un bloc par unité (Pt, figurine, profil M/E/SV/PV/CD/CO, aptitudes) avec un tableau d\'armes aligné (P, A, C/T, F, PA, D, mots-clés d\'arme).',
     'Mots-clés sous chaque unité, chefs et appuis regroupés ; une seule page si possible, sinon armes condensées sur 2-3 pages.'
