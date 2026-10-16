@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.26.0';
+var APP_VERSION = '1.27.0';
 var APP_RELEASES = [
+  { v: '1.27.0', date: '2026-10-16', notes: [
+    'PDF : toujours une seule page A4 (police la plus grande possible qui tient).',
+    'PDF : colonne Aptitude = effets de jeu résumés (sans titres, sans Meneur / Doctrines / etc.).'
+  ] },
   { v: '1.26.0', date: '2026-10-16', notes: [
     'PDF : police plus grande, colonnes chiffrées au plus étroit, « Nb » = 1 pour les figurines seules.',
     'PDF : équipements des sergents en rouge, aptitudes des chefs/appuis agissant sur leur unité en rouge, chefs et appuis gardés avec leur unité.',

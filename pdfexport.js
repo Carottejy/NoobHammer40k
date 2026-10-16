@@ -34,7 +34,9 @@
   /* aptitude d'un chef / appui qui agit sur l'unité qu'il dirige */
   const LEAD_FX = /dirige|rattach|accompagn|cette unit[ée]|de l'unit[ée]|l'unit[ée] (?:qu|à|a )|unit[ée] men[ée]e|unit[ée] dirig|unit[ée] qui (?:est )?(?:dirig|accompagn)|tant que cette figurine|figurines? de cette unit/i;
   const leadFx = (x) => x && x.name && !/^(meneur|leader|appui|support|chef)\b/i.test(x.name) && !/^Amélioration/.test(x.name) && LEAD_FX.test(String(x.text || ''));
-  const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '.' : s; };
+  const SKIP_AB = /^(meneur|leader|appui|support|chef|doctrines?\b|am[ée]lioration|d[ée]ploiement|r[ée]serves? strat|discipline du codex)/i;
+  const effect = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').replace(/^[^A-Za-zÀ-ÿ0-9+\-]+/, '').replace(/\bfigurines?\b/gi, 'fig.').replace(/\bTant que\b/g, 'Si').replace(/\b(?:cette|cet) (?:unit[ée]|fig\.)\b/gi, 'elle').trim(); return clip(s, n); };
+  const clip = (s, n) => { s = String(s || '').replace(/\s+/g, ' ').trim(); if (s.length <= n) return s; let c = s.slice(0, n); const sp = c.lastIndexOf(' '); if (sp > n * 0.5) c = c.slice(0, sp); return c.replace(/[\s,;:.\-]+$/, '').replace(/\s+(?:de|du|des|la|le|les|à|au|aux|si|un|une|qu'|d'|l'|et|ou|en)$/i, '') + '...'; };
 
   function build(a, rules, strats) {
     const PW = 842, PH = 595, M = 20;
@@ -83,15 +85,15 @@
 
       /* mise en forme d'un bloc : renvoie sa hauteur et une fonction de dessin */
       const layout = (r) => {
-        const u = r.u; const pad = 2, lh = sz.body * 1.18, lhn = sz.name * 1.18;
+        const u = r.u; const pad = 2 * Math.min(1, s), lh = sz.body * 1.18, lhn = sz.name * 1.18;
         const sergEq = []; (u.subModels || []).forEach((m) => String(m.equipment || '').split(/\s*,\s*/).forEach((e) => { const k = normN(e); if (k) sergEq.push(k); }));
         const isSerg = (w) => { const k = normN(w.name); return sergEq.some((e) => e === k || e.includes(k) || k.includes(e)); };
         const all = (u.weapons || []).slice(); const rg = all.filter((w) => !isMelee(w)), ml = all.filter(isMelee);
         let ws = rg.concat(ml);
-        if (mode >= 2) { const sr = rg.slice().sort((p, q) => score(q) - score(p)).slice(0, 4), sm = ml.slice().sort((p, q) => score(q) - score(p)).slice(0, 2); ws = sr.concat(sm); }
+        if (mode >= 2) { const nr = mode >= 4 ? 2 : mode >= 3 ? 3 : 4, nm = mode >= 3 ? 1 : 2; const sr = rg.slice().sort((p, q) => score(q) - score(p)).slice(0, nr), sm = ml.slice().sort((p, q) => score(q) - score(p)).slice(0, nm); ws = sr.concat(sm); }
         const rest = all.length - ws.length;
-        const wrows = ws.map((w) => { const red = u.subModels && u.subModels.length && isSerg(w); const kl = wrapSegs([{ s: w.abilities || '', g: 0.25 }], sz.body - 0.4, COLS[17][1] - 5); const nl = wrapSegs([{ s: w.name, b: true, c: red ? RED : undefined }], sz.body, COLS[10][1] - 5); return { w, nl, kl, red, h: Math.max(nl.length, kl.length, 1) * lh + 1.2 }; });
-        if (rest > 0) wrows.push({ more: ` +${rest} autre(s) arme(s)`, nl: [], kl: [], h: lh + 1.2 });
+        const wrows = ws.map((w) => { const red = u.subModels && u.subModels.length && isSerg(w); const kl = wrapSegs([{ s: w.abilities || '', g: 0.25 }], sz.body - 0.4, COLS[17][1] - 5); const nl = wrapSegs([{ s: w.name, b: true, c: red ? RED : undefined }], sz.body, COLS[10][1] - 5); return { w, nl, kl, red, h: Math.max(nl.length, kl.length, 1) * lh + 1.2 * Math.min(1, s) }; });
+        if (rest > 0) wrows.push({ more: ` +${rest} autre(s) arme(s)`, nl: [], kl: [], h: lh + 1.2 * Math.min(1, s) });
         const wh = wrows.reduce((t, o) => t + o.h, 0);
         const tags = [r.lead ? (u.role === 'support' ? 'Appui' : 'Chef') + ' > ' + r.lead.name : '', u.warlord ? 'Seigneur de guerre' : '', u.enhancement ? '* ' + u.enhancement : ''].filter(Boolean).join(' / ');
         const sub = tl(u);
@@ -99,12 +101,12 @@
         const nameL = wrapSegs([{ s: (r.lead ? '+ ' : '') + u.name, b: true }], sz.name, COLS[1][1] - 5).map((l) => ({ l, size: sz.name, lh: lhn }))
           .concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 })) : [])
           .concat(sub.reduce((acc, x) => acc.concat(wrapSegs([{ s: x, c: RED }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 }))), []));
-        const abil = []; const seen = {}; (u.abilities || []).forEach((x) => { if (x && x.name && !/^Amélioration/.test(x.name) && !seen[x.name]) { seen[x.name] = 1; abil.push(x); } });
-        const asegs = []; abil.forEach((x, i) => { const red = r.lead && leadFx(x) ? RED : undefined; if (i) asegs.push({ s: ' ' }); const withText = mode === 0 && x.text; asegs.push({ s: x.name + (withText ? ' :' : (i < abil.length - 1 ? ',' : '')), b: true, c: red }); if (withText) { const tx = clip(x.text, clipN); asegs.push({ s: ' ' + tx, g: red ? undefined : 0.2, c: red }); } });
+        const abil = []; const seen = {}; (u.abilities || []).forEach((x) => { if (x && x.name && !SKIP_AB.test(x.name) && !seen[x.name]) { seen[x.name] = 1; abil.push(x); } });
+        const asegs = []; abil.forEach((x, i) => { const red = r.lead && leadFx(x) ? RED : undefined; if (i) asegs.push({ s: ' \x95 ', g: 0.5 }); const tx = x.text ? effect(x.text, clipN) : x.name; asegs.push({ s: tx, c: red, g: red ? undefined : 0.1 }); });
         const abL = wrapSegs(asegs, sz.body - 0.3, COLS[9][1] - 5).map((l) => ({ l, size: sz.body - 0.3, lh: lh - 0.2 }));
         const kw = (u.keywords || []).concat(u.factionKw || []);
         const kwL = kw.length ? wrapSegs([{ s: 'Mots-clés : ', b: true, g: 0.3 }, { s: kw.join(', '), g: 0.35 }], sz.body - 0.6, CW - 6) : [];
-        const kwH = kwL.length * (lh - 0.5) + (kwL.length ? 1.5 : 0);
+        const kwH = kwL.length * (lh - 0.5) + (kwL.length ? 1.5 * Math.min(1, s) : 0);
         const uh = Math.max(nameL.reduce((t, o) => t + o.lh, 0), abL.reduce((t, o) => t + o.lh, 0), 1);
         const mainH = Math.max(wh, uh) + pad * 2, bh = mainH + kwH;
         const draw = (top) => {
@@ -144,14 +146,16 @@
 
       /* colonne de droite : stratagèmes propres à la liste */
       if (strats.length) {
-        const px = M + CW + GAP; const ps = 6.2 * Math.max(1, Math.min(s, 1.15));
+        const px = M + CW + GAP; const ps = 6.2 * Math.max(0.8, Math.min(s, 1.15));
         const lines = []; let lastDet = null;
-        strats.forEach((st) => {
+        const mk = (pclip) => { lines.length = 0; lastDet = null; strats.forEach((st) => {
           if (st.detachment && st.detachment !== lastDet) { lastDet = st.detachment; wrapSegs([{ s: st.detachment, b: true, g: 0.2 }], ps + 0.3, SW - 8).forEach((l) => lines.push({ l, size: ps + 0.3, gap: 3 })); }
           wrapSegs([{ s: st.name, b: true }, { s: ' (' + (st.cp || 1) + ' PC)', g: 0.3 }], ps, SW - 8).forEach((l, i) => lines.push({ l, size: ps, gap: i ? 0 : 3 }));
           const tx = [st.when, st.effect].filter(Boolean).join(' - ');
-          if (tx) wrapSegs([{ s: clip(tx, clipN + 60), g: 0.25 }], ps - 0.5, SW - 8).forEach((l) => lines.push({ l, size: ps - 0.5, gap: 0 }));
-        });
+          if (tx && pclip) wrapSegs([{ s: clip(tx, pclip), g: 0.25 }], ps - 0.5, SW - 8).forEach((l) => lines.push({ l, size: ps - 0.5, gap: 0 }));
+        }); return lines.reduce((q, o) => q + o.size * 1.18 + o.gap, 0); };
+        const availH = tops[0] - (M + 12) - 7 * s * 1.9 - 4;
+        [300, 200, 130, 80, 0].some((pc) => mk(pc) <= availH);
         let li = 0;
         pages.forEach((pg, pi) => {
           if (li >= lines.length) return;
@@ -166,9 +170,13 @@
       return pages;
     }
     const hasMore = (pg) => pg.overflow;
-    let pages = null;
-    outer: for (let mode = 0; mode <= 2; mode++) for (let s = 1.35; s >= 1.0; s -= 0.05) for (const cn of [200, 120]) { if (mode > 0 && cn === 120) continue; pages = render(s, mode, cn); if (pages.length === 1 && !hasMore(pages)) break outer; }
-    if (pages.length > 1 || hasMore(pages)) { pages = null; for (const cn of [200, 140, 90]) { pages = render(1.05, 2, cn); if (!hasMore(pages)) break; } }
+    /* une seule page A4 : on cherche la meilleure combinaison (police la plus grande d'abord, puis texte plus court) */
+    let pages = null, best = -1;
+    const ok = (pg) => pg.length === 1 && !pg.overflow;
+    const combos = [[0, 160], [0, 110], [2, 110], [2, 80], [3, 80], [3, 55], [3, 35], [4, 35]];
+    /* pour chaque réglage, la plus grande police qui tient ; on garde le meilleur (à égalité, le moins condensé) */
+    combos.forEach(([mode, cn]) => { for (let s = 1.4; s >= 0.4; s -= 0.02) { if (s <= best + 0.001) break; const pg = render(s, mode, cn); if (ok(pg)) { best = s; pages = pg; break; } } });
+    if (!pages) pages = render(0.4, 4, 30);
 
     const n = pages.length; const objs = []; const add = (t) => { objs.push(t); return objs.length; };
     add('<< /Type /Catalog /Pages 2 0 R >>');
