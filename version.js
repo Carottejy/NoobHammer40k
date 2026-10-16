@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.23.0';
+var APP_VERSION = '1.24.0';
 var APP_RELEASES = [
+  { v: '1.24.0', date: '2026-10-16', notes: [
+    'Export PDF : une seule page A4 paysage, tout dans un tableau (une ligne par unité : figurines, points, profil, armes principales, aptitudes, mots-clés). Chefs et appuis regroupés sous leur unité. La taille du texte s\'adapte à la longueur de la liste.'
+  ] },
   { v: '1.23.0', date: '2026-10-16', notes: [
     'Export PDF repensé : chefs et appuis regroupés avec l\'unité qu\'ils rejoignent, bandeau d\'unité, caractéristiques encadrées, mots-clés, tableau d\'armes aligné (portée, attaques, touche, force, PA, dégâts, capacités) et aptitudes dans des encarts séparés.'
   ] },
