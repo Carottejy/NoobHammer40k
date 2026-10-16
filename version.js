@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.17.1';
+var APP_VERSION = '1.18.0';
 var APP_RELEASES = [
+  { v: '1.18.0', date: '2026-10-16', notes: [
+    'Amis : ajoute un ami par son pseudo, accepte les demandes, et invite-le à une partie en ligne en un clic (en plus du système de code). Les invitations apparaissent sur l\'accueil.',
+    'Accueil : suppression des blocs « partie en cours ».'
+  ] },
   { v: '1.17.1', date: '2026-10-16', notes: [
     'Le compte et la connexion sont maintenant sur la page d\'accueil.'
   ] },

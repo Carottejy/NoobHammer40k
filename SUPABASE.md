@@ -36,3 +36,7 @@ create policy "mon document" on public.sync_docs for all to authenticated
 ```
 
 La table `profiles` (pseudo unique, lisible par les joueurs connectés) prépare la future liste d'amis.
+
+## Amis et invitations (v1.18)
+
+Tables `friendships` et `game_invites` (RLS : chacun ne voit que ses amitiés et ses invitations), fonction `find_user(pseudo)` pour retrouver un joueur par son pseudo exact, et la lecture des profils limitée à soi-même et à ses contacts. Voir la migration « amis_et_invitations » du projet.

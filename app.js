@@ -125,7 +125,7 @@
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil'], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
@@ -648,7 +648,7 @@
     if (location.protocol === 'file:') h += `<div class="warn">Tu as ouvert l'appli depuis un fichier : la partie en ligne a besoin que l'appli soit hébergée en HTTPS (voir le guide HEBERGER.md).</div>`;
     if (st === 'off') {
       h += `<p class="muted">Joue à deux : chacun voit la liste, les effectifs et les stratagèmes de l'autre, et le round / la phase / les PC se synchronisent. Il faut internet des deux côtés.</p>
-        ${txt('Ton pseudo', 'net.nick')}
+        ${frInvitesHtml()}${txt('Ton pseudo', 'net.nick')}
         <div class="row" style="margin-top:10px"><button class="btn" data-act="netHost">Créer une partie en ligne</button></div>
         <hr><label>Rejoindre avec un code</label><div class="row"><input type="text" id="joinCode" maxlength="8" placeholder="Code (5 caractères)" style="flex:1;text-transform:uppercase" value=""><button class="btn" data-act="netJoin">Rejoindre</button></div>
         ${n.code ? `<hr><div class="row sp"><span class="muted">Dernière partie : code <b>${esc(n.code)}</b> (${n.role === 'h' ? 'créée par toi' : 'rejointe'})</span><button class="btn small ghost" data-act="netResume">Reprendre</button></div>` : ''}`;
@@ -658,6 +658,7 @@
         : st === 'wait' ? `<div class="note">🟠 En attente de l'adversaire : donne-lui ce code, il doit l'entrer dans « Rejoindre avec un code ».</div>`
         : st === 'err' ? '' : `<div class="note">🟠 Connexion en cours…</div>`;
       if (net.msg) h += `<div class="${st === 'err' ? 'warn' : 'note'}">${esc(net.msg)}</div>`;
+      if (n.role === 'h' && st !== 'on') h += frInviteButtons();
       h += `<div class="row" style="margin-top:8px"><button class="btn small danger" data-act="netLeave">Quitter la partie en ligne</button>${st === 'err' ? '<button class="btn small ghost" data-act="netResume">Réessayer</button>' : ''}</div>`;
     }
     return h + '</div>';
@@ -1804,7 +1805,7 @@
         j = await syReq('/auth/v1/signup', { method: 'POST', body: JSON.stringify({ email, password: pw, data: { pseudo } }) });
         if (!j.access_token) { SY.busy = false; SY.msg = 'Compte créé. Confirme ton email (lien reçu par mail), puis connecte-toi.'; SY.mode = 'login'; render(); return; }
       } else j = await syReq('/auth/v1/token?grant_type=password', { method: 'POST', body: JSON.stringify({ email, password: pw }) });
-      sySet({ s: sySession(j), base: { armies: {}, games: {} }, last: 0 }); SY.busy = false; SY.msg = ''; await syncRun(true);
+      sySet({ s: sySession(j), base: { armies: {}, games: {} }, last: 0 }); SY.busy = false; SY.msg = ''; await syncRun(true); frLoad(true);
     } catch (e) { SY.busy = false; SY.err = e.message; SY.msg = ''; render(); }
   }
   function syncSoon() { if (SY.applying || !syCfg() || !syCfg().s) return; clearTimeout(SY.timer); SY.timer = setTimeout(() => syncRun(false), 6000); }
@@ -1827,15 +1828,96 @@
     return h + '</div>';
   }
 
+  /* ----- Amis et invitations de parties en ligne (Supabase) ----- */
+  var FR = { friends: [], incoming: [], outgoing: [], invites: [], msg: '', err: '', busy: false, loaded: false, sig: '' };
+  const frOn = () => { const c = syCfg(); return !!(cloud() && c && c.s); };
+  async function frReq(path, opt) { const cfg = syCfg(); const tok = await syToken(cfg); return syReq(path, opt, tok); }
+  async function frLoad(silent) {
+    if (!frOn() || FR.busy) return;
+    FR.busy = true;
+    try {
+      const uid = syCfg().s.uid;
+      const rows = await frReq('/rest/v1/friendships?select=id,requester,addressee,status');
+      const others = Array.from(new Set(rows.map((r) => (r.requester === uid ? r.addressee : r.requester))));
+      const prof = others.length ? await frReq('/rest/v1/profiles?select=id,pseudo&id=in.(' + others.join(',') + ')') : [];
+      const nm = {}; prof.forEach((p) => { nm[p.id] = p.pseudo; });
+      const mk = (r) => ({ fid: r.id, uid: r.requester === uid ? r.addressee : r.requester, pseudo: nm[r.requester === uid ? r.addressee : r.requester] || '?' });
+      FR.friends = rows.filter((r) => r.status === 'accepted').map(mk).sort((a, b) => a.pseudo.localeCompare(b.pseudo));
+      FR.incoming = rows.filter((r) => r.status === 'pending' && r.addressee === uid).map(mk);
+      FR.outgoing = rows.filter((r) => r.status === 'pending' && r.requester === uid).map(mk);
+      const inv = await frReq('/rest/v1/game_invites?select=id,from_user,code,created_at&to_user=eq.' + uid + '&order=created_at.desc');
+      const fresh = inv.filter((i) => Date.now() - new Date(i.created_at).getTime() < 6 * 3600 * 1000);
+      inv.filter((i) => !fresh.includes(i)).forEach((i) => { frReq('/rest/v1/game_invites?id=eq.' + i.id, { method: 'DELETE' }).catch(() => {}); });
+      const fn = {}; FR.friends.forEach((f) => { fn[f.uid] = f.pseudo; });
+      FR.invites = fresh.map((i) => ({ id: i.id, from: fn[i.from_user] || 'Un ami', code: i.code }));
+      FR.err = ''; FR.loaded = true;
+    } catch (e) { FR.err = e.message; }
+    FR.busy = false;
+    const sig = JSON.stringify([FR.friends, FR.incoming, FR.invites, FR.err]);
+    if (sig !== FR.sig) { FR.sig = sig; if (!silent || !/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) render(); }
+  }
+  const frDo = async (fn, ok) => { FR.err = ''; FR.msg = ''; while (FR.busy) await new Promise((r) => setTimeout(r, 100)); try { await fn(); FR.msg = ok || ''; } catch (e) { FR.err = e.message; } FR.sig = ''; await frLoad(); render(); };
+  function frInvitesHtml() {
+    if (!frOn() || !FR.invites.length) return '';
+    return FR.invites.map((i) => `<div class="note" style="border-color:var(--accent)"><div class="row sp"><span>🎲 <b>${esc(i.from)}</b> t'invite à une partie en ligne</span><span class="row"><button class="btn small" data-act="frJoin" data-val="${esc(i.id)}">Rejoindre</button><button class="btn small ghost" data-act="frDecline" data-val="${esc(i.id)}">Ignorer</button></span></div></div>`).join('');
+  }
+  function frInviteButtons() {
+    if (!frOn() || !FR.friends.length) return '';
+    return `<label style="margin-top:8px">Inviter un ami</label><div class="chips">${FR.friends.map((f) => `<button type="button" class="chip" data-act="frInvite" data-val="${esc(f.uid)}">✉ ${esc(f.pseudo)}</button>`).join('')}</div>`;
+  }
+  function friendsCard() {
+    if (!frOn()) return '';
+    let h = '<div class="card"><h2>Amis</h2>';
+    if (FR.incoming.length) h += `<label>Demandes reçues</label>${FR.incoming.map((f) => `<div class="row sp" style="margin:4px 0"><b>${esc(f.pseudo)}</b><span class="row"><button class="btn small" data-act="frAccept" data-val="${esc(f.fid)}">Accepter</button><button class="btn small ghost" data-act="frRemove" data-val="${esc(f.fid)}">Refuser</button></span></div>`).join('')}`;
+    h += FR.friends.length ? FR.friends.map((f) => `<div class="row sp" style="margin:4px 0"><span>👤 <b>${esc(f.pseudo)}</b></span><span class="row"><button class="btn small" data-act="frInvite" data-val="${esc(f.uid)}">🎲 Inviter</button><button class="btn small ghost" data-act="frRemove" data-val="${esc(f.fid)}" title="Retirer">✕</button></span></div>`).join('') : (FR.loaded ? '<p class="muted" style="margin:0 0 6px">Aucun ami pour l\'instant.</p>' : '<p class="muted" style="margin:0 0 6px">Chargement…</p>');
+    if (FR.outgoing.length) h += `<div class="muted">En attente de réponse : ${FR.outgoing.map((f) => esc(f.pseudo)).join(', ')}</div>`;
+    h += `<label style="margin-top:8px">Ajouter un ami (son pseudo)</label><div class="row"><input type="text" id="fr-pseudo" maxlength="20" placeholder="Pseudo exact" style="flex:1" autocomplete="off" autocapitalize="off"><button class="btn" data-act="frAdd">Ajouter</button></div>`;
+    if (FR.msg) h += `<div class="note" style="margin-top:8px">${esc(FR.msg)}</div>`;
+    if (FR.err) h += `<div class="warn" style="margin-top:8px">${esc(FR.err)}</div>`;
+    return h + '</div>';
+  }
+  const frInvitesCardHome = () => (frOn() && FR.invites.length ? `<div class="card"><h2>Invitations</h2>${frInvitesHtml()}</div>` : '');
+  const frActions = {
+    frAdd() {
+      const p = ((document.getElementById('fr-pseudo') || {}).value || '').trim(); if (!p) { FR.err = 'Entre le pseudo de ton ami.'; render(); return; }
+      frDo(async () => {
+        const uid = syCfg().s.uid;
+        const r = await frReq('/rest/v1/rpc/find_user', { method: 'POST', body: JSON.stringify({ p }) });
+        if (!r || !r[0]) throw new Error('Aucun joueur avec ce pseudo.');
+        const t = r[0];
+        const inc = FR.incoming.find((f) => f.uid === t.id);
+        if (inc) { await frReq('/rest/v1/friendships?id=eq.' + inc.fid, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }); return; }
+        if (FR.friends.some((f) => f.uid === t.id)) throw new Error(t.pseudo + ' est déjà dans tes amis.');
+        if (FR.outgoing.some((f) => f.uid === t.id)) throw new Error('Demande déjà envoyée à ' + t.pseudo + '.');
+        await frReq('/rest/v1/friendships', { method: 'POST', body: JSON.stringify({ requester: uid, addressee: t.id }) });
+      }, 'Demande envoyée (ou ami ajouté).');
+    },
+    frAccept(id) { frDo(() => frReq('/rest/v1/friendships?id=eq.' + id, { method: 'PATCH', body: JSON.stringify({ status: 'accepted' }) }), 'Ami ajouté.'); },
+    frRemove(id) { if (!confirm('Retirer cette personne de tes amis ?')) return; frDo(() => frReq('/rest/v1/friendships?id=eq.' + id, { method: 'DELETE' }), 'Retiré.'); },
+    frInvite(uid) {
+      const f = FR.friends.find((x) => x.uid === uid); if (!f) return;
+      frDo(async () => {
+        if (!(S.net.code && S.net.role === 'h' && net.status !== 'off')) { S.net.nick = S.net.nick && S.net.nick !== 'Joueur' ? S.net.nick : (syCfg().s.pseudo || 'Joueur'); const code = newCode(); ensureGame('Partie en ligne ' + code); netStart('h', code); }
+        await frReq('/rest/v1/game_invites', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ from_user: syCfg().s.uid, to_user: uid, code: S.net.code }) });
+      }, 'Invitation envoyée à ' + f.pseudo + '. Ta partie est créée (code ' + (S.net.code || '') + ') : va dans « Parties » pour l\'attendre.');
+    },
+    frJoin(id) {
+      const i = FR.invites.find((x) => x.id === id); if (!i) return;
+      if (S.enemy && !S.enemy.live && !confirm('Rejoindre une partie en ligne ? Ton armée adverse locale sera remplacée par celle de ton adversaire.')) return;
+      if (!S.net.nick || S.net.nick === 'Joueur') S.net.nick = (syCfg().s.pseudo) || 'Joueur';
+      ensureGame('Partie en ligne ' + i.code); netStart('g', i.code); S.tab = 'game';
+      frReq('/rest/v1/game_invites?id=eq.' + id, { method: 'DELETE' }).catch(() => {}); FR.invites = FR.invites.filter((x) => x.id !== id); FR.sig = '';
+    },
+    frDecline(id) { frDo(() => frReq('/rest/v1/game_invites?id=eq.' + id, { method: 'DELETE' }), ''); },
+  };
+
   /* ----- Accueil, hub des parties, écran de partie ----- */
   function viewHome() {
     const a = army(); const l = readGames();
     let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
-    if (!S.gameId && hasQuick()) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie rapide en cours</div>Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
-    if (S.gameId) h += `<div class="row sp" style="margin-bottom:10px"><div><div class="muted">Partie en cours</div><b>${esc(S.gameName)}</b> · Round ${S.round}</div><button class="btn" data-act="gameResume">Reprendre</button></div>`;
     h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes armées</button></div></div>`;
-    h += syncCard();
+    h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
   function viewHub() {
@@ -1957,6 +2039,7 @@
       if (S.enemy && !S.enemy.live && !confirm('Rejoindre une partie en ligne ? Ton armée adverse locale sera remplacée par celle de ton adversaire.')) return;
       ensureGame('Partie en ligne ' + c); netStart('g', c);
     },
+    ...frActions,
     netResume() { netStart(S.net.role, S.net.code); },
     netLeave() { if (!confirm('Quitter la partie en ligne ? Ton adversaire ne verra plus tes mises à jour.')) return; netStop(false); S.net.code = ''; S.net.role = ''; },
     gameSave() {
@@ -2084,8 +2167,8 @@
     syMode(v) { SY.mode = v; SY.err = ''; SY.msg = ''; },
     syncIn() { syAuth('login'); },
     syncUp() { syAuth('signup'); },
-    syncNow() { syncRun(true); },
-    syncOff() { if (confirm('Te déconnecter sur cet appareil ? Tes données restent ici et dans ton compte.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; } },
+    syncNow() { syncRun(true); frLoad(true); },
+    syncOff() { if (confirm('Te déconnecter sur cet appareil ? Tes données restent ici et dans ton compte.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; FR.friends = []; FR.incoming = []; FR.outgoing = []; FR.invites = []; FR.loaded = false; } },
   };
 
   document.addEventListener('click', (e) => {
@@ -2164,4 +2247,6 @@
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(false); });
   render();
   setTimeout(() => syncRun(false), 800);
+  setTimeout(() => frLoad(true), 1500);
+  setInterval(() => { if (document.visibilityState === 'visible') frLoad(true); }, 20000);
 })();
