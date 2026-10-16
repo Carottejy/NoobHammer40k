@@ -1,5 +1,5 @@
-/* Export d'une liste d'armée en PDF : une page A4 paysage, tout synthétisé dans un tableau
-   (une ligne par unité, chefs et appuis regroupés sous leur unité). Générateur minimal, polices standard. */
+/* Export d'une liste d'armée en PDF : une page A4 paysage, un bloc par unité façon tableur
+   (profil, aptitudes, tableau d'armes aligné ; chefs et appuis regroupés sous leur unité). Générateur minimal, polices standard. */
 (function () {
   const W = { 32: 278, 33: 278, 34: 355, 35: 556, 36: 556, 37: 889, 38: 667, 39: 191, 40: 333, 41: 333, 42: 389, 43: 584, 44: 278, 45: 333, 46: 278, 47: 278, 58: 278, 59: 278, 60: 584, 61: 584, 62: 584, 63: 556, 64: 1015, 91: 278, 92: 278, 93: 278, 94: 469, 95: 556, 96: 333, 123: 334, 124: 260, 125: 334, 126: 584 };
   'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach((c, i) => { W[65 + i] = [667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611][i]; });
@@ -38,64 +38,96 @@
     units.filter((u) => !attached.has(u.id)).forEach((u) => { const grp = (att[u.id] || []).length ? ++gi : 0; rows.push({ u, g: grp, lead: null }); (att[u.id] || []).forEach((e) => rows.push({ u: e, g: grp, lead: u })); });
     const pts = a.total && a.total.points != null ? a.total.points : units.reduce((t, u) => t + (+u.pts || 0), 0);
     const figs = units.reduce((t, u) => t + (+u.models || 0), 0);
-    const COLS = [['Unité', 118], ['Fig.', 22], ['Pts', 26], ['Profil', 92], ['Armes (principales)', 282], ['Aptitudes', 160], ['Mots-clés', CW - 700]];
+    /* Colonnes, calquées sur le tableur « Salamander Listes » : Pt | Figurine | Nb | M E SV PV CD CO | Aptitude | Arme P A C/T F PA D | Mots-clés d'arme */
+    const COLS = [['Pt', 22], ['Figurine', 98], ['Nb', 16], ['M', 17], ['E', 14], ['SV', 32], ['PV', 16], ['CD', 18], ['CO', 16], ['Aptitude', 156], ['Arme', 108], ['P', 24], ['A', 26], ['C/T', 22], ['F', 18], ['PA', 20], ['D', 17], ["Mots-clés d'arme", CW - 640]];
+    const NU = 10; // colonnes « unité » (0..9) ; armes = 10..17
 
-    function render(s) {
+    function render(s, mode) {
       const pages = []; let cur = null, y = 0;
       const emit = (c) => cur.push(c);
       const newPage = () => { cur = []; pages.push(cur); y = PH - M; };
-      const sz = { title: 15, sub: 8, head: 7 * s, name: 7.4 * s, body: 6.4 * s };
+      const sz = { sub: 8, head: 6.8 * s, name: 7.4 * s, body: 6.3 * s };
       const fillRect = (x, top, w, h, g) => emit(`${g} g ${x.toFixed(1)} ${(top - h).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re f 0 g`);
       const strokeRect = (x, top, w, h, lw) => emit(`${lw} w ${x.toFixed(1)} ${(top - h).toFixed(1)} ${w.toFixed(1)} ${h.toFixed(1)} re S`);
       const vline = (x, y1, y2, lw) => emit(`${lw} w ${x.toFixed(1)} ${y1.toFixed(1)} m ${x.toFixed(1)} ${y2.toFixed(1)} l S`);
+      const hline = (x1, x2, yy, lw) => emit(`${lw} w ${x1.toFixed(1)} ${yy.toFixed(1)} m ${x2.toFixed(1)} ${yy.toFixed(1)} l S`);
       const seg = (sg, x, base, size) => { const gg = sg.g != null; emit(`${gg ? sg.g + ' g ' : ''}BT /${sg.b ? 'F2' : 'F1'} ${size} Tf ${x.toFixed(1)} ${base.toFixed(1)} Td (${esc(sg.s)}) Tj ET${gg ? ' 0 g' : ''}`); return tw(sg.s, size, sg.b); };
       const lineOut = (segs, x, base, size) => { let cx = x; segs.forEach((sg) => { cx += seg(sg, cx, base, size); }); };
       const textLine = (t, x, size, bold, gray) => { y -= size * 1.25; seg({ s: clean(t), b: bold, g: gray }, x, y + size * 0.22, size); };
-
-      newPage();
-      textLine(a.name || 'Armée', M, sz.title, true); y -= 1;
-      textLine([a.faction, a.chapter, pts + ' pts', units.length + ' unités', figs ? figs + ' figurines' : ''].filter(Boolean).join('  -  '), M, sz.sub + 1, false, 0.25);
-      if ((a.detachments || []).length) { y -= 1; textLine('Détachement : ' + a.detachments.join('  |  '), M, sz.sub, true); }
-      const rl = (rules || []).filter((r) => r && r.name).map((r) => r.name);
-      if (rl.length) { const ls = wrapSegs([{ s: "Règles d'armée et de détachement : ", b: true }, { s: rl.join(' - '), g: 0.25 }], sz.sub - 0.5, CW); ls.forEach((l) => { y -= (sz.sub - 0.5) * 1.25; lineOut(l, M, y + 1.6, sz.sub - 0.5); }); }
-      y -= 5;
+      const ctr = (t, i, base, size, bold) => { const x = xs[i] + (COLS[i][1] - tw(t, size, bold)) / 2; seg({ s: t, b: bold }, x, base, size); };
 
       const xs = []; let ax = M; COLS.forEach((c) => { xs.push(ax); ax += c[1]; });
-      const header = () => { const hh = sz.head * 1.9; fillRect(M, y, CW, hh, 0.82); strokeRect(M, y, CW, hh, 0.6); COLS.forEach((c, i) => { if (i) vline(xs[i], y, y - hh, 0.4); seg({ s: c[0], b: true }, xs[i] + 3, y - hh + sz.head * 0.62, sz.head); }); y -= hh; };
+      const xEnd = M + CW;
+      newPage();
+      textLine(a.name || 'Armée', M, 15, true); y -= 1;
+      textLine([a.faction, a.chapter, pts + ' pts', units.length + ' unités', figs ? figs + ' figurines' : ''].filter(Boolean).join('  -  '), M, sz.sub + 1, false, 0.25);
+      if ((a.detachments || []).length) { y -= 1; textLine('Détachement : ' + a.detachments.join('  |  '), M, sz.sub, true); }
+      const rl = (rules || []).filter((r) => r && r.name);
+      if (rl.length) { const ls = wrapSegs([{ s: "Règles d'armée et de détachement : ", b: true }].concat(rl.map((r, i) => ({ s: (i ? ' - ' : '') + r.name, g: 0.25 }))), sz.sub - 0.5, CW); ls.forEach((l) => { y -= (sz.sub - 0.5) * 1.25; lineOut(l, M, y + 1.6, sz.sub - 0.5); }); }
+      y -= 5;
+
+      const header = () => { const hh = sz.head * 1.9; fillRect(M, y, CW, hh, 0.8); strokeRect(M, y, CW, hh, 0.6); COLS.forEach((c, i) => { if (i) vline(xs[i], y, y - hh, 0.4); const left = i === 1 || i === 9 || i === 10 || i === 17; if (left) seg({ s: c[0], b: true }, xs[i] + 3, y - hh + sz.head * 0.62, sz.head); else ctr(c[0], i, y - hh + sz.head * 0.62, sz.head, true); }); y -= hh; };
       header();
-      let lastG = -1;
+      let lastLead = null;
       rows.forEach((r) => {
-        const u = r.u; const pad = 2.2, lh = sz.body * 1.22, lhn = sz.name * 1.22;
-        // cellule unité
+        const u = r.u; const pad = 2, lh = sz.body * 1.2, lhn = sz.name * 1.2;
+        // --- armes : une ligne par arme, colonnes alignées
+        const all = (u.weapons || []).slice(); const rg = all.filter((w) => !isMelee(w)), ml = all.filter(isMelee);
+        let ws = rg.concat(ml);
+        if (mode >= 2) { const sr = rg.slice().sort((p, q) => score(q) - score(p)).slice(0, 4), sm = ml.slice().sort((p, q) => score(q) - score(p)).slice(0, 2); ws = sr.concat(sm); }
+        const rest = all.length - ws.length;
+        const wrows = ws.map((w) => { const kl = wrapSegs([{ s: w.abilities || '', g: 0.25 }], sz.body - 0.4, COLS[17][1] - 5); const nl = wrapSegs([{ s: w.name, b: true }], sz.body, COLS[10][1] - 5); return { w, nl, kl, h: Math.max(nl.length, kl.length, 1) * lh + 1.2 }; });
+        if (rest > 0) wrows.push({ more: ` +${rest} autre(s) arme(s)`, nl: [], kl: [], h: lh + 1.2 });
+        const wh = wrows.reduce((t, o) => t + o.h, 0);
+        // --- cellules « unité » (fusionnées sur la hauteur du bloc)
         const tags = [r.lead ? (u.role === 'support' ? 'Appui' : 'Chef') + ' > ' + r.lead.name : '', u.warlord ? 'Seigneur de guerre' : '', u.enhancement ? '* ' + u.enhancement : ''].filter(Boolean).join(' / ');
-        const c0 = wrapSegs([{ s: (r.lead ? '+ ' : '') + u.name, b: true }], sz.name, COLS[0][1] - 6).map((l) => ({ l, size: sz.name, lh: lhn })).concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.4, COLS[0][1] - 6).map((l) => ({ l, size: sz.body - 0.4, lh })) : []);
-        const c1 = [{ l: [{ s: String(u.models || ''), b: false }], size: sz.body, lh }], c2 = [{ l: [{ s: String(u.pts || ''), b: true }], size: sz.body, lh }];
-        const st = [u.M && 'M' + u.M, u.T && 'E' + u.T, u.sv && 'Sv' + u.sv + (u.inv ? '/' + u.inv + '++' : ''), u.W && 'PV' + u.W, u.Ld && 'CD' + u.Ld, u.OC && 'CO' + u.OC, u.fnp && 'ID' + u.fnp + '+'].filter(Boolean).join('  ');
-        const c3 = wrapSegs([{ s: st }], sz.body, COLS[3][1] - 6).map((l) => ({ l, size: sz.body, lh }));
-        // armes : 4 meilleurs tirs + 2 meilleures mêlées
-        const ws = (u.weapons || []); const rg = ws.filter((w) => !isMelee(w)).sort((p, q) => score(q) - score(p)), ml = ws.filter(isMelee).sort((p, q) => score(q) - score(p));
-        const pick = rg.slice(0, 4).concat(ml.slice(0, 2)); const rest = ws.length - pick.length;
-        const wsegs = []; pick.forEach((w, i) => { if (i) wsegs.push({ s: ' ·', g: 0.5 }); wsegs.push({ s: w.name, b: true }); wsegs.push({ s: `(${isMelee(w) ? 'M' : (w.range || '')} A${w.A} F${w.S} PA${w.AP} D${w.D}${w.abilities ? ' ' + shortAb(w.abilities) : ''})`, g: 0.25 }); });
-        if (rest > 0) wsegs.push({ s: ` +${rest} autre(s)`, g: 0.5 });
-        const c4 = wrapSegs(wsegs, sz.body, COLS[4][1] - 6).map((l) => ({ l, size: sz.body, lh }));
-        const abn = []; (u.abilities || []).forEach((x) => { if (x && x.name && !/^Amélioration/.test(x.name) && !abn.includes(x.name)) abn.push(x.name); });
-        const c5 = wrapSegs([{ s: abn.join(', ') }], sz.body, COLS[5][1] - 6).map((l) => ({ l, size: sz.body, lh }));
+        const nameL = wrapSegs([{ s: (r.lead ? '+ ' : '') + u.name, b: true }], sz.name, COLS[1][1] - 5).map((l) => ({ l, size: sz.name, lh: lhn })).concat(tags ? wrapSegs([{ s: tags, g: 0.3 }], sz.body - 0.5, COLS[1][1] - 5).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.3 })) : []);
+        const abil = []; const seen = {}; (u.abilities || []).forEach((x) => { if (x && x.name && !/^Amélioration/.test(x.name) && !seen[x.name]) { seen[x.name] = 1; abil.push(x); } });
+        const asegs = []; abil.forEach((x, i) => { if (i) asegs.push({ s: ' ' }); asegs.push({ s: x.name + (mode === 0 && x.text ? ' :' : ''), b: true }); if (mode === 0 && x.text) { const t = String(x.text).replace(/\s+/g, ' ').trim(); asegs.push({ s: ' ' + (t.length > 110 ? t.slice(0, 109) + '.' : t), g: 0.2 }); } else if (i < abil.length - 1) asegs.push({ s: ',', b: true }); });
+        const abL = wrapSegs(asegs, sz.body - 0.3, COLS[9][1] - 5).map((l) => ({ l, size: sz.body - 0.3, lh: lh - 0.2 }));
         const kw = (u.keywords || []).concat(u.factionKw || []);
-        const c6 = wrapSegs([{ s: kw.join(', '), g: 0.3 }], sz.body - 0.5, COLS[6][1] - 6).map((l) => ({ l, size: sz.body - 0.5, lh: lh - 0.4 }));
-        const cells = [c0, c1, c2, c3, c4, c5, c6]; const rh = Math.max(...cells.map((c) => c.reduce((t, o) => t + o.lh, 0))) + pad * 2;
-        if (y - rh < M + 12) { newPage(); header(); }
-        if (r.g && r.g !== lastG || (r.g && r.g === lastG)) fillRect(M, y, CW, rh, 0.955);
-        strokeRect(M, y, CW, rh, 0.35); COLS.forEach((c, i) => { if (i) vline(xs[i], y, y - rh, 0.25); });
-        if (r.g) { emit(`1.6 w ${(M + 0.8).toFixed(1)} ${y.toFixed(1)} m ${(M + 0.8).toFixed(1)} ${(y - rh).toFixed(1)} l S`); }
-        lastG = r.g;
-        cells.forEach((c, i) => { let cy = y - pad; c.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[i] + 3, cy + o.lh * 0.28, o.size); }); });
-        y -= rh;
+        const kwL = kw.length ? wrapSegs([{ s: 'Mots-clés : ', b: true, g: 0.3 }, { s: kw.join(', '), g: 0.35 }], sz.body - 0.6, CW - 6) : [];
+        const kwH = kwL.length * (lh - 0.5) + (kwL.length ? 1.5 : 0);
+        const uh = Math.max(nameL.reduce((t, o) => t + o.lh, 0), abL.reduce((t, o) => t + o.lh, 0), 1);
+        const bh = Math.max(wh, uh) + pad * 2 + kwH;
+        if (y - bh < M + 12) { newPage(); header(); }
+        const top = y, mainH = bh - kwH;
+        if (r.lead) fillRect(M, top, CW, bh, 0.95);
+        else if (lastLead === null && false) { /* rien */ }
+        // grille
+        strokeRect(M, top, CW, bh, 0.5);
+        COLS.forEach((c, i) => { if (i) vline(xs[i], top, top - mainH, 0.25); });
+        if (kwH) hline(M, xEnd, top - mainH, 0.25);
+        if (r.lead) emit(`1.8 w ${(M + 0.9).toFixed(1)} ${top.toFixed(1)} m ${(M + 0.9).toFixed(1)} ${(top - bh).toFixed(1)} l S`);
+        // unité
+        const mid = top - mainH / 2 - sz.body * 0.3;
+        const st = [u.pts || '', u.models || '', u.M || '', u.T || '', u.sv ? (u.sv + (u.inv ? '/' + u.inv + '++' : '')) : '', u.W || '', u.Ld || '', u.OC || ''];
+        const stI = [0, 2, 3, 4, 5, 6, 7, 8];
+        st.forEach((v, k) => { const i = stI[k]; const t = clean(String(v)); if (!t) return; const sz2 = sz.body + 0.3; const wdt = tw(t, sz2, k === 0); const fit = Math.min(1, (COLS[i][1] - 2) / Math.max(wdt, 1)); ctr(t, i, mid, sz2 * fit, k === 0); });
+        let cy = top - pad - Math.max(0, (mainH - pad * 2 - nameL.reduce((t, o) => t + o.lh, 0)) / 2) ; nameL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[1] + 3, cy + o.lh * 0.28, o.size); });
+        cy = top - pad; abL.forEach((o) => { cy -= o.lh; lineOut(o.l, xs[9] + 3, cy + o.lh * 0.28, o.size); });
+        // armes
+        cy = top - pad;
+        wrows.forEach((o, k) => {
+          if (k) hline(xs[NU], xEnd, cy, 0.2);
+          const base = cy - lh + lh * 0.28 - 0.4;
+          if (o.more) { seg({ s: o.more, g: 0.45 }, xs[NU] + 3, base, sz.body); }
+          else {
+            const w = o.w; let yy = cy; o.nl.forEach((l) => { yy -= lh; lineOut(l, xs[10] + 3, yy + lh * 0.28 - 0.4, sz.body); });
+            const vals = [isMelee(w) ? 'CC' : (w.range || ''), w.A, w.skill, w.S, w.AP, w.D];
+            vals.forEach((v, j) => { const t = clean(String(v == null ? '' : v)); const i = 11 + j; const f = Math.min(1, (COLS[i][1] - 2) / Math.max(tw(t, sz.body), 1)); ctr(t, i, base, sz.body * f, false); });
+            yy = cy; o.kl.forEach((l) => { yy -= lh; lineOut(l, xs[17] + 3, yy + lh * 0.28 - 0.4, sz.body - 0.4); });
+          }
+          cy -= o.h;
+        });
+        if (kwH) { let ky = top - mainH - 0.5; kwL.forEach((l) => { ky -= lh - 0.5; lineOut(l, M + 3, ky + (lh - 0.5) * 0.28, sz.body - 0.6); }); }
+        y -= bh;
       });
       return pages;
     }
-    let pages = null, s = 1.4;
-    for (; s >= 0.52; s -= 0.04) { pages = render(s); if (pages.length === 1) break; }
-    if (pages.length > 1) pages = render(0.6);
+    let pages = null;
+    outer: for (let mode = 0; mode <= 2; mode++) for (let s = 1.3; s >= 0.6; s -= 0.05) { pages = render(s, mode); if (pages.length === 1) break outer; }
+    if (pages.length > 1) pages = render(0.9, 2);
 
     const n = pages.length; const objs = []; const add = (t) => { objs.push(t); return objs.length; };
     add('<< /Type /Catalog /Pages 2 0 R >>');

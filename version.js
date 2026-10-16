@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.24.0';
+var APP_VERSION = '1.25.0';
 var APP_RELEASES = [
+  { v: '1.25.0', date: '2026-10-16', notes: [
+    'Export PDF repensé comme ton tableur Salamander : un bloc par unité (Pt, figurine, profil M/E/SV/PV/CD/CO, aptitudes) avec un tableau d\'armes aligné (P, A, C/T, F, PA, D, mots-clés d\'arme).',
+    'Mots-clés sous chaque unité, chefs et appuis regroupés ; une seule page si possible, sinon armes condensées sur 2-3 pages.'
+  ] },
   { v: '1.24.0', date: '2026-10-16', notes: [
     'Export PDF : une seule page A4 paysage, tout dans un tableau (une ligne par unité : figurines, points, profil, armes principales, aptitudes, mots-clés). Chefs et appuis regroupés sous leur unité. La taille du texte s\'adapte à la longueur de la liste.'
   ] },
