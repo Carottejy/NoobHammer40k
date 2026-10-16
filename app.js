@@ -2047,8 +2047,8 @@
       S.enemy = Object.assign(makeArmy(r, null), { rules: [], strats: [] }); S.play.targetUnitId = null;
       S.ui.enemyMsg = `Armée adverse importée : ${S.enemy.units.length} unité(s). Sans profils : ajoute un PDF ALN pour avoir armes et aptitudes.`;
     },
-    ngToggle() { const ng = S.ui.ng || {}; S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, ng, { open: !ng.open }) }); },
-    ngMode(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { mode: v }) }); },
+    ngToggle() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } const ng = S.ui.ng || {}; S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, ng, { open: !ng.open }) }); },
+    ngMode(v) { if (!S.inGame && S.enemy && v === 'local') { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { mode: v }) }); },
     ngEnemy(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { enemy: v }) }); },
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
