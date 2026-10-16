@@ -112,7 +112,7 @@
 
   /* ---------- Rendu ---------- */
   function render() {
-    if (!['home', 'game', 'army', 'build', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
+    if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
     if (a && ['army', 'game', 'strats'].includes(S.tab)) frAuto(a);
     if (a) {
@@ -125,9 +125,9 @@
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (!S.inGame && (S.tab === 'enemy' || S.tab === 'strats')) S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil'], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil'], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['enemy', '⚔️', 'Adverse']] : []).concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
+    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
   }
@@ -1249,7 +1249,7 @@
     B.units.forEach((e, i) => { if (e.to && idmap[e.to]) units[i].attachedTo = idmap[e.to]; });
     const fname = (ix.factions.find((x) => x.id === B.fac) || {}).name || '';
     const dets = f.detachments.filter((d) => B.dets.includes(d.id));
-    const a = { chapter: B.ch && B.ch !== 'codex' ? B.ch : '', id: rid || uid(), name: B.name || (fname + ' — ' + (B.limit || 'liste') + ' pts'), faction: fname, detachments: dets.map((d) => T0(d.name) + ` (${d.dp} pt${+d.dp > 1 ? 's' : ''})`), alnUrl: '', total: { points: units.reduce((s, u) => s + u.pts, 0), models: units.reduce((s, u) => s + (+u.models || 0), 0), units: units.length }, units };
+    const a = { chapter: B.ch && B.ch !== 'codex' ? B.ch : '', id: rid || uid(), name: B.name || (fname + ' — ' + (B.limit || 'liste') + ' pts'), faction: fname, detachments: dets.map((d) => T0(d.name) + (+d.dp ? ` (${d.dp} pt${+d.dp > 1 ? 's' : ''})` : '')), alnUrl: '', total: { points: units.reduce((s, u) => s + u.pts, 0), models: units.reduce((s, u) => s + (+u.models || 0), 0), units: units.length }, units };
     a.build = JSON.parse(JSON.stringify({ fac: B.fac, ch: B.ch, kw: '', allEnh: B.allEnh, warlord: B.warlord, fmt: B.fmt, limit: B.limit, name: B.name, dets: B.dets, units: B.units }));
     const oi = rid ? S.armies.findIndex((x) => x.id === rid) : -1;
     if (oi >= 0) { S.customStrats = S.customStrats.filter((x) => x.armyId !== rid); S.armies[oi] = a; } else S.armies.push(a);
@@ -1290,6 +1290,190 @@
     });
     (d.abilities || []).forEach((r) => { (S.armyRules[a.id] = S.armyRules[a.id] || []).push({ name: Wahap.T(r.name), phases: AlnPdf.phasesFromText(Wahap.T(r.text), Wahap.T(r.name)), text: Wahap.T(r.text) }); });
     return n;
+  }
+
+  /* ---- Assistant de création de liste (sans IA générative : règles de composition locales) ---- */
+  const AKEY = 'noobammer.assist.v1';
+  const adef = () => ({ fac: '', ch: '', fmt: '1000', limit: 1000, style: 'equilibre', det: '', kw: '', seed: 1 });
+  const AS = Object.assign(adef(), (() => { try { return JSON.parse(localStorage.getItem(AKEY) || '{}'); } catch (e) { return {}; } })(), { res: [], err: '', load: false });
+  const asave = () => { try { const c = Object.assign({}, AS); delete c.res; delete c.err; delete c.load; localStorage.setItem(AKEY, JSON.stringify(c)); } catch (e) { /* ignoré */ } };
+  const STYLES = [['equilibre', 'Équilibrée'], ['tir', 'Puissance de tir'], ['melee', 'Corps à corps'], ['blindes', 'Blindés & monstres'], ['elite', 'Élite (peu de figurines, solides)'], ['horde', 'Horde (beaucoup de figurines)'], ['objectifs', 'Maîtrise des objectifs']];
+  const AW = { equilibre: { m: 0.5, r: 0.5, d: 0.3, o: 0.3 }, tir: { m: 0.15, r: 1, d: 0.25, o: 0.25 }, melee: { m: 1, r: 0.15, d: 0.35, o: 0.25 }, blindes: { m: 0.5, r: 0.6, d: 0.5, o: 0.1, veh: 1 }, elite: { m: 0.5, r: 0.5, d: 0.7, o: 0.2, elite: 1 }, horde: { m: 0.5, r: 0.5, d: 0.2, o: 0.4, horde: 1 }, objectifs: { m: 0.3, r: 0.4, d: 0.3, o: 1 } };
+  const AKW = { tir: /\b(tir|a distance|portee|ct)\b/g, melee: /(melee|combat|charge)/g, objectifs: /(objectif|controle)/g, blindes: /(vehicule|monstre)/g, elite: /(gravis|terminator|personnage|invulnerable)/g, horde: /(infanterie|figurines)/g };
+  const aNum = (x) => parseFloat(String(x == null ? '' : x).replace(/[^\d.]/g, '')) || 0;
+  const aDice = (s) => { s = String(s == null ? '' : s).trim().toUpperCase(); const m = s.match(/^(\d*)D(\d+)(?:\+(\d+))?$/); if (m) return (+(m[1] || 1)) * ((+m[2] + 1) / 2) + (+(m[3] || 0)); const n = parseFloat(s); return isNaN(n) ? 0 : n; };
+  const aWeap = (w) => { const a = aDice(w.A) || 1, s = aDice(w.S) || 4, ap = Math.abs(aDice(w.AP)), dm = aDice(w.D) || 1; const sk = /^(\d)\+/.exec(String(w.skill || '')); const hit = sk ? (7 - +sk[1]) / 6 : 0.9; return a * hit * (0.3 + 0.1 * Math.min(s, 12)) * (1 + 0.25 * ap) * dm; };
+  const aRng = (seed) => { let t = (seed * 2654435761) >>> 0; return () => { t += 0x6D2B79F5; let r = Math.imul(t ^ (t >>> 15), 1 | t); r ^= r + Math.imul(r ^ (r >>> 7), 61 | r); return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; };
+  const aSizes = (d, ord) => { const seen = {}; return bSizes(d, ord).filter(([n, p]) => p > 0 && !seen[n] && (seen[n] = true)); };
+  const aMetC = {};
+  function aMet(d, n) {
+    const key = d.id + '|' + n; if (aMetC[key]) return aMetC[key];
+    const ms = d.models || []; const m = ms[ms.length > 1 ? 1 : 0] || ms[0] || {};
+    const top = (t) => (d.weapons || []).filter((w) => w.type === t).map(aWeap).sort((a, b) => b - a).slice(0, 3).reduce((s, v) => s + v, 0);
+    const k = Math.pow(Math.max(1, n), 0.75); const sv = Math.min(aNum(m.Sv) || 7, aNum(m.inv) || 7);
+    return (aMetC[key] = { r: top('ranged') * k, m: top('melee') * k, d: n * (aNum(m.W) || 1) * (1 + aNum(m.T) / 3) * (1 + (7 - sv) / 3), o: n * aNum(m.OC), n });
+  }
+  function aCands(f, o) {
+    const out = [];
+    f.units.forEach((d) => {
+      if (!d.pc || !chOkUnit(d, o.ch, o.fac)) return;
+      const r = Wahap.norm(d.role); if (/fortification|aeronef|transport dedie/.test(r)) return;
+      if (!aSizes(d, 1).length) return;
+      out.push({ d, grp: bgrp(d), epic: /heros epique/.test(r), ligne: /ligne/.test(r), veh: /vehicule|marcheur|monstre|titanesque|artillerie/.test(r) });
+    });
+    return out;
+  }
+  const aHasKw = (d, kw) => kwShow(d).some((k) => Wahap.norm(k) === Wahap.norm(kw));
+  function aRaw(c, n, o) {
+    const t = aMet(c.d, n), W = AW[o.style] || AW.equilibre, mx = o.mx;
+    let s = W.m * t.m / mx.m + W.r * t.r / mx.r + W.d * t.d / mx.d + W.o * t.o / mx.o;
+    if (W.veh && c.veh) s *= 1.5;
+    if (W.horde) s *= 1 + Math.min(1, n / 20) * 0.6;
+    if (W.elite) s *= 1 + Math.min(1, (aSizes(c.d, 1).find((x) => x[0] === n) || [n, 0])[1] / Math.max(1, n) / 45) * 0.6;
+    if (o.kw && aHasKw(c.d, o.kw)) s *= 1.8;
+    return s;
+  }
+  function aDetScore(det, o) {
+    const txt = Wahap.norm([].concat((det.abilities || []).map((a) => T0(a.name) + ' ' + T0(a.text)), (det.strats || []).map((s) => T0(s.name) + ' ' + T0(s.text)), (det.enh || []).map((e) => T0(e.name) + ' ' + T0(e.text))).join(' '));
+    const re = AKW[o.style]; let s = (det.strats || []).length * 0.2 + (det.enh || []).length * 0.2;
+    if (re) s += (txt.match(re) || []).length;
+    if (o.kw && txt.includes(Wahap.norm(o.kw))) s += 6;
+    return s;
+  }
+  function aBuild(f, o0, noise, seed, rank) {
+    const rnd = aRng(seed); const limit = o0.limit || 1000;
+    const all = aCands(f, o0); if (!all.length) return null;
+    const mx = { r: 1e-6, m: 1e-6, d: 1e-6, o: 1e-6 };
+    all.forEach((c) => aSizes(c.d, 1).forEach(([n]) => { const t = aMet(c.d, n); ['r', 'm', 'd', 'o'].forEach((k) => { if (t[k] > mx[k]) mx[k] = t[k]; }); }));
+    const o = Object.assign({}, o0, { mx });
+    // détachement
+    const dets = f.detachments.filter((d) => chOkDet(d, o.ch, o.fac));
+    let det = o.det ? dets.find((d) => d.id === o.det) : null;
+    if (!det && dets.length) { const rk = dets.map((d) => [aDetScore(d, o), d]).sort((a, b) => b[0] - a[0]); det = rk[Math.min(rank, rk.length - 1)][1]; }
+    const picks = []; let used = 0, nk = 0;
+    const cnt = (c) => picks.filter((e) => e.c === c).length;
+    const cap = (c) => (c.epic ? 1 : c.ligne ? 6 : 3);
+    const jit = () => 1 - noise / 2 + noise * rnd();
+    const mk = (c, n, p) => { const e = { k: 'a' + seed + '_' + (++nk), c, n, p, to: '', enh: '', enhName: '', enhCost: 0 }; picks.push(e); used += p; return e; };
+    const leaderGrp = (c) => c.grp === 'Chefs' || c.grp === 'Appuis';
+    const troops = all.filter((c) => !leaderGrp(c)), leaders = all.filter(leaderGrp);
+    const leaderBudget = Math.round(limit * (o.style === 'elite' ? 0.3 : 0.22));
+    const troopBudget = limit - (leaders.length ? leaderBudget : 0);
+    const why = [];
+    // 1) unités de Ligne
+    const nLigne = limit >= 2000 ? 3 : limit >= 1000 ? 2 : 1;
+    const ligne = troops.filter((c) => c.ligne);
+    const bigLigne = (o.style === 'horde' || o.style === 'objectifs');
+    for (let i = 0; i < nLigne && ligne.length; i++) {
+      let best = null, bv = -1;
+      ligne.forEach((c) => { if (cnt(c) >= (i < ligne.length ? 1 : cap(c))) return; const sz = aSizes(c.d, cnt(c) + 1); const pick = bigLigne ? (sz.filter((x) => x[1] <= limit * 0.2).pop() || sz[0]) : sz[0]; if (used + pick[1] > troopBudget) return; const v = aRaw(c, pick[0], o) / Math.pow(pick[1], 0.75) * jit(); if (v > bv) { bv = v; best = [c, pick]; } });
+      if (best) mk(best[0], best[1][0], best[1][1]);
+    }
+    // 2) reste des troupes
+    for (let g = 0; g < 80; g++) {
+      let best = null, bv = -1;
+      troops.forEach((c) => { const k = cnt(c); if (k >= cap(c)) return; const pick = aSizes(c.d, k + 1)[0]; if (!pick || used + pick[1] > troopBudget) return; const v = aRaw(c, pick[0], o) / Math.pow(pick[1], 0.75) * jit() * Math.pow(0.6, k); if (v > bv) { bv = v; best = [c, pick]; } });
+      if (!best) break; mk(best[0], best[1][0], best[1][1]);
+    }
+    // 3) chefs et appuis
+    const nLead = Math.max(1, Math.min(6, Math.round(limit / 500))), nSup = Math.max(1, Math.floor(nLead / 2));
+    const hostsOf = (c) => picks.filter((e) => !leaderGrp(e.c) && (c.d.leads || []).includes(e.c.d.id));
+    const used2 = { leader: {}, support: {} }; let nl = 0, ns = 0;
+    for (let g = 0; g < nLead + 2 && nl + ns < nLead && leaders.length; g++) {
+      let best = null, bv = -1;
+      leaders.forEach((c) => {
+        const k = cnt(c); if (k >= cap(c)) return; const pick = aSizes(c.d, k + 1)[0]; if (!pick || used + pick[1] > limit) return;
+        const sup = !!c.d.support; if (sup && ns >= nSup) return; if (!sup && nl >= nLead - Math.min(ns, nSup) && nl > 0) return;
+        const hs = hostsOf(c).filter((h) => !(sup ? used2.support : used2.leader)[h.k]); if (picks.some((e) => !leaderGrp(e.c)) && !hs.length) return;
+        const syn = hs.length ? 0.5 : 0; const v = (0.3 + aRaw(c, pick[0], o) / Math.pow(pick[1], 0.75) + syn) * jit() * Math.pow(0.6, k);
+        if (v > bv) { bv = v; best = [c, pick, hs, sup]; }
+      });
+      if (!best) break;
+      const e = mk(best[0], best[1][0], best[1][1]); if (best[3]) ns++; else nl++;
+      if (best[2].length) { const h = best[2].slice().sort((a, b) => b.p - a.p)[0]; e.to = h.k; (best[3] ? used2.support : used2.leader)[h.k] = true; }
+    }
+    // 4) améliorations
+    const maxEnh = limit <= 500 ? 1 : limit <= 1000 ? 1 : limit <= 2000 ? 2 : 3; let nEnh = 0;
+    if (det && (det.enh || []).length) {
+      const re = AKW[o.style]; const tk = new Set();
+      picks.filter((e) => canEnh(e.c.d) && !e.c.epic).sort((a, b) => (b.to ? 1 : 0) - (a.to ? 1 : 0)).forEach((e) => {
+        if (nEnh >= maxEnh) return;
+        const opts = (det.enh || []).filter((en) => !tk.has(en.name && (en.e || T0(en.name))) && used + (+en.cost || 0) <= limit && Kw.ok(T0(en.text), Object.assign({}, e.c.d, { chapter: o.ch && o.ch !== 'codex' ? o.ch : '' }), 'enh'));
+        if (!opts.length) return;
+        const sc = (en) => (re ? (Wahap.norm(T0(en.text)).match(re) || []).length : 0) - (+en.cost || 0) / 100;
+        const en = opts.sort((a, b) => sc(b) - sc(a))[0];
+        tk.add(en.e || T0(en.name)); e.enh = det.id + '|' + T0(en.name); e.enhName = T0(en.name); e.enhCost = +en.cost || 0; used += e.enhCost; nEnh++;
+      });
+    }
+    // 5) remplissage : agrandir des unités ou en ajouter
+    for (let g = 0; g < 80; g++) {
+      const rem = limit - used; let best = null, bv = 0;
+      picks.forEach((e) => {
+        if (leaderGrp(e.c)) return; const ord = picks.filter((x) => x.c === e.c).indexOf(e) + 1; const nx = aSizes(e.c.d, ord).find((x) => x[0] > e.n); if (!nx) return; const dp = nx[1] - e.p; if (dp <= 0 || dp > rem) return;
+        const v = (aRaw(e.c, nx[0], o) - aRaw(e.c, e.n, o)) / Math.pow(dp, 0.75) * jit(); if (v > bv) { bv = v; best = { up: e, nx }; }
+      });
+      troops.forEach((c) => { const k = cnt(c); if (k >= cap(c)) return; const pick = aSizes(c.d, k + 1)[0]; if (!pick || pick[1] > rem) return; const v = aRaw(c, pick[0], o) / Math.pow(pick[1], 0.75) * jit() * Math.pow(0.6, k); if (v > bv) { bv = v; best = { add: c, pick }; } });
+      if (!best) break;
+      if (best.up) { used += best.nx[1] - best.up.p; best.up.n = best.nx[0]; best.up.p = best.nx[1]; } else mk(best.add, best.pick[0], best.pick[1]);
+    }
+    // seigneur de bataille
+    const wl = picks.find((e) => leaderGrp(e.c) && !e.c.d.support) || picks.find((e) => leaderGrp(e.c)) || picks[0];
+    const fname = (Wahap.index().factions.find((x) => x.id === o.fac) || {}).name || '';
+    const sl = (STYLES.find((x) => x[0] === o.style) || [0, ''])[1].split(' (')[0];
+    // synthèse
+    const sum = (fn) => picks.reduce((s, e) => s + fn(e), 0);
+    const shares = {}; picks.forEach((e) => { shares[e.c.grp] = (shares[e.c.grp] || 0) + e.p; });
+    const lg = picks.filter((e) => e.c.ligne);
+    if (det) why.push(`Détachement « ${T0(det.name)} » : ${o.det ? 'choisi par toi' : rank ? 'alternative n°' + (rank + 1) + ' pour le style « ' + sl + ' »' : 'le plus adapté au style « ' + sl + ' » d\'après ses règles et stratagèmes'}.`);
+    if (lg.length) why.push(`${lg.length} unité(s) de Ligne (${Math.round(sum((e) => (e.c.ligne ? aMet(e.c.d, e.n).o : 0)))} de CO) pour tenir les objectifs.`);
+    const best = (k) => picks.filter((e) => !leaderGrp(e.c)).sort((a, b) => aMet(b.c.d, b.n)[k] - aMet(a.c.d, a.n)[k])[0];
+    const bt = best('r'), bm = best('m'); if (bt) why.push(`Plus forte puissance de tir estimée : ${T0(bt.c.d.name)}.`); if (bm && bm !== bt) why.push(`Meilleur corps à corps estimé : ${T0(bm.c.d.name)}.`);
+    const units = picks.map((e) => ({ k: e.k, id: e.c.d.id, name: T0(e.c.d.name), n: e.n, pts: e.p, to: e.to, grp: e.c.grp, support: !!e.c.d.support, enh: e.enh, enhName: e.enhName, enhCost: e.enhCost, warlord: e === wl }));
+    units.filter((u) => u.to).forEach((u) => { const h = units.find((x) => x.k === u.to); if (h) why.push(`${u.name} rejoint ${h.name}.`); });
+    units.filter((u) => u.enhName).forEach((u) => why.push(`Amélioration « ${u.enhName} » sur ${u.name} (+${u.enhCost} pts).`));
+    if (limit - used > 0) why.push(`Il reste ${limit - used} pts non utilisés.`);
+    return { name: `${fname} — ${sl} ${limit} pts`, detId: det ? det.id : '', detName: det ? T0(det.name) : '—', units, total: used, limit, figs: sum((e) => e.n), oc: Math.round(sum((e) => aMet(e.c.d, e.n).o)), shares, why, warlord: wl ? wl.k : '' };
+  }
+  function viewAssist() {
+    let h = '<h1>Assistant</h1>';
+    const ix = Wahap.index();
+    if (!ix) {
+      if (!AS.load) { AS.load = true; Wahap.ready().then(() => { AS.load = false; render(); }).catch((e) => { AS.load = false; AS.err = e.message; render(); }); }
+      return h + `<div class="card">${AS.err ? '<div class="warn">' + esc(AS.err) + '</div>' : '<p class="muted">Chargement de la base…</p>'}</div>`;
+    }
+    const f = AS.fac ? Wahap.cached(AS.fac) : null;
+    if (AS.fac && !f && !AS.load) { AS.load = true; Wahap.faction(AS.fac).then(() => { AS.load = false; render(); }).catch(() => { AS.load = false; AS.err = 'Faction introuvable.'; render(); }); }
+    const opt = (v, l, sel) => `<option value="${esc(v)}" ${sel ? 'selected' : ''}>${esc(l)}</option>`;
+    h += `<div class="card"><p class="muted" style="margin-top:0">Réponds à quelques questions : l'assistant compose 3 listes avec les données de l'appli (points, chapitre, détachement, chefs, améliorations). Aucune IA générative : ce sont des règles de composition, tu gardes la main dans Creator.</p>
+      <label>Faction</label><select data-af="fac"><option value="">— choisir —</option>${ix.factions.map((x) => opt(x.id, x.name, x.id === AS.fac)).join('')}</select>`;
+    if (AS.fac && chList(AS.fac)) h += `<label style="margin-top:8px">Chapitre</label><select data-af="ch">${opt('', '— tous les chapitres —', !AS.ch)}${opt('codex', 'Chapitre générique (Codex)', AS.ch === 'codex')}${chList(AS.fac).map((c) => opt(c[0], c[1], AS.ch === c[0])).join('')}</select>`;
+    h += `<div class="row" style="margin-top:8px"><div style="flex:1"><label>Format</label><select data-af="fmt">${FORMATS.map((x) => opt(x[0], x[1], x[0] === AS.fmt)).join('')}</select></div><div style="width:110px"><label>Limite (pts)</label><input type="number" inputmode="numeric" data-af="limit" value="${AS.limit || ''}"></div></div>
+      <label style="margin-top:8px">Style de jeu</label><select data-af="style">${STYLES.map((x) => opt(x[0], x[1], x[0] === AS.style)).join('')}</select>`;
+    if (f) {
+      const dets = f.detachments.filter((d) => chOkDet(d, AS.ch, AS.fac));
+      h += `<label style="margin-top:8px">Détachement</label><select data-af="det">${opt('', '— laisser l\'assistant choisir —', !AS.det)}${dets.map((d) => opt(d.id, T0(d.name), d.id === AS.det)).join('')}</select>`;
+      const kc = {}; f.units.filter((d) => chOkUnit(d, AS.ch, AS.fac)).forEach((d) => new Set(kwShow(d)).forEach((k) => { kc[k] = (kc[k] || 0) + 1; }));
+      const kl = Object.entries(kc).filter((x) => x[1] >= 2).sort((a, b) => b[1] - a[1]).slice(0, 60);
+      h += `<label style="margin-top:8px">Mot-clé à privilégier (facultatif)</label><select data-af="kw">${opt('', '— aucun —', !AS.kw)}${kl.map(([k, n]) => opt(k, k + ' (' + n + ')', k === AS.kw)).join('')}</select>`;
+    } else if (AS.fac) h += '<p class="muted">Chargement des données de la faction…</p>';
+    h += `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="asRun" ${f ? '' : 'disabled'}>🧭 Proposer 3 listes</button>${AS.res.length ? '<button class="btn ghost" data-act="asMore">🎲 Autres</button>' : ''}</div>${AS.err ? '<div class="warn" style="margin-top:8px">' + esc(AS.err) + '</div>' : ''}</div>`;
+    AS.res.forEach((p, i) => {
+      const L = 'ABC'[i]; const tot = p.units.reduce((s, u) => s + u.pts, 0) || 1;
+      const row = (u, ind) => `<div class="unit-item" style="${ind ? 'margin-left:18px' : ''}"><div class="row sp"><div>${ind ? '↳ ' : ''}${u.warlord ? '👑 ' : ''}<b>${esc(u.name)}</b> <span class="muted">(${u.n})</span>${u.enhName ? `<div class="muted">✦ ${esc(u.enhName)} (+${u.enhCost} pts)</div>` : ''}</div><span class="muted">${u.pts + u.enhCost} pts</span></div></div>`;
+      const top = p.units.filter((u) => !u.to);
+      h += `<div class="card"><div class="row sp"><h2 style="margin:0">Proposition ${L}</h2><b ${p.total > p.limit ? 'style="color:#e5484d"' : ''}>${p.total} / ${p.limit} pts</b></div>
+        <div class="muted">${esc(p.detName)} · ${p.units.length} unités · ${p.figs} figurines · CO ${p.oc} · ${Object.entries(p.shares).map(([g, v]) => esc(g) + ' ' + Math.round(100 * v / tot) + ' %').join(' · ')}</div>
+        <ul class="fxlist" style="margin-top:8px">${p.why.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>
+        ${top.map((u) => row(u, false) + p.units.filter((x) => x.to === u.k).map((x) => row(x, true)).join('')).join('')}
+        <div class="row" style="margin-top:10px"><button class="btn small" data-act="asOpen" data-val="${i}">✏️ Ouvrir dans Creator</button><button class="btn small ghost" data-act="asCreate" data-val="${i}">✅ Créer l'armée</button></div></div>`;
+    });
+    if (AS.res.length) h += '<p class="muted">Estimations heuristiques (puissance calculée d\'après les profils). Les points viennent de la base ; les limites de composition sont simplifiées (3 exemplaires par fiche, 6 pour la Ligne, 1 pour les Héros épiques) : vérifie la liste dans Creator.</p>';
+    return h;
+  }
+  function asLoadB(i) {
+    const p = AS.res[i]; if (!p) return false;
+    Object.assign(B, bdef(), { fac: AS.fac, ch: AS.ch, fmt: AS.fmt, limit: AS.limit, name: p.name, dets: p.detId ? [p.detId] : [], units: p.units.map((u) => ({ k: u.k, id: u.id, models: u.n, pts: 0, wg: {}, to: u.to || '', enh: u.enh || '', woff: [], aoff: [] })), warlord: p.warlord, cm: 'build', editId: '' });
+    bsave(); return true;
   }
 
   /* ---- Onglet Règles (11e) ---- */
@@ -1550,6 +1734,10 @@
       S.ui.newStrat = null;
     },
     delStrat(id) { if (confirm('Supprimer ce stratagème ?')) S.customStrats = S.customStrats.filter((s) => s.id !== id); },
+    asRun() { const f = AS.fac ? Wahap.cached(AS.fac) : null; if (!f) { AS.err = 'Choisis une faction.'; return; } const o = { fac: AS.fac, ch: AS.ch, limit: AS.limit || 1000, style: AS.style, kw: AS.kw, det: AS.det }; AS.res = [0, 1, 2].map((i) => aBuild(f, o, [0.1, 0.3, 0.5][i], AS.seed * 7 + i * 13 + 1, i)).filter(Boolean); AS.err = AS.res.length ? '' : 'Aucune unité utilisable avec ces critères.'; asave(); },
+    asMore() { AS.seed++; actions.asRun(); },
+    asOpen(i) { if (asLoadB(+i)) S.tab = 'build'; },
+    asCreate(i) { if (!asLoadB(+i)) return; const a = bBuildArmy(); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée par l'assistant : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
     bCm(v) { B.cm = v; S.editUnit = null; bsave(); },
     bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
     bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
@@ -1610,6 +1798,7 @@
     const t0 = e.target, ds = t0.dataset || {};
     if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.facErr = ''; B.fac = v; B.dets = []; B.units = []; B.open = null; B.ch = ''; B.kw = ''; } else if (ds.bf === 'ch') bChapter(v); else if (ds.bf === 'kw') B.kw = v; else if (ds.bf === 'warlord') B.warlord = v; else if (ds.bf === 'allEnh') B.allEnh = !!t0.checked; else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
     if (ds.bu) { const en = B.units.find((x) => x.k === ds.bu); if (en) { if (ds.bw != null) { const j = +ds.bw; en.woff = (en.woff || []).filter((x) => x !== j); if (!t0.checked) en.woff.push(j); } else if (ds.bg != null) { en.wg = en.wg || {}; en.wg[ds.bg] = Math.max(0, +t0.value || 0); } else if (ds.ba != null) { const j = +ds.ba; en.aoff = (en.aoff || []).filter((x) => x !== j); if (!t0.checked) en.aoff.push(j); } else en[ds.bk] = ['models', 'pts'].includes(ds.bk) ? Math.max(0, +t0.value || 0) : t0.value; bsave(); render(); } return; }
+    if (ds.af) { const v = t0.value; if (ds.af === 'fac') { AS.fac = v; AS.ch = ''; AS.det = ''; AS.kw = ''; AS.err = ''; } else if (ds.af === 'ch') { AS.ch = v; AS.det = ''; AS.kw = ''; } else if (ds.af === 'fmt') { AS.fmt = v; if (+v) AS.limit = +v; } else if (ds.af === 'limit') AS.limit = +v || 0; else AS[ds.af] = v; AS.res = []; asave(); render(); return; }
     const el = e.target;
     if ((el.id === 'pdfNew' || el.id === 'pdfEnrich') && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importPdfFile(f, el.id === 'pdfNew' ? 'new' : 'enrich'); return; }
     if (el.id === 'pdfEnemy' && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importEnemyPdf(f); return; }

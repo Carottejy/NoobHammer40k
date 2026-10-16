@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.14.1';
+var APP_VERSION = '1.15.0';
 var APP_RELEASES = [
+  { v: '1.15.0', date: '2026-10-16', notes: [
+    'Nouvel onglet « Assistant » (sans IA générative) : choisis faction, chapitre, format, style de jeu, détachement et mot-clé ; l\'appli compose 3 listes (Ligne pour les objectifs, chefs rattachés, seigneur de bataille, améliorations) à ouvrir dans Creator ou à créer directement.',
+    'Correctif : un détachement sans coût de points n\'affiche plus « ( pt) ».'
+  ] },
   { v: '1.14.1', date: '2026-10-15', notes: [
     'Les imports (PDF, texte ALN, BBCode, JSON) restent dans l\'onglet « Armées » ; Creator ne garde que « Nouvelle liste » et « Modifier une armée ».'
   ] },
