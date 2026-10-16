@@ -9,30 +9,18 @@ const PHASES = [
 ];
 
 const PHASE_REMINDERS = {
-  command: [
-    'Gagne tes PC et applique les capacités de début de Commandement.',
-    'Teste le Choc de Bataille des unités sous la moitié de leurs effectifs. Une unité déjà en Choc de Bataille doit réussir un test pour s\'en libérer.',
-    'Rappel : une unité en Choc de Bataille a son OC réduit, ne peut faire aucune action et ne peut pas être ciblée par tes stratagèmes (donc Bravoure Insensée se joue AVANT le jet).',
-  ],
+  command: [],
   move: [
-    'Mouvement normal, Avance (+D6″, pas de tir sauf Assaut) ou Retraite (pas de tir ni de charge).',
-    'Les unités peuvent traverser librement tes unités amies et pivoter gratuitement.',
-    'Cohésion : chaque figurine à 9″ ou moins de toutes les autres figurines de l\'unité (à vérifier dans la règle).',
     'Arrivées en réserve / infiltration : pense à tes unités en Frappe en profondeur.',
   ],
   shoot: [
-    'Choisis les armes avec lesquelles l\'unité tire ; vérifie Avance/Assaut et Engagement/Pistolet.',
     'Couvert = −1 à la touche (plus de bonus à la sauvegarde). Tir plongeant (≥ 3″ plus haut) = +1 CT.',
-    'Rappel : une unité ne peut bénéficier que d\'un stratagème par phase.',
   ],
   charge: [
-    'Déclare la charge (ennemi à 12″), lance 2D6, puis choisis seulement ensuite la cible que tu peux atteindre (à vérifier dans la règle).',
     'Un Relance de Commandement sur une charge relance les DEUX dés.',
     'Intervention Héroïque / Tir d\'Alerte de l\'adversaire se jouent en réaction : pense à les anticiper.',
   ],
   fight: [
-    'Le joueur actif active ses unités en premier ; Combat en premier (Frappe en Premier) change l\'ordre.',
-    'mise en contact, attaques, puis consolidation.',
     'Rappel : Lance (+1 blessure) n\'agit que si l\'unité a chargé ce tour.',
   ],
 };

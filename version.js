@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.32.1';
+var APP_VERSION = '1.33.0';
 var APP_RELEASES = [
+  { v: '1.33.0', date: '2026-10-16', notes: ['Partie : PC adverses affichés (lecture seule, partie en ligne).','« À ne pas oublier » : replié par défaut, placé au-dessus du choix d\'unité, rappels trop génériques retirés.'] },
   { v: '1.32.1', date: '2026-10-16', notes: ['Liste adverse : « Voir le détail » placé juste sous le nom de chaque unité.'] },
   { v: '1.32.0', date: '2026-10-16', notes: ['Partie : bouton « ⚔️ Adversaire » toujours en haut (onglet Adverse supprimé).','Partie locale : plus de bloc « Partie en ligne » ni d\'attente d\'adversaire, plus de message de création ni de bouton de sauvegarde auto (💾 conservé).'] },
   { v: '1.31.1', date: '2026-10-16', notes: ['Nouvelle partie : plus d\'adversaire fantôme resté d\'une partie précédente.'] },

@@ -146,6 +146,7 @@
     h += `<div class="card">
       <div class="row sp"><div class="counter"><span class="muted">Round</span><button class="chip" data-act="step" data-path="round" data-val="-1">−</button><b>${S.round}</b><button class="chip" data-act="step" data-path="round" data-val="1">+</button></div>
       <div class="counter"><span class="muted">PC</span><button class="chip" data-act="step" data-path="cp" data-val="-1">−</button><b>${S.cp}</b><button class="chip" data-act="step" data-path="cp" data-val="1">+</button></div></div>
+      ${S.enemy && S.enemy.live ? `<div class="muted" style="margin-top:6px">PC adverses : <b>${S.enemy.cp == null ? '?' : S.enemy.cp}</b></div>` : ''}
       <div class="chips" style="margin:10px 0">${chip('Mon tour', S.mine, 'data-act="set" data-path="mine" data-val="true"')}${chip('Tour adverse', !S.mine, 'data-act="set" data-path="mine" data-val="false"')}</div>
       <div class="chips">${PHASES.map((p) => chip(p.label, S.phase === p.id, `data-act="set" data-path="phase" data-val="${p.id}"`)).join('')}</div>
       <div class="row sp" style="margin-top:10px"><span class="muted">${S.mine ? 'Ton tour' : 'Tour adverse'} — ${phaseLabel(S.phase)}</span><button class="btn small" data-act="nextPhase">Phase suivante ▶</button></div>
@@ -155,18 +156,18 @@
     }
     const ub = unit(); const u = eff(a, ub);
     const label = (x) => { const e = eff(a, x); return (alive(x) ? '' : '☠ ') + esc(x.name) + (e.leaders.length ? ' (+ ' + e.leaders.map((l) => esc(l.name)).join(', ') + ')' : '') + (alive(x) ? '' : ' — détruite'); };
+    const canAttack = S.phase === 'shoot' || S.phase === 'fight';
+    const defend = canAttack && S.play.mode === 'defend';
+    h += remindersCard(u, defend);
     h += `<div class="card"><label>Unité</label><select data-bind="play.unitId">${topUnits(a).map((x) => `<option value="${x.id}" class="${alive(x) ? '' : 'dead'}" ${alive(x) ? '' : 'style="color:#888"'} ${x.id === ub.id ? 'selected' : ''}>${label(x)}</option>`).join('')}</select>
       ${unitStatLine(u)}<div style="margin-top:8px">${modelsCtl('mine', ub, 'Figurines')}${u.leaders.map((l) => modelsCtl('mine', l, (roleOf(l) === 'support' ? 'Appui' : 'Meneur') + ' — ' + l.name)).join('')}</div>
       ${u.leaders.length ? `<div class="muted">Unité attachée : les armes, aptitudes et mots-clés de ${u.leaders.map((l) => esc(l.name)).join(', ')} sont pris en compte.</div>` : ''}
       <div class="chips" style="margin-top:8px">${chip('⚠️ En Choc de Bataille', S.bs[ub.id], `data-act="toggleBs" data-val="${ub.id}"`)}</div></div>
     `;
 
-    const canAttack = S.phase === 'shoot' || S.phase === 'fight';
     if (canAttack) {
       h += `<div class="chips" style="margin-bottom:12px">${chip('⚔️ J\'attaque', S.play.mode === 'attack', 'data-act="set" data-path="play.mode" data-val="attack"')}${chip('🛡️ Je suis attaqué', S.play.mode === 'defend', 'data-act="set" data-path="play.mode" data-val="defend"')}</div>`;
     }
-    const defend = canAttack && S.play.mode === 'defend';
-    h += remindersCard(u, defend);
     if (canAttack && !defend) h += attackCard(u);
     if (defend) h += defendCard(u);
     h += stratPanel(u, defend);
@@ -191,7 +192,10 @@
   function remindersCard(u, defend) {
     const rules = (S.armyRules[S.armyId] || []).filter((r) => abilityMatches(r, S.phase, defend));
     const abs = (u.abilities || []).filter((r) => abilityMatches(r, S.phase, defend));
-    let h = `<div class="card"><h2>À ne pas oublier</h2>`;
+    const open = !!S.ui.remOpen;
+    let h = `<div class="card"><div class="row sp" data-act="remToggle" style="cursor:pointer"><h2 style="margin:0">À ne pas oublier</h2><span class="muted">${open ? '▾' : '▸'}</span></div>`;
+    if (!open) return h + '</div>';
+    h += '<div style="margin-top:8px"></div>';
     if (!defend) h += `<ul style="margin:0 0 8px;padding-left:18px">${(PHASE_REMINDERS[S.phase] || []).map((x) => `<li class="muted">${esc(x)}</li>`).join('')}</ul>`;
     if (abs.length) {
       const list = abs.map(ruleNote).join('');
@@ -2017,6 +2021,7 @@
 
   /* ---------- Actions ---------- */
   const actions = {
+    remToggle() { S.ui.remOpen = !S.ui.remOpen; },
     enemyView(v) { S.ui.enemyView = !!v; },
     tab(v) { if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
