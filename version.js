@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.33.2';
+var APP_VERSION = '1.33.3';
 var APP_RELEASES = [
+  { v: '1.33.3', date: '2026-10-16', notes: ['Ouvrir une partie : plus de confirmation inutile (seulement si une partie en cours n\'est pas enregistrée).'] },
   { v: '1.33.2', date: '2026-10-16', notes: ['Liste adverse en partie : la flèche (et le retour du téléphone) revient à la partie en cours.'] },
   { v: '1.33.1', date: '2026-10-16', notes: ['Liste adverse : une ligne par unité (nom, points, E, Sv, effectif, PV), tout le reste dans « Voir le détail ».'] },
   { v: '1.33.0', date: '2026-10-16', notes: ['Partie : PC adverses affichés (lecture seule, partie en ligne).','« À ne pas oublier » : replié par défaut, placé au-dessus du choix d\'unité, rappels trop génériques retirés.'] },

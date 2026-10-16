@@ -2176,7 +2176,7 @@
     },
     gameLoad(id) {
       const g = readGames().find((x) => x.id === id); if (!g) return;
-      if (!confirm(`Ouvrir « ${g.name} » ? L'état en cours qui n'a pas été sauvegardé sera remplacé.`)) return;
+      if (S.inGame && !S.gameId && !confirm(`Ouvrir « ${g.name} » ? La partie en cours, non enregistrée, sera perdue.`)) return;
       const old = S; flushGameSave();
       S = normalize(g.state);
       { /* bibliothèque conservée ; l'armée de la partie lui est propre */
