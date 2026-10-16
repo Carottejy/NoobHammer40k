@@ -38,7 +38,7 @@
   function load() {
     try { return normalize(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')); } catch (e) { return defaults(); /* état corrompu */ }
   }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage plein/bloqué */ } scheduleGameSave(); netPush(); };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage plein/bloqué */ } scheduleGameSave(); netPush(); syncSoon(); };
   const army = () => S.armies.find((a) => a.id === S.armyId) || null;
   const unit = () => { const a = army(); return a ? a.units.find((u) => u.id === S.play.unitId) || null : null; };
   const setPath = (path, val) => { const k = path.split('.'); let o = S; for (let i = 0; i < k.length - 1; i++) o = o[k[i]]; o[k[k.length - 1]] = val; };
@@ -1686,12 +1686,118 @@
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
     const ver = `<div class="card"><h2>Version ${esc(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?')}</h2>${last ? `<div class="muted">Notes de version · ${esc(last.date || '')}</div><ul class="fxlist">${last.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}${rel.length > 1 ? `<details><summary>Versions précédentes</summary>${rel.slice(1).map((r) => `<h3>${esc(r.v)} · ${esc(r.date || '')}</h3><ul class="fxlist">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}</details>` : ''}</div>`;
-    return `<h1>Infos</h1>${ver}<div class="card"><h2>Sources des règles</h2>
+    return `<h1>Infos</h1>${ver}${syncCard()}<div class="card"><h2>Sources des règles</h2>
       <p>Les règles de base (touche, blessure, sauvegarde, couvert −1 CT, relances, stratagèmes de base de la 11e édition) sont codées d'après les règles de base publiques et les guides de la communauté. Ce que l'appli ne peut pas deviner (datasheets, stratagèmes de ton détachement) vient de toi : saisis-le une fois, il reste sur ton téléphone.</p>
       <p class="muted">Les stratagèmes marqués « à vérifier » ont un coût ou un détail à confirmer dans l'appli officielle Warhammer 40,000. En cas de doute, la règle officielle prime.</p></div>
       <div class="card"><h2>Installer sur le téléphone</h2><p><b>Android (Chrome)</b> : menu ⋮ → « Installer l'application ».<br><b>iPhone (Safari)</b> : Partager → « Sur l'écran d'accueil ».</p><p class="muted">Après la première ouverture, l'appli fonctionne hors ligne.</p></div>
       <div class="card"><h2>Import depuis ALN</h2><p class="muted">Pour lire ta page ALN, l'appli essaie d'abord un accès direct ; si le navigateur le bloque (CORS), elle peut passer par un relais public après ton accord. Relais : <b>${S.relayOk ? 'autorisé' : 'non autorisé'}</b>.</p>${S.relayOk ? '<button class="btn small ghost" data-act="resetRelay">Retirer l\'autorisation</button>' : ''}</div>
       <div class="card"><h2>Données</h2><button class="btn danger" data-act="resetAll">Tout effacer</button></div>`;
+  }
+
+  /* ----- Synchronisation entre appareils (Gist GitHub secret, fusion à trois voies) ----- */
+  var SY = { busy: false, msg: '', err: '', timer: null, applying: false };
+  const SKEY = 'noobammer.sync.v1', SFILE = 'noobhammer40k.json', SDESC = 'NoobHammer40k sync';
+  const syCfg = () => { try { return JSON.parse(localStorage.getItem(SKEY) || 'null'); } catch (e) { return null; } };
+  const sySet = (c) => { try { if (c) localStorage.setItem(SKEY, JSON.stringify(c)); else localStorage.removeItem(SKEY); } catch (e) { /* ignoré */ } };
+  const syHash = (o) => { const s = JSON.stringify(o); let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0; return String(h) + ':' + s.length; };
+  async function syGh(cfg, path, opt) {
+    const r = await fetch('https://api.github.com' + path, Object.assign({ headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json' } }, opt || {}, opt && opt.body ? { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' } } : {}));
+    if (r.status === 401) throw new Error('Jeton refusé par GitHub (expiré ou incorrect).');
+    if (r.status === 404) throw new Error('Gist introuvable (supprimé ?).');
+    if (!r.ok) throw new Error('GitHub a répondu ' + r.status + '.');
+    return r.json();
+  }
+  async function syEnsureGist(cfg) {
+    if (cfg.gist) return cfg.gist;
+    const l = await syGh(cfg, '/gists?per_page=100');
+    const g = l.find((x) => x.description === SDESC && x.files && x.files[SFILE]);
+    if (g) return (cfg.gist = g.id);
+    const n = await syGh(cfg, '/gists', { method: 'POST', body: JSON.stringify({ description: SDESC, public: false, files: { [SFILE]: { content: '{"v":1,"armies":{},"games":{}}' } } }) });
+    return (cfg.gist = n.id);
+  }
+  function syLocal() {
+    const armies = {}; libArmies().forEach((a) => { armies[a.id] = { army: a, rules: S.armyRules[a.id] || [], strats: S.customStrats.filter((s) => s.armyId === a.id) }; });
+    const games = {}; readGames().forEach((g) => { games[g.id] = g; });
+    return { v: 1, armies, games };
+  }
+  /* Fusion à trois voies par élément : local / distant / dernier état synchronisé (base) */
+  function syMerge(L, R, base) {
+    const out = { v: 1, armies: {}, games: {} }; let conflicts = 0;
+    [['armies', (x) => x.army && x.army.name], ['games', (x) => x.name]].forEach(([k]) => {
+      const ids = Array.from(new Set(Object.keys(L[k] || {}).concat(Object.keys(R[k] || {}), Object.keys(base[k] || {}))));
+      ids.forEach((id) => {
+        const l = (L[k] || {})[id], r = (R[k] || {})[id], b = (base[k] || {})[id];
+        const hl = l ? syHash(l) : null, hr = r ? syHash(r) : null;
+        let pick;
+        if (hl === hr) pick = l;
+        else if (hl === b) pick = r;
+        else if (hr === b) pick = l;
+        else if (!l) pick = r;
+        else if (!r) pick = l;
+        else if (k === 'games') pick = (l.at || 0) >= (r.at || 0) ? l : r;
+        else {
+          pick = l; conflicts++;
+          const c = JSON.parse(JSON.stringify(r)); const nid = uid(); c.army.id = nid; c.army.name = (c.army.name || 'Armée') + ' (autre appareil)'; c.strats.forEach((s) => { s.armyId = nid; s.id = 'c_' + uid(); });
+          out.armies[nid] = c;
+        }
+        if (pick) out[k][id] = pick;
+      });
+    });
+    out.conflicts = conflicts; return out;
+  }
+  function syApply(m) {
+    const ids = new Set(Object.keys(m.armies)); const old = libArmies();
+    const order = old.filter((a) => ids.has(a.id)).map((a) => a.id).concat(Object.keys(m.armies).filter((id) => !old.some((a) => a.id === id)));
+    S.armies = S.armies.filter((a) => a.gameOf).concat(order.map((id) => m.armies[id].army));
+    const lib = new Set(old.map((a) => a.id).concat(order));
+    lib.forEach((id) => { delete S.armyRules[id]; });
+    S.customStrats = S.customStrats.filter((s) => !lib.has(s.armyId));
+    order.forEach((id) => { const e = m.armies[id]; if (e.rules && e.rules.length) S.armyRules[id] = e.rules; (e.strats || []).forEach((s) => S.customStrats.push(s)); });
+    const cur = S.gameId; const gl = readGames(); const keep = {};
+    Object.keys(m.games).forEach((id) => { keep[id] = (id === cur && gl.find((g) => g.id === id)) || m.games[id]; });
+    if (cur && !keep[cur]) { const g = gl.find((x) => x.id === cur); if (g) keep[cur] = g; }
+    writeGames(Object.keys(keep).map((id) => keep[id]).sort((a, b) => (b.at || 0) - (a.at || 0)));
+    if (!S.armies.some((a) => a.id === S.armyId && !a.gameOf)) restoreLib();
+  }
+  async function syncRun(manual) {
+    const cfg = syCfg(); if (!cfg || !cfg.token || SY.busy) return;
+    SY.busy = true; if (manual) { SY.err = ''; SY.msg = 'Synchronisation…'; render(); }
+    try {
+      const id = await syEnsureGist(cfg);
+      const g = await syGh(cfg, '/gists/' + id); const f = g.files && g.files[SFILE];
+      let remote = { v: 1, armies: {}, games: {} };
+      if (f) { const txt = f.truncated ? await (await fetch(f.raw_url)).text() : f.content; try { remote = JSON.parse(txt) || remote; } catch (e) { throw new Error('Fichier distant illisible.'); } }
+      remote.armies = remote.armies || {}; remote.games = remote.games || {};
+      const L = syLocal(); const base = cfg.base || { armies: {}, games: {} };
+      const m = syMerge(L, remote, base);
+      const mh = { armies: {}, games: {} }; ['armies', 'games'].forEach((k) => Object.keys(m[k]).forEach((i) => { mh[k][i] = syHash(m[k][i]); }));
+      const same = (a, b) => { const ka = Object.keys(a), kb = Object.keys(b); return ka.length === kb.length && ka.every((i) => b[i] && syHash(a[i]) === syHash(b[i])); };
+      const changeLocal = !(same(m.armies, L.armies) && same(m.games, L.games));
+      const changeRemote = !(same(m.armies, remote.armies) && same(m.games, remote.games));
+      const payload = { v: 1, armies: m.armies, games: m.games };
+      if (changeRemote) await syGh(cfg, '/gists/' + id, { method: 'PATCH', body: JSON.stringify({ files: { [SFILE]: { content: JSON.stringify(payload) } } }) });
+      if (changeLocal) { SY.chg = true; SY.applying = true; syApply(m); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* ignoré */ } SY.applying = false; }
+      cfg.base = mh; cfg.last = Date.now(); sySet(cfg);
+      SY.err = ''; SY.msg = (changeLocal || changeRemote ? 'Synchronisé : ' + (changeLocal ? 'données reçues' : '') + (changeLocal && changeRemote ? ' et ' : '') + (changeRemote ? 'données envoyées' : '') : 'Déjà à jour') + (m.conflicts ? ' · ' + m.conflicts + ' conflit(s) : copie « (autre appareil) » créée' : '') + '.';
+    } catch (e) { SY.applying = false; SY.err = e.message || 'Échec de la synchronisation.'; SY.msg = ''; }
+    SY.busy = false; if (manual || SY.err || SY.chg) render(); SY.chg = false;
+  }
+  function syncSoon() { if (SY.applying || !syCfg()) return; clearTimeout(SY.timer); SY.timer = setTimeout(() => syncRun(false), 6000); }
+  function syncCard() {
+    const c = syCfg();
+    let h = '<div class="card"><h2>Synchronisation entre appareils</h2>';
+    if (!c || !c.token) {
+      h += `<p class="muted" style="margin-top:0">Garde tes armées et tes parties sur tous tes appareils (téléphone, PC…). Elles sont stockées dans un <b>Gist secret</b> de ton compte GitHub, sans autre service.</p>
+        <ol class="muted" style="padding-left:18px;margin:6px 0"><li><a href="https://github.com/settings/tokens/new?scopes=gist&description=NoobHammer40k" target="_blank" rel="noopener" style="color:var(--accent)">Crée un jeton GitHub</a> (classique, coche seulement « gist »).</li><li>Colle-le ici, puis fais pareil sur chaque appareil avec le même jeton.</li></ol>
+        <label>Jeton GitHub</label><input type="password" id="synctok" autocomplete="off" placeholder="ghp_…"><div class="muted">Le jeton reste uniquement sur cet appareil. Il ne donne accès qu'à tes Gists.</div>
+        <button class="btn" style="margin-top:8px" data-act="syncOn" ${SY.busy ? 'disabled' : ''}>🔗 Connecter</button>`;
+    } else {
+      h += `<p style="margin-top:0">✅ Connecté${c.last ? ' · dernière synchro : ' + esc(new Date(c.last).toLocaleString('fr-FR')) : ''}</p><p class="muted">Synchronisation automatique à l'ouverture, au retour sur l'appli et peu après chaque modification.</p>
+        <div class="row"><button class="btn grow" data-act="syncNow" ${SY.busy ? 'disabled' : ''}>🔄 Synchroniser maintenant</button><button class="btn ghost" data-act="syncOff">Déconnecter</button></div>`;
+    }
+    if (SY.msg) h += `<div class="note" style="margin-top:8px">${esc(SY.msg)}</div>`;
+    if (SY.err) h += `<div class="warn" style="margin-top:8px">${esc(SY.err)}</div>`;
+    return h + '</div>';
   }
 
   /* ----- Accueil, hub des parties, écran de partie ----- */
@@ -1946,7 +2052,10 @@
         a.id = uid(); a.units.forEach((u) => { u.id = uid(); }); S.armies.push(a); S.armyId = a.id; S.armyRules[a.id] = d.rules || [];
       } catch (e) { alert('JSON invalide.'); }
     },
-    resetAll() { if (confirm('Effacer toutes les données de l\'appli ?')) { S = defaults(); } },
+    resetAll() { if (confirm('Effacer toutes les données de l\'appli ?' + (syCfg() ? '\n\nLa synchronisation sera déconnectée pour ne pas effacer tes autres appareils.' : ''))) { sySet(null); S = defaults(); } },
+    syncOn() { const t = (document.getElementById('synctok') || {}).value; if (!t || !t.trim()) { SY.err = 'Colle ton jeton GitHub.'; return; } sySet({ token: t.trim(), gist: '', base: { armies: {}, games: {} }, last: 0 }); SY.err = ''; SY.msg = ''; syncRun(true); },
+    syncNow() { syncRun(true); },
+    syncOff() { if (confirm('Déconnecter la synchronisation sur cet appareil ? Tes données restent ici et dans le Gist.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; } },
   };
 
   document.addEventListener('click', (e) => {
@@ -2022,5 +2131,7 @@
       navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloading) return; reloading = true; location.reload(); });
     }).catch(() => {});
   }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncRun(false); });
   render();
+  setTimeout(() => syncRun(false), 800);
 })();
