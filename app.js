@@ -1242,8 +1242,12 @@
   }
   function bResults(f) {
     const terms = Wahap.norm(B.q).split(' ').filter(Boolean);
-    const r = f.units.filter((d) => chOkUnit(d) && (!B.grp || bgrp(d) === B.grp) && (!B.kw || kwShow(d).includes(B.kw)) && terms.every((t) => Wahap.norm(d.name).includes(t) || Wahap.norm(d.en).includes(t) || kwShow(d).some((k) => Wahap.norm(k).includes(t)))).slice(0, 60);
-    return r.map((d) => `<div class="unit-item"><div><b>${esc(T0(d.name))}</b>${Wahap.isEn(d.name) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${esc(bgrp(d))} · ${esc(d.role)}${chOfUnit(d) ? ' · ' + esc(chOfUnit(d)) : ''}</div><div class="kws">${kwShow(d).filter((k) => !/^(imperium|chaos)$/i.test(k)).slice(0, 8).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div></div><button class="btn small" data-act="bAdd" data-val="${d.id}">＋</button></div>`).join('') || '<p class="muted">Aucune unité.</p>';
+    const addCost = (d) => { const sz = bSizes(d, B.units.filter((x) => x.id === d.id).length + 1); return sz.length ? Math.min(...sz.map((z) => z[1])) : 0; };
+    const left = B.limit > 0 ? B.limit - B.units.reduce((s, e) => s + bCost(f, e), 0) : Infinity;
+    const r0 = f.units.filter((d) => chOkUnit(d) && (!B.grp || bgrp(d) === B.grp) && (!B.kw || kwShow(d).includes(B.kw)) && terms.every((t) => Wahap.norm(d.name).includes(t) || Wahap.norm(d.en).includes(t) || kwShow(d).some((k) => Wahap.norm(k).includes(t))));
+    const r = r0.filter((d) => { const c = addCost(d); return left === Infinity || (c > 0 && c <= left); }).slice(0, 60);
+    if (!r.length && r0.length && left !== Infinity) return '<p class="muted">Points insuffisants : il reste ' + Math.max(0, left) + ' pt(s) et aucune unité ne rentre.</p>';
+    return r.map((d) => `<div class="unit-item"><div><b>${esc(T0(d.name))}</b>${Wahap.isEn(d.name) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${addCost(d) ? '<b>' + addCost(d) + ' pts</b> · ' : ''}${esc(bgrp(d))} · ${esc(d.role)}${chOfUnit(d) ? ' · ' + esc(chOfUnit(d)) : ''}</div><div class="kws">${kwShow(d).filter((k) => !/^(imperium|chaos)$/i.test(k)).slice(0, 8).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div></div><button class="btn small" data-act="bAdd" data-val="${d.id}">＋</button></div>`).join('') || '<p class="muted">Aucune unité.</p>';
   }
   function bUnitCard(f, e, i) {
     const d = bdef1(f, e.id); if (!d) return '';
@@ -1254,7 +1258,7 @@
       <div class="kws">${kwShow(d).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>
       <div class="muted">${esc(bgrp(d))}${host ? ' · rejoint ' + esc(host.nm || T0(bdef1(f, host.id).name)) : ''}${e.enh ? ' · ' + esc((bEnhs(f).find((x) => x.key === e.enh) || {}).name || '') : ''}</div>
       <div class="row" style="margin-top:6px"><div style="flex:1"><label>Figurines</label>${sizes.length ? `<select data-bu="${e.k}" data-bk="models">${sizes.map((z) => `<option value="${z[0]}" ${z[0] === +e.models ? 'selected' : ''}>${z[0]}</option>`).join('')}</select>` : `<input type="number" inputmode="numeric" data-bu="${e.k}" data-bk="models" value="${e.models}">`}</div><div style="flex:1"><label>Points${bAuto(f, e) ? ' (auto ' + bAuto(f, e) + ')' : ''}</label><input type="number" inputmode="numeric" data-bu="${e.k}" data-bk="pts" value="${e.pts || ''}" placeholder="${bAuto(f, e) || ''}"></div></div>
-      <div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bOpen" data-val="${e.k}">${open ? 'Fermer' : '⚙️ Options'}</button><button class="btn small ghost" data-act="bDup" data-val="${e.k}">Dupliquer</button><button class="btn small danger" data-act="bDel" data-val="${e.k}">Retirer</button></div>`;
+      <div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bOpen" data-val="${e.k}">${open ? 'Fermer' : '⚙️ Options'}</button><button class="btn small ghost" data-act="bDs" data-val="${e.id}">📚 Datasheet</button><button class="btn small ghost" data-act="bDup" data-val="${e.k}">Dupliquer</button><button class="btn small danger" data-act="bDel" data-val="${e.k}">Retirer</button></div>`;
     if (open) {
       const hosts = (d.leads || []).length ? B.units.filter((x) => x.k !== e.k && d.leads.includes(x.id)) : [];
       if ((d.leads || []).length) h += `<label style="margin-top:8px">Rejoint (meneur / appui)</label><select data-bu="${e.k}" data-bk="to"><option value="">— aucune —</option>${hosts.map((x) => `<option value="${x.k}" ${x.k === e.to ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>${hosts.length ? '' : '<div class="muted">Ajoute d\'abord une unité compatible : ' + d.leads.map((id) => { const u = bdef1(f, id); return u ? esc(T0(u.name)) : ''; }).filter(Boolean).slice(0, 6).join(', ') + '</div>'}`;
@@ -2127,6 +2131,7 @@
     bFold(id) { B.fold[id] = !B.fold[id]; bsave(); },
     bFoldAll(v) { B.units.forEach((e) => { B.fold['u' + e.k] = !!v; }); bsave(); },
     bAdd(id) { const f = bfac(); const d = f && bdef1(f, id); if (!d) return; const k = uid(); B.units.push({ k, id, models: ((d.pc && d.pc.t.length && d.pc.t[0][1].length) ? d.pc.t[0][1][0][0] : 1), pts: 0, wg: {}, to: '', enh: '', woff: [], aoff: [] }); B.open = k; B.msg = ''; bsave(); },
+    bDs(id) { dbs.msg = ''; dbs.hist = []; dbs.mode = 'units'; Wahap.unit(id).then((u) => { dbs.unit = u; S.tab = 'db'; render(); }).catch((e) => { B.msg = e.message; render(); }); },
     bOpen(k) { B.open = B.open === k ? null : k; },
     bDup(k) { const e = B.units.find((x) => x.k === k); if (!e) return; const c = JSON.parse(JSON.stringify(e)); c.k = uid(); c.enh = ''; c.to = ''; B.units.splice(B.units.indexOf(e) + 1, 0, c); bsave(); },
     bDel(k) { B.units = B.units.filter((x) => x.k !== k); B.units.forEach((x) => { if (x.to === k) x.to = ''; }); bsave(); },
