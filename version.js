@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.17.0';
+var APP_VERSION = '1.17.1';
 var APP_RELEASES = [
+  { v: '1.17.1', date: '2026-10-16', notes: [
+    'Le compte et la connexion sont maintenant sur la page d\'accueil.'
+  ] },
   { v: '1.17.0', date: '2026-10-16', notes: [
     'Comptes (Infos) : crée un compte (pseudo, email, mot de passe) pour retrouver tes armées et tes parties sur tous tes appareils, avec fusion automatique. Prépare la future liste d\'amis.'
   ] },
