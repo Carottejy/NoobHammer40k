@@ -1140,7 +1140,7 @@
       let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
       if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
-      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l'onglet Armées.</p>';
+      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Armées.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
       h += armyBody(a);
       if (!S.editUnit) h += profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
