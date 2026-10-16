@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.18.0';
+var APP_VERSION = '1.19.0';
 var APP_RELEASES = [
+  { v: '1.19.0', date: '2026-10-16', notes: [
+    'Armées : liste compacte (nom, faction, points). Touche une armée pour voir son détail : détachements, règles d\'armée et de détachement, puis unités repliées (nom, figurines, points) que tu dépliles pour voir profil, équipement, armes et aptitudes.'
+  ] },
   { v: '1.18.0', date: '2026-10-16', notes: [
     'Amis : ajoute un ami par son pseudo, accepte les demandes, et invite-le à une partie en ligne en un clic (en plus du système de code). Les invitations apparaissent sur l\'accueil.',
     'Accueil : suppression des blocs « partie en cours ».'

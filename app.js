@@ -761,6 +761,28 @@
       <textarea data-act-change="saveRules" data-bind-rules="1" placeholder="Oath of Moment | tir,combat | Relance les touches contre l'unité choisie">${esc(abilitiesToText(rules))}</textarea></div>`;
     return h;
   }
+  /* Détail d'une armée de la bibliothèque : détachements, règles, unités repliées */
+  function unitDetail(u) {
+    const ws = u.weapons || [], ab = (u.abilities || []).filter((x) => x && x.name);
+    const stat = [u.M && 'M ' + u.M, u.T && 'E ' + u.T, u.sv && 'Sv ' + u.sv + (u.inv ? ' (' + u.inv + '++)' : ''), u.W && 'PV ' + u.W, u.Ld && 'CD ' + u.Ld, u.OC && 'CO ' + u.OC, u.fnp && 'FNP ' + u.fnp + '+'].filter(Boolean).join(' · ');
+    let h = `<details class="unit-item col"><summary style="display:flex;justify-content:space-between;gap:8px;cursor:pointer;color:inherit"><span><b>${u.warlord ? '👑 ' : ''}${esc(u.name)}</b>${u.enhancement ? ' <span class="tag">✦ ' + esc(u.enhancement) + '</span>' : ''}</span><span class="muted" style="white-space:nowrap">${u.models ? esc(u.models) + ' fig. · ' : ''}${u.pts ? esc(u.pts) + ' pts' : ''}</span></summary><div style="margin-top:6px">`;
+    if (stat) h += `<div class="muted">${esc(stat)}</div>`;
+    if ((u.keywords || []).length) h += `<div class="kws" style="margin-top:4px">${u.keywords.concat(u.factionKw || []).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>`;
+    if (u.equipment || (u.options || []).length || u.ptsNote) h += `<div style="margin-top:6px"><b>Équipement et options</b>${u.equipment ? `<div class="muted">${esc(u.equipment)}</div>` : ''}${(u.options || []).length ? `<div class="muted">Options choisies : ${u.options.map(esc).join(' · ')}</div>` : ''}${u.ptsNote ? `<div class="muted">${esc(u.ptsNote)}</div>` : ''}</div>`;
+    if (ws.length) h += `<div style="margin-top:6px"><b>Armes (${ws.length})</b><ul class="fxlist">${ws.map((w) => `<li>${wLine(w)}</li>`).join('')}</ul></div>`;
+    if (ab.length) h += `<div style="margin-top:6px"><b>Aptitudes (${ab.length})</b>${ab.map((x) => `<details class="note"><summary><b>${esc(x.name)}</b></summary><div>${esc(x.text || '').replace(/\n/g, '<br>')}</div></details>`).join('')}</div>`;
+    if (!stat && !ws.length && !ab.length) h += '<div class="muted">Aucun profil enregistré pour cette unité.</div>';
+    return h + '</div></details>';
+  }
+  function armyDetail(a) {
+    let h = '';
+    h += `<div class="card"><h2>Détachements</h2>${(a.detachments || []).length ? a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('') : '<p class="muted" style="margin:0">Aucun détachement.</p>'}${a.total ? `<p class="muted" style="margin-bottom:0">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
+    const rules = (S.armyRules[a.id] || []).filter((r) => r && r.name);
+    h += `<div class="card"><h2>Règles d'armée et de détachement</h2>${rules.length ? rules.map((r) => `<details class="note"><summary><b>${esc(r.name)}</b></summary><div>${esc(r.text || '').replace(/\n/g, '<br>')}</div></details>`).join('') : '<p class="muted" style="margin:0">Aucune règle enregistrée pour cette armée.</p>'}</div>`;
+    h += `<div class="card"><h2>Unités (${a.units.length})</h2>${a.units.map(unitDetail).join('') || '<p class="muted">Aucune unité.</p>'}</div>`;
+    h += yellowCard(a);
+    return h;
+  }
   function viewArmy() {
     const a = army();
     if (S.inGame) {
@@ -771,18 +793,15 @@
     let h = `<h1>Mes armées</h1>${S.ui.importMsg ? `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>` : ''}<div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
     const imp = () => importCard(null) + `<div class="card"><h2>Importer un JSON</h2><p class="muted">Colle ici une armée exportée depuis NoobHammer40k (bouton « Copier » de Creator &gt; Modifier une armée).</p><textarea id="jsonBox"></textarea><div class="row" style="margin-top:8px"><button class="btn small" data-act="importJson">Importer ce JSON</button></div></div>`;
     if (!lib.length) return h + '<div class="card"><p class="muted">Aucune armée pour l\'instant : importe-la ci-dessous (PDF, texte ALN, BBCode, JSON) ou crée-la dans Creator.</p></div>' + imp();
+    const open = S.ui.openArmy;
     h += lib.map((x) => {
-      const on = x.id === S.armyId; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
-      return `<div class="card army-card${on ? ' on' : ''}"><div class="row sp"><div><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${x.units.length} unité(s)${pts ? ' · ' + pts + ' pts' : ''}</div></div></div>
-        ${(x.detachments || []).length ? `<div class="muted" style="margin-top:4px">${x.detachments.map(esc).join(' · ')}</div>` : ''}
-        <div class="row" style="margin-top:8px">${on ? '' : `<button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button>`}<button class="btn small ghost" data-act="armyEdit" data-val="${x.id}">✏️ Modifier</button><button class="btn small danger" data-act="armyDel" data-val="${x.id}">Supprimer</button></div></div>`;
+      const on = x.id === S.armyId; const isOpen = x.id === open; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
+      let c = `<div class="card army-card${on ? ' on' : ''}" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></div>`;
+      if (isOpen) c += `<div class="row" style="margin-top:8px">${on ? '' : `<button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button>`}<button class="btn small ghost" data-act="armyEdit" data-val="${x.id}">✏️ Modifier</button><button class="btn small danger" data-act="armyDel" data-val="${x.id}">Supprimer</button></div>`;
+      c += '</div>';
+      if (isOpen) c += armyDetail(x);
+      return c;
     }).join('');
-    if (a && lib.includes(a)) {
-      h += `<h2 style="margin:16px 2px 6px">${esc(a.name)}</h2>`;
-      if (a.detachments && a.detachments.length) h += `<div class="card"><h2>Détachements</h2>${a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('')}</div>`;
-      h += `<div class="card"><h2>Unités (${a.units.length})</h2>${a.units.map((u) => `<div class="unit-item"><div class="row sp"><div><b>${u.warlord ? '👑 ' : ''}${esc(u.name)}</b><div class="muted">${u.pts ? esc(u.pts) + ' pts · ' : ''}${esc(u.models || '')}${u.models ? ' fig. · ' : ''}${(u.weapons || []).length} arme(s)</div></div></div></div>`).join('') || '<p class="muted">Aucune unité.</p>'}</div>`;
-      h += yellowCard(a);
-    }
     return h + imp();
   }
 
@@ -2125,6 +2144,7 @@
     bUpdate() { const a = bBuildArmy(B.editId); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.` }); bsave(); },
     bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },
     armyNew() { actions.bNew(); S.tab = 'build'; },
+    armyOpen(id) { S.ui = Object.assign({}, S.ui, { openArmy: S.ui.openArmy === id ? '' : id }); },
     armySel(id) { S.armyId = id; S.ui = Object.assign({}, S.ui, { importMsg: '' }); },
     armyEdit(id) { S.armyId = id; B.cm = 'edit'; S.editUnit = null; bsave(); S.tab = 'build'; },
     armyDel(id) { const x = S.armies.find((y) => y.id === id); if (!x || !confirm('Supprimer l\'armée « ' + x.name + ' » ?')) return; S.customStrats = S.customStrats.filter((c) => c.armyId !== id); delete S.armyRules[id]; S.armies = S.armies.filter((y) => y.id !== id); if (B.editId === id) B.editId = ''; if (S.armyId === id) S.armyId = libArmies()[0] ? libArmies()[0].id : null; },
