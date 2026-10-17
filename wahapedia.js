@@ -2,6 +2,7 @@
 const Wahap = (() => {
   const facs = {}, waiters = {};
   let index = null, indexWait = null;
+  const ov = {}, disp = {}, ovWait = {}; let lang = 'fr', dispIx = null;
   const base = 'data/wahapedia/';
   const T = (x) => (x == null ? '' : typeof x === 'string' ? x : x.en ? x.en : String(x));
   const isEn = (x) => !!x && typeof x === 'object' && !!x.en;
@@ -9,11 +10,50 @@ const Wahap = (() => {
   function load(src) {
     return new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = () => ok(); s.onerror = () => ko(new Error('Chargement impossible : ' + src)); document.head.appendChild(s); });
   }
+  function mkEn(f, o) {
+    if (!o) return f;
+    const g = JSON.parse(JSON.stringify(f));
+    g.units.forEach((u) => {
+      const e = o.u && o.u[u.id]; if (!e) return;
+      u.name = e.n || u.name; u.role = e.ro || u.role;
+      (u.models || []).forEach((m, i) => { if (e.m && e.m[i]) m.name = e.m[i]; });
+      if (e.k && e.k.length === (u.kw || []).length) u.kw = e.k; if (e.fk && e.fk.length === (u.fkw || []).length) u.fkw = e.fk;
+      (u.weapons || []).forEach((w) => { if (w.e) w.name = w.e; if (w.abEn != null) w.ab = w.abEn; if (w.range === 'Mêlée') w.range = 'Melee'; });
+      if (e.a && e.a.length === (u.abilities || []).length) u.abilities.forEach((a, i) => { a.name = e.a[i][0]; a.text = e.a[i][1]; });
+      if (e.l != null) u.loadout = e.l; if (e.tr) u.transport = e.tr; if (e.ln) u.leaderNote = e.ln;
+      if (u.pc && u.pc.w && e.pw && e.pw.length === u.pc.w.length) u.pc.w.forEach((w, i) => { w[0] = e.pw[i]; });
+    });
+    (g.detachments || []).forEach((d) => {
+      const e = o.d && o.d[d.id]; if (!e) return; d.name = e.n || d.name;
+      if (e.a && e.a.length === d.abilities.length) d.abilities.forEach((a, i) => { a.name = e.a[i][0]; a.text = e.a[i][1]; });
+      d.strats.forEach((s) => { const x = e.s && e.s[s.id]; if (x) { s.name = x[0]; s.text = x[1]; } });
+      if (e.e && e.e.length === d.enh.length) d.enh.forEach((a, i) => { a.name = e.e[i][0]; a.text = e.e[i][1]; });
+    });
+    return g;
+  }
   const api = {
     T, isEn, norm,
+    regEn(id, data) { ov[id] = data; (ovWait[id] || []).forEach((f) => f()); },
+    get lang() { return lang; },
+    setLang(l) { lang = l === 'en' ? 'en' : 'fr'; },
+    /* Version d'affichage (anglais d'origine) d'une faction ; null tant qu'elle n'est pas chargée */
+    shown(id) { if (lang !== 'en') return facs[id] || null; return disp[id] || null; },
+    async showFaction(id) {
+      const f = await api.faction(id); if (lang !== 'en') return f; if (disp[id]) return disp[id];
+      if (!ov[id]) { try { await load(base + 'en/' + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); } catch (e) { return f; } }
+      disp[id] = mkEn(f, ov[id]); return disp[id];
+    },
+    shownIndex() { if (lang !== 'en') return index; return dispIx; },
+    async showIndex() {
+      const ix = await api.ready(); if (lang !== 'en') return ix; if (dispIx) return dispIx;
+      if (!ov.index) { try { await load(base + 'en/index.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); } catch (e) { return ix; } }
+      const core = (ov.index && ov.index.core) || {};
+      dispIx = Object.assign({}, ix, { units: ix.units.map((u) => Object.assign({}, u, { n: u.e || u.n })), core: (ix.core || []).map((c) => (core[c.id] ? Object.assign({}, c, { name: core[c.id][0], text: core[c.id][1] }) : c)), kwfr: {} });
+      return dispIx;
+    },
     reg(id, data) { facs[id] = data; (waiters[id] || []).forEach((f) => f()); },
     regIndex(d) { index = d; if (typeof Kw !== 'undefined' && Kw.setMap) Kw.setMap(d.kwfr || {}); },
-    kwT(k) { k = T(k); return (index && index.kwfr && index.kwfr[k]) || k; },
+    kwT(k) { k = T(k); if (lang === 'en') return k; return (index && index.kwfr && index.kwfr[k]) || k; },
     ready() { return index ? Promise.resolve(index) : (indexWait = indexWait || load(base + 'index.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')).then(() => { if (!index) throw new Error('Base illisible'); return index; }).catch((e) => { indexWait = null; throw e; })); },
     index() { return index; },
     async faction(id) { if (facs[id]) return facs[id]; await load(base + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); return facs[id]; },
