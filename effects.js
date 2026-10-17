@@ -28,10 +28,13 @@ const Effects = (() => {
   }
   const qualifier = (tail) => {
     const m = tail.match(/^\]?\s*:?\s*non-?\s*([a-z\/ ]+?)\s*(?:[\]\.,;]|$)/);
-    if (!m) return null;
-    const kws = m[1].split(/\s*\/\s*/).map((x) => kwId(x.trim())).filter(Boolean);
-    return kws.length ? { t: 'target_not', kws } : null;
+    if (m) { const kws = m[1].split(/\s*\/\s*/).map((x) => kwId(x.trim())).filter(Boolean); return kws.length ? { t: 'target_not', kws } : null; }
+    const p = tail.match(/^\s*:\s*([a-z][a-z\/ ]*?)\s*[\]\.,;]/);
+    if (!p) return null;
+    const kws = p[1].split(/\s*\/\s*/).map((x) => kwId(x.trim())).filter(Boolean);
+    return kws.length ? { t: 'target_is', kws } : null;
   };
+  const sustAvg = (x) => { const m = String(x).toLowerCase().match(/^(\d*)d(\d+)(?:\+(\d+))?$/); return m ? (m[1] ? +m[1] : 1) * (+m[2] + 1) / 2 + (m[3] ? +m[3] : 0) : (parseInt(x, 10) || 0); };
 
   /* ---------- Jetons d'effet ---------- */
   const TOKENS = [
@@ -60,12 +63,14 @@ const Effects = (() => {
     [/relancer les jets de degats/g, () => ({ rrDmg: true })],
     [/touches? (?:fatales?|letales?)|coups? fatals?/g, () => ({ lethal: true }), true],
     [/blessures? devastatrices?/g, () => ({ dev: true }), true],
-    [/touches? soutenues? (\d)/g, (m) => ({ sust: +m[1] })],
+    [/touches? soutenues? (d?\d)/g, (m) => ({ sust: /d/.test(m[1]) ? m[1].toUpperCase() : +m[1] }), true],
     [/\[assaut\]|aptitude assaut/g, () => ({ addAbil: ['assault'] })],
     [/\[ignore le couvert\]/g, () => ({ addAbil: ['ignoresCover'] })],
     [/\bont \[?combat rapproche/g, () => ({ addAbil: ['pistol'] })],
     [/n'ont pas \[?lourd/g, () => ({ removeAbil: ['heavy'] })],
     [/n'ont pas \[?deflagration/g, () => ({ removeAbil: ['blast'] })],
+    [/ne peut pas beneficier du couvert|ne beneficie(?:nt)? pas du couvert/g, () => ({ noCover: true })],
+    [/(?:unites?|figurines?) ennemies? beneficient du couvert contre cette attaque/g, () => ({ forceCover: true })],
     [/anti[- ]([a-z\/]+) (\d)\+/g, (m) => ({ anti: { kw: kwId(m[1].split('/')[0]), x: +m[2] } })],
   ];
 
@@ -104,9 +109,23 @@ const Effects = (() => {
         if (tm) { const st = end + tm[0].indexOf(tm[1]); conds.push(...condsFromText(tm[1], 'Si ' + o.slice(st, st + tm[1].length).trim())); }
         if (wantsQual) { const q = qualifier(tail); if (q) conds.push(q); }
         const before = t.slice(Math.max(0, t.lastIndexOf('. ', m.index), t.lastIndexOf(': ', m.index)), m.index);
-        found.push({ mods, conds, side: DEF.test(before) ? 'def' : 'att' });
+        found.push({ mods, conds, side: (DEF.test(before) || mods.forceCover) ? 'def' : 'att' });
       }
     });
+    /* capacités d'arme accordées : « ont [TORRENT] », « ont la capacité [JUMELÉ] »… (hors celles déjà lues ci-dessus) */
+    if (typeof Engine !== 'undefined' && !/choisi\w* l'une des|l'une des capacites/.test(t)) {
+      const HANDLED = /^(touches? (fatales?|letales?)|coups? fatals?|blessures? devastatrices?|touches? soutenues?|anti[- ]|assaut|ignore le couvert|aptitude assaut)/;
+      const re = /\[([^\]]+)\]/g; let m;
+      while ((m = re.exec(t))) {
+        const tok = m[1].trim(); if (HANDLED.test(tok)) continue;
+        const pre = t.slice(Math.max(0, m.index - 60), m.index);
+        if (/armes? (?:de tir |de melee |a distance )?a $|equipees? de $|ayant $/.test(pre)) continue;
+        if (!/(?:\bont|\ba|gagnent|obtiennent|possedent|capacites?|\bde|\bet|,|;|:)\s*(?:la capacite\s*|les capacites\s*)?(?:\[[^\]]+\]\s*(?:,|et|;)?\s*)*$/.test(pre) || !/\b(?:ont|a|gagnent|obtiennent|possedent|capacites?)\b/.test(pre)) continue;
+        const parsed = Engine.parseAbilities(tok); const keys = Object.keys(parsed).filter((k) => k !== 'other' && k !== 'qual');
+        if (!keys.length || keys.every((k) => ['lethalHits', 'devastatingWounds', 'sustainedHits', 'anti', 'assault', 'ignoresCover'].includes(k))) continue;
+        found.push({ mods: { addAbilTok: [tok] }, conds: [], side: DEF.test(pre) ? 'def' : 'att' });
+      }
+    }
     const groups = new Map();
     found.forEach((f) => {
       const conds = [...baseConds, ...f.conds];
@@ -119,6 +138,13 @@ const Effects = (() => {
 
   /* Texte complet -> items (gère « Ou : » et les doctrines) */
   function parseText(text, opts = {}) {
+    const cm = String(text || '').match(/^([\s\S]*?)choisissez l['’]une des (?:capacit\S+|options) suivantes?\s*:\s*((?:\[[^\]]+\][\s;,.]*(?:ou\s*)?)+)/i);
+    if (cm) {
+      const toks = [...cm[2].matchAll(/\[([^\]]+)\]/g)].map((x) => x[1].trim());
+      const items = [];
+      toks.forEach((tk) => { parseSegment((cm[1] || '') + ' Les attaques de cette unité ont [' + tk + '].', Object.assign({}, opts, { alt: true })).forEach((it) => { it.conds = [...it.conds, { t: 'manual', label: 'Option choisie : ' + tk }]; items.push(it); }); });
+      return items;
+    }
     const alts = String(text || '').split(/\s+Ou\s*:\s*/i);
     const items = [];
     let scope = null;
@@ -142,9 +168,10 @@ const Effects = (() => {
     ['hit', 'wound', 'strength', 'extraA', 'apImp', 'dmg', 'dmgRed'].forEach((k) => { if (b[k]) a[k] = (a[k] || 0) + b[k]; });
     ['rrHit', 'rrWound'].forEach((k) => { if (b[k] && (RR[b[k]] || 0) > (RR[a[k]] || 0)) a[k] = b[k]; });
     ['rrDmg', 'lethal', 'dev'].forEach((k) => { if (b[k]) a[k] = true; });
-    if (b.sust) a.sust = Math.max(a.sust || 0, b.sust);
+    if (b.sust && (!a.sust || sustAvg(b.sust) > sustAvg(a.sust))) a.sust = b.sust;
+    ['noCover', 'forceCover'].forEach((k) => { if (b[k]) a[k] = true; });
     if (b.anti && !a.anti) a.anti = b.anti;
-    ['addAbil', 'removeAbil'].forEach((k) => { if (b[k]) a[k] = [...new Set([...(a[k] || []), ...b[k]])]; });
+    ['addAbil', 'removeAbil', 'addAbilTok'].forEach((k) => { if (b[k]) a[k] = [...new Set([...(a[k] || []), ...b[k]])]; });
     return a;
   }
   const aggregate = (items) => items.reduce((acc, it) => mergeInto(acc, it.mods), {});
@@ -171,6 +198,10 @@ const Effects = (() => {
         const hit = c.kws.find((k) => Engine.hasKw(tk, k));
         if (hit) return { applicable: false, why: 'cible ' + hit.toUpperCase() + ' exclue', manual: [] };
       }
+      if (c.t === 'target_is') {
+        const tk = (ctx.target && ctx.target.kw || []);
+        if (tk.length && !c.kws.some((k) => Engine.hasKw(tk, k))) return { applicable: false, why: 'cible hors ' + c.kws.map((k) => k.toUpperCase()).join('/'), manual: [] };
+      }
       if (c.t === 'manual') res.manual.push(c.label);
     }
     return res;
@@ -187,6 +218,8 @@ const Effects = (() => {
     if (m.rrHit) o.push(m.rrHit === 'ones' ? 'relance touches (1)' : 'relance touches'); if (m.rrWound) o.push(m.rrWound === 'ones' ? 'relance blessures (1)' : 'relance blessures');
     if (m.rrDmg) o.push('relance dégâts'); if (m.lethal) o.push('Coups fatals'); if (m.dev) o.push('Blessures dévastatrices');
     if (m.sust) o.push('Touches soutenues ' + m.sust); if (m.anti) o.push('Anti-' + m.anti.kw + ' ' + m.anti.x + '+');
+    if (m.noCover) o.push('cible sans couvert'); if (m.forceCover) o.push('cible à couvert');
+    (m.addAbilTok || []).forEach((k) => o.push('[' + k + ']'));
     (m.addAbil || []).forEach((k) => o.push(ABIL[k] || k)); (m.removeAbil || []).forEach((k) => o.push('sans ' + (ABIL[k] || k)));
     return o;
   }
@@ -198,6 +231,7 @@ const Effects = (() => {
       case 'charged': return 'a chargé ce tour';
       case 'engaged': return 'unité engagée';
       case 'unit_kw': return 'unité ' + String(KWFR[c.kw] || c.kw).toUpperCase();
+      case 'target_is': return 'cible ' + (c.kws || []).map((k) => String(KWFR[k] || k).toUpperCase()).join('/');
       case 'target_not': return 'cible hors ' + (c.kws || []).map((k) => String(KWFR[k] || k).toUpperCase()).join('/');
       default: return c.label || c.t;
     }

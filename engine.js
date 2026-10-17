@@ -27,12 +27,13 @@ const Engine = (() => {
 
   /* ---------- Capacités d'armes (FR + EN) ---------- */
   const PATTERNS = [
-    ['rapidFire', /^(?:rapid fire|tir rapide|rafale)\s*(\d*d?\d+)$/],
-    ['sustainedHits', /^(?:sustained hits|touches? soutenues?)\s*(\d*d?\d+)$/],
+    ['rapidFire', /^(?:rapid fire|tir rapide|rafale)\s*(\d*d?\d+(?:\+\d+)?)$/],
+    ['sustainedHits', /^(?:sustained hits|touches? soutenues?)\s*(\d*d?\d+(?:\+\d+)?)$/],
     ['lethalHits', /^(?:lethal hits|coups? fatals?|touches? (?:fatales?|letales?)|touches? mortelles?)$/],
     ['devastatingWounds', /^(?:devastating wounds|blessures? devastatrices?)$/],
     ['anti', /^anti[- ]?(.+?)\s*(\d)\+$/],
-    ['melta', /^(?:melta|fusion)\s*(\d*d?\d+)$/],
+    ['melta', /^(?:melta|fusion)\s*(\d*d?\d+(?:\+\d+)?)$/],
+    ['cleave', /^(?:cleave|abattage|fente|fendre)\s*(\d+)$/],
     ['twinLinked', /^(?:twin[- ]?linked|jumelee?s?|tir jumele|tir lie|lie)$/],
     ['torrent', /^torrent$/],
     ['blast', /^(?:blast|explosion|barrage|deflagration)(?:\s*\d+)?$/],
@@ -44,18 +45,25 @@ const Engine = (() => {
     ['indirectFire', /^(?:indirect fire|tir indirect)$/],
     ['precision', /^(?:precision)$/],
     ['hazardous', /^(?:hazardous|dangereu[xs]e?|a risque)$/],
-    ['extraAttacks', /^(?:extra attacks|attaques? supplementaires?)$/],
+    ['extraAttacks', /^(?:extra attacks|attaques? (?:supplementaires?|bonus))$/],
     ['psychic', /^(?:psychic|psychique)$/],
   ];
   function parseAbilities(str) {
     const out = { other: [] };
-    String(str || '').split(/[,;]/).map((x) => norm(x).replace(/[\[\]]/g, '').trim()).filter(Boolean).forEach((tok) => {
+    String(str || '').split(/[,;]/).map((x) => norm(x).replace(/[\[\]]/g, '').trim()).filter(Boolean).forEach((tok0) => {
+      let tok = tok0; const qm = tok0.match(/^([^:]+?)\s*:\s*(.+)$/); let qual = null;
+      if (qm && /^(?:lethal hits|touches? (?:fatales?|letales?)|coups? fatals?|devastating wounds|blessures? devastatrices?|sustained hits|touches? soutenues?)/.test(qm[1])) {
+        tok = qm[1].trim(); const neg = /^non[- ]/.test(qm[2].trim());
+        const kws = qm[2].trim().replace(/^non[- ]*/, '').split(/\s*\/\s*/).map((x) => x.trim()).filter(Boolean);
+        qual = { not: neg ? kws : [], only: neg ? [] : kws };
+      }
       for (const [key, re] of PATTERNS) {
         const m = tok.match(re);
         if (m) {
           if (key === 'anti') out.anti = { kw: m[1].trim(), x: +m[2] };
           else if (m[1] !== undefined) out[key] = parseDice(m[1]);
           else out[key] = true;
+          if (qual && ['lethalHits', 'devastatingWounds', 'sustainedHits'].includes(key)) (out.qual = out.qual || {})[key] = qual;
           return;
         }
       }
@@ -87,6 +95,9 @@ const Engine = (() => {
     const m = c.mods || {};
     const ab = parseAbilities(w.abilities);
     (m.addAbil || []).forEach((k) => { if (!ab[k]) ab[k] = true; });
+    if ((m.addAbilTok || []).length) { const ex = parseAbilities(m.addAbilTok.join(',')); Object.keys(ex).forEach((k) => { if (k === 'other' || k === 'qual') return; if (!ab[k]) ab[k] = ex[k]; }); if (ex.qual) ab.qual = Object.assign({}, ex.qual, ab.qual || {}); }
+    const qOk = (key) => { const q = ab.qual && ab.qual[key]; if (!q) return true; const has = (l) => l.some((k) => hasKw(t.kw, k)); if (q.not.length && has(q.not)) return false; if (q.only.length && !has(q.only)) return false; return true; };
+    const qTxt = (key) => { const q = ab.qual && ab.qual[key]; return q ? (q.not.length ? ' (sauf cible ' + q.not.join('/').toUpperCase() + ')' : ' (cible ' + q.only.join('/').toUpperCase() + ' seulement)') : ''; };
     (m.removeAbil || []).forEach((k) => { delete ab[k]; });
     const nModels = Math.max(1, +c.nModels || 1);
     const res = { steps: [], warnings: [], notes: [], ab };
@@ -108,6 +119,7 @@ const Engine = (() => {
       const b = Math.floor(t.models / 5);
       parts.push({ label: `Explosion (${t.models} figs ciblées)`, dice: parseDice(String(b)) });
     }
+    if (melee && ab.cleave && t.models >= 5) parts.push({ label: `Abattage ${ab.cleave.text} (${t.models} figs ciblées)`, dice: parseDice(String(Math.floor(t.models / 5) * ab.cleave.avg)) });
     if (m.extraA) parts.push({ label: 'Bonus d\'attaques (règle/stratagème)', dice: parseDice(String(m.extraA)) });
     const attacksAvg = parts.reduce((a, p) => a + p.dice.avg, 0);
     const attacksText = parts.map((p) => p.dice.text).join(' + ');
@@ -138,13 +150,14 @@ const Engine = (() => {
         else addNote("Lourde : +1 pour toucher seulement si l'unité n'est pas engagée, n'a pas été déployée ce tour et a bougé de 3″ ou moins.");
       }
       if (!melee && s.elevated) hitMods.push({ label: 'Tir plongeant (≥ 3″ plus haut)', v: +1 });
-      const cover = !melee && (t.inCover || t.stealth);
+      const cover = !melee && (t.inCover || t.stealth || m.forceCover);
       if (cover) {
-        if (ab.ignoresCover) addNote('Ignore le couvert : le malus −1 CT du couvert (et de Furtivité) ne s\'applique pas.');
-        else hitMods.push({ label: t.inCover ? 'Cible à couvert' : 'Cible Furtive (= couvert)', v: -1 });
+        if (ab.ignoresCover || m.noCover) addNote('Ignore le couvert : le malus −1 CT du couvert (et de Furtivité) ne s\'applique pas.');
+        else hitMods.push({ label: t.inCover ? 'Cible à couvert' : t.stealth ? 'Cible Furtive (= couvert)' : 'Couvert accordé à la cible (règle)', v: -1 });
       }
       if (ab.indirectFire && !melee) hitMods.push({ label: 'Tir indirect', v: -1 });
       if (m.hit) hitMods.push({ label: 'Autres modificateurs (règles/stratagèmes)', v: m.hit });
+      if (ab.psychic && hitMods.length) { addNote('Psychique : les modificateurs de touche sont ignorés pour cette arme (' + hitMods.map((x) => x.label).join(', ') + ') — vérifie la règle exacte.'); hitMods.length = 0; }
       const sum = hitMods.reduce((a, x) => a + x.v, 0);
       const net = clamp(sum, -1, 1);
       const req = base - net;
@@ -169,8 +182,9 @@ const Engine = (() => {
       if (rrHit === 'all') { hitEff = pHit + (1 - pHit) * pHit; critEff = pCrit + (1 - pHit) * pCrit; }
       else if (rrHit === 'ones') { hitEff = pHit + (1 / 6) * pHit; critEff = pCrit + (1 / 6) * pCrit; }
     }
-    const lethal = !!ab.lethalHits || !!m.lethal;
-    const sustDice = ab.sustainedHits || (m.sust ? parseDice(String(m.sust)) : null);
+    const lethal = (!!ab.lethalHits && qOk('lethalHits')) || !!m.lethal;
+    const sustW = ab.sustainedHits && qOk('sustainedHits') ? ab.sustainedHits : null; const sustM = m.sust ? parseDice(String(m.sust)) : null;
+    const sustDice = sustW && sustM ? (sustM.avg > sustW.avg ? sustM : sustW) : (sustW || sustM);
     const hitsBase = N * hitEff;
     const crits = N * critEff;
     const extraHits = sustDice ? crits * sustDice.avg : 0;
@@ -179,8 +193,10 @@ const Engine = (() => {
     const rolledHits = totalHits - autoWounds;
     if (!torrent) {
       const hs = res.steps[res.steps.length - 1];
-      if (lethal) hs.details.push('Coups fatals : chaque touche critique (6 non modifié) blesse automatiquement.');
-      if (sustDice) hs.details.push(`Touches soutenues ${sustDice.text} : chaque critique ajoute ${sustDice.text} touche(s).`);
+      if (lethal) hs.details.push('Coups fatals : chaque touche critique (6 non modifié) blesse automatiquement.' + qTxt('lethalHits'));
+      else if (ab.lethalHits) hs.details.push('Coups fatals non applicable à cette cible' + qTxt('lethalHits') + '.');
+      if (sustDice) hs.details.push(`Touches soutenues ${sustDice.text} : chaque critique ajoute ${sustDice.text} touche(s).` + (sustW && sustDice === sustW ? qTxt('sustainedHits') : ''));
+      else if (ab.sustainedHits) hs.details.push('Touches soutenues non applicable à cette cible' + qTxt('sustainedHits') + '.');
     }
 
     /* — 3. Jet de blessure — */
@@ -204,10 +220,11 @@ const Engine = (() => {
     if (ab.twinLinked && rrW === 'none') rrW = 'all';
     if (rrW === 'all') { pCW = pCW + (1 - pW) * pCW; pW = pW + (1 - pW) * pW; }
     else if (rrW === 'ones') { pCW = pCW + (1 / 6) * pCW; pW = pW + (1 / 6) * pW; }
-    const dev = !!ab.devastatingWounds || !!m.dev;
+    const dev = (!!ab.devastatingWounds && qOk('devastatingWounds')) || !!m.dev;
     const wDetails = [`Force ${S} contre Endurance ${T || '?'}`];
     if (antiOn) wDetails.push(`Anti-${ab.anti ? ab.anti.kw : m.anti.kw} ${critW}+ : blessure critique (réussite auto) sur ${critW}+ non modifié.`);
-    if (dev) wDetails.push('Blessures dévastatrices : chaque blessure critique inflige des blessures mortelles (dégâts de l\'arme), sans sauvegarde.');
+    if (dev) wDetails.push('Blessures dévastatrices : chaque blessure critique inflige des blessures mortelles (dégâts de l\'arme), sans sauvegarde.' + qTxt('devastatingWounds'));
+    else if (ab.devastatingWounds) wDetails.push('Blessures dévastatrices non applicable à cette cible' + qTxt('devastatingWounds') + '.');
     if (wsum !== wnet) addNote(`Modificateurs de blessure cumulés ${wsum > 0 ? '+' : ''}${wsum} : limités à ±1.`);
     res.steps.push({
       id: 'wound', title: 'Jet de blessure',
