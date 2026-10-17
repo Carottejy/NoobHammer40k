@@ -1768,7 +1768,7 @@
     close(); return h;
   }
   function rulesResults() {
-    const R = (typeof RULES11 !== 'undefined' && RULES11) || [];
+    const R = rulesSrc();
     const terms = rnorm(RS.q).split(/\s+/).filter((w) => w.length > 1 || /^\d$/.test(w));
     if (!terms.length) {
       let h = '', g = '';
@@ -1786,12 +1786,21 @@
       if (terms.every((w) => all.includes(w))) hits.push({ c, x, score: terms.reduce((a, w) => a + (head.includes(w) ? 3 : 0) + (body.split(w).length - 1), 0) });
     }));
     hits.sort((a, b) => b.score - a.score);
-    if (!hits.length) return '<p class="muted">Aucune règle ne correspond. Essaie un seul mot (ex. « couvert », « cohésion », « Dangereux »).</p>';
-    return `<p class="muted">${hits.length} section(s) trouvée(s)</p>` + hits.map(({ c, x }) => `<div class="card rsec"><div class="muted" style="font-size:.78rem">${esc(c.n)} · ${esc(c.t)}</div><h3><span class="rn">${esc(x.n)}</span> ${esc(x.t)}</h3>${rBody(x.p, terms)}</div>`).join('');
+    if (!hits.length) return S.lang === 'en' ? '<p class="muted">No rule matches. Try a single word (e.g. "cover", "coherency", "Hazardous").</p>' : '<p class="muted">Aucune règle ne correspond. Essaie un seul mot (ex. « couvert », « cohésion », « Dangereux »).</p>';
+    return `<p class="muted">${hits.length} ${S.lang === 'en' ? 'section(s) found' : 'section(s) trouvée(s)'}</p>` + hits.map(({ c, x }) => `<div class="card rsec"><div class="muted" style="font-size:.78rem">${esc(c.n)} · ${esc(c.t)}</div><h3><span class="rn">${esc(x.n)}</span> ${esc(x.t)}</h3>${rBody(x.p, terms)}</div>`).join('');
+  }
+  let rulesEnLoading = false;
+  function rulesSrc() {
+    if (S.lang === 'en') {
+      if (typeof RULES11_EN !== 'undefined') return RULES11_EN;
+      if (!rulesEnLoading) { rulesEnLoading = true; const sc = document.createElement('script'); sc.src = 'rules11en.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''); sc.onload = () => { rulesEnLoading = false; render(); }; sc.onerror = () => { rulesEnLoading = false; }; document.head.appendChild(sc); }
+    }
+    return (typeof RULES11 !== 'undefined' && RULES11) || [];
   }
   function viewRules() {
-    const R = (typeof RULES11 !== 'undefined' && RULES11) || [];
-    return `<h1>Règles</h1><div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    const R = rulesSrc();
+    if (S.lang === 'en') return `<h1>Rules</h1>${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    return `<h1>Règles</h1>${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
   }
 
   function viewInfo() {
