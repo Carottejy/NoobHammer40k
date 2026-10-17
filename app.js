@@ -288,7 +288,7 @@
       extraA: (+manual.extraA || 0) + (fxm.extraA || 0), apImp: (+manual.apImp || 0) + (fxm.apImp || 0), dmg: (+manual.dmg || 0) + (fxm.dmg || 0),
       dmgRed: (+manual.dmgRed || 0) + (fxm.dmgRed || 0),
       rrHit: bestRr(manual.rrHit, fxm.rrHit), rrWound: bestRr(manual.rrWound, fxm.rrWound), lethal: !!(manual.lethal || fxm.lethal), dev: !!(manual.dev || fxm.dev),
-      sust: (() => { const av = (x) => { const q = String(x || 0).match(/^(\d*)[dD](\d+)/); return q ? (q[1] ? +q[1] : 1) * (+q[2] + 1) / 2 : (parseInt(x, 10) || 0); }; return av(fxm.sust) > av(manual.sust) ? fxm.sust : (+manual.sust || 0); })(), anti: manual.anti || fxm.anti || null, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
+      sust: (() => { const av = (x) => { const q = String(x || 0).match(/^(\d*)[dD](\d+)/); return q ? (q[1] ? +q[1] : 1) * (+q[2] + 1) / 2 : (parseInt(x, 10) || 0); }; return av(fxm.sust) > av(manual.sust) ? fxm.sust : (+manual.sust || 0); })(), anti: manual.anti || fxm.anti || null, antis: fxm.antis, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
     const r = Engine.compute({ mode: melee ? 'melee' : 'ranged', weapon: w, nModels: n, situation: sit, target, mods, battleShocked: !!S.bs[u.id] });
     return { r, srcs, active, mods };
   }
@@ -358,7 +358,7 @@
     return [...set];
   }
   function fxCollect(u, w, melee, target, enemyEff) {
-    const ctx = { armyKw: armyKwSet(), doctrines: Object.keys(S.play.fx || {}).filter((k) => /^rule:doctrines:/.test(k) && S.play.fx[k]).map((k) => normT(k.replace(/^rule:doctrines:/, ''))), mode: melee ? 'melee' : 'ranged', ab: Engine.parseAbilities(w.abilities), unit: u, sit: melee ? { charged: S.play.sit.charged } : S.play.sit, target: target || S.play.target };
+    const ctx = { armyKw: armyKwSet(), doctrines: Object.keys(S.play.fx || {}).filter((k) => /^rule:doctrines:/.test(k) && S.play.fx[k]).map((k) => normT(k.replace(/^rule:doctrines:/, ''))), mode: melee ? 'melee' : 'ranged', ab: Engine.parseAbilities(w.abilities), unit: u, sit: melee ? { charged: S.play.sit.charged } : S.play.sit, target: target || S.play.target, wname: w.name, wS: +w.S || 0, tT: +((target || S.play.target) || {}).T || 0 };
     const used = S.used[stratKey()] || [];
     const srcs = [];
     const push = (group, key, title, sub, items, extra) => {
@@ -421,8 +421,8 @@
   function fxSource(src) {
     let h = `<div class="fx"><div class="row sp"><b>${esc(src.title)}</b><span class="muted">${esc(src.sub || '')}</span></div>`;
     src.entries.forEach((e) => {
-      const sum = Effects.summarize(e.it.mods).join(', ');
-      const conds = e.it.conds.map(Effects.condLabel).join(' · ');
+      const sum = Effects.describe(e.it) || Effects.summarize(e.it.mods).join(', ');
+      const conds = Effects.describe(e.it) ? '' : e.it.conds.map(Effects.condLabel).join(' · ');
       const on = fxOn(src, e);
       const soft = (e.ev.soft || []).length ? ' ⚠ ' + e.ev.soft.join(', ') + ' (à confirmer)' : '';
       if (!e.ev.applicable) h += `<div class="muted fxoff">${esc(sum)} — ${esc(e.ev.why)}</div>`;
@@ -478,9 +478,11 @@
     else if (unitHas) status = `<div class="warn">Cette unité a déjà bénéficié de « ${esc(unitHas.name)} » : un seul stratagème par unité et par phase.</div>`;
     if (kwOk === false && !mine) status += '<div class="warn">Mots-clés : cette unité ne correspond pas à la cible du stratagème (« ' + esc(s.target) + ' »).</div>';
     const disabled = !mine && (onceDone || doneNow || (u && S.bs[u.id]));
-    const calc = Effects.parseText(s.effect || '', { condText: (s.when || '') + ' ' + (s.target || '') }).filter((x) => x.side !== 'def').map((x) => Effects.summarize(x.mods).join(', ')).filter(Boolean);
+    const sit0 = Effects.parseText(s.effect || '', { condText: (s.when || '') + ' ' + (s.target || ''), scope: s.phases && s.phases.length === 1 ? ({ shoot: 'ranged', fight: 'melee' })[s.phases[0]] : null });
+    const calc = sit0.filter((x) => x.side !== 'def').map((x) => Effects.describe(x)).filter(Boolean);
+    const calcDef = sit0.filter((x) => x.side === 'def').map((x) => Effects.describe(x)).filter(Boolean);
     return `<div class="strat ${disabled || kwOk === false ? 'used' : ''}"><div class="row sp"><span class="nm">${esc(s.name)}</span><span><span class="cp">${s.cp} PC</span> ${s.verify ? '<span class="tag verify">à vérifier</span>' : ''}</span></div>
-      ${s.detachment ? `<div class="muted">${esc(s.detachment)}</div>` : ''}<div class="muted"><b>Quand :</b> ${esc(s.when || '—')}</div>${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div><b>Effet :</b> ${esc(s.effect || '—')}</div>${calc.length ? `<div class="muted">⚙️ Pris en compte dans le calcul : ${esc(calc.join(' | '))}</div>` : ''}${s.tip ? `<div class="muted">💡 ${esc(s.tip)}</div>` : ''}${status}
+      ${s.detachment ? `<div class="muted">${esc(s.detachment)}</div>` : ''}<div class="muted"><b>Quand :</b> ${esc(s.when || '—')}</div>${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div><b>Effet :</b> ${esc(s.effect || '—')}</div>${calc.length ? `<div class="muted">⚙️ Pris en compte dans le calcul : ${esc(calc.join(' | '))}</div>` : ''}${calcDef.length ? `<div class="muted">🛡️ Effet défensif / sur l'adversaire : ${esc(calcDef.join(' | '))}</div>` : ''}${s.tip ? `<div class="muted">💡 ${esc(s.tip)}</div>` : ''}${status}
       <div class="row" style="margin-top:8px"><button class="btn small ${mine ? 'ghost' : ''}" data-act="fxStrat" data-val="${esc(s.id)}" ${disabled ? 'disabled' : ''}>${mine ? 'Annuler (+' + s.cp + ' PC)' : 'Utiliser (−' + s.cp + ' PC)'}</button></div></div>`;
   }
 

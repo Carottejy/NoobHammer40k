@@ -47,6 +47,7 @@ const Engine = (() => {
     ['hazardous', /^(?:hazardous|dangereu[xs]e?|a risque)$/],
     ['extraAttacks', /^(?:extra attacks|attaques? (?:supplementaires?|bonus))$/],
     ['psychic', /^(?:psychic|psychique)$/],
+    ['oneShot', /^(?:one shot|un seul tir)$/],
   ];
   function parseAbilities(str) {
     const out = { other: [] };
@@ -60,7 +61,7 @@ const Engine = (() => {
       for (const [key, re] of PATTERNS) {
         const m = tok.match(re);
         if (m) {
-          if (key === 'anti') out.anti = { kw: m[1].trim(), x: +m[2] };
+          if (key === 'anti') { const an = { kw: m[1].trim(), x: +m[2] }; (out.antis = out.antis || []).push(an); if (!out.anti) out.anti = an; }
           else if (m[1] !== undefined) out[key] = parseDice(m[1]);
           else out[key] = true;
           if (qual && ['lethalHits', 'devastatingWounds', 'sustainedHits'].includes(key)) (out.qual = out.qual || {})[key] = qual;
@@ -95,7 +96,7 @@ const Engine = (() => {
     const m = c.mods || {};
     const ab = parseAbilities(w.abilities);
     (m.addAbil || []).forEach((k) => { if (!ab[k]) ab[k] = true; });
-    if ((m.addAbilTok || []).length) { const ex = parseAbilities(m.addAbilTok.join(',')); Object.keys(ex).forEach((k) => { if (k === 'other' || k === 'qual') return; if (!ab[k]) ab[k] = ex[k]; }); if (ex.qual) ab.qual = Object.assign({}, ex.qual, ab.qual || {}); }
+    if ((m.addAbilTok || []).length) { const ex = parseAbilities(m.addAbilTok.join(',')); Object.keys(ex).forEach((k) => { if (k === 'other' || k === 'qual') return; if (k === 'antis') { ab.antis = (ab.antis || []).concat(ex.antis); return; } if (!ab[k]) ab[k] = ex[k]; }); if (ex.qual) ab.qual = Object.assign({}, ex.qual, ab.qual || {}); }
     const qOk = (key) => { const q = ab.qual && ab.qual[key]; if (!q) return true; const has = (l) => l.some((k) => hasKw(t.kw, k)); if (q.not.length && has(q.not)) return false; if (q.only.length && !has(q.only)) return false; return true; };
     const qTxt = (key) => { const q = ab.qual && ab.qual[key]; return q ? (q.not.length ? ' (sauf cible ' + q.not.join('/').toUpperCase() + ')' : ' (cible ' + q.only.join('/').toUpperCase() + ' seulement)') : ''; };
     (m.removeAbil || []).forEach((k) => { delete ab[k]; });
@@ -211,9 +212,9 @@ const Engine = (() => {
     const wsum = woundMods.reduce((a, x) => a + x.v, 0);
     const wnet = clamp(wsum, -1, 1);
     const reqW = baseW - wnet;
-    let critW = 6, antiOn = false;
-    if (ab.anti && hasKw(t.kw, ab.anti.kw)) { critW = ab.anti.x; antiOn = true; }
-    else if (m.anti && hasKw(t.kw, m.anti.kw || '')) { critW = m.anti.x; antiOn = true; }
+    let critW = 6, antiOn = false, antiName = '';
+    const antiHas = (kw) => { const k = String(kw || '').trim(); const neg = /^non[- ]/.test(k); const has = hasKw(t.kw, k.replace(/^non[- ]/, '')); return neg ? !has : has; };
+    [].concat(ab.antis || (ab.anti ? [ab.anti] : []), m.antis || [], m.anti ? [m.anti] : []).forEach((a) => { if (a && a.kw && antiHas(a.kw) && (!antiOn || a.x < critW)) { critW = a.x; antiOn = true; antiName = a.kw; } });
     let pW = Math.max(pRoll(reqW), antiOn ? (7 - critW) / 6 : 0);
     let pCW = (7 - critW) / 6;
     let rrW = m.rrWound || 'none';
@@ -222,7 +223,7 @@ const Engine = (() => {
     else if (rrW === 'ones') { pCW = pCW + (1 / 6) * pCW; pW = pW + (1 / 6) * pW; }
     const dev = (!!ab.devastatingWounds && qOk('devastatingWounds')) || !!m.dev;
     const wDetails = [`Force ${S} contre Endurance ${T || '?'}`];
-    if (antiOn) wDetails.push(`Anti-${ab.anti ? ab.anti.kw : m.anti.kw} ${critW}+ : blessure critique (réussite auto) sur ${critW}+ non modifié.`);
+    if (antiOn) wDetails.push(`Anti-${antiName} ${critW}+ : blessure critique (réussite auto) sur ${critW}+ non modifié.`);
     if (dev) wDetails.push('Blessures dévastatrices : chaque blessure critique inflige des blessures mortelles (dégâts de l\'arme), sans sauvegarde.' + qTxt('devastatingWounds'));
     else if (ab.devastatingWounds) wDetails.push('Blessures dévastatrices non applicable à cette cible' + qTxt('devastatingWounds') + '.');
     if (wsum !== wnet) addNote(`Modificateurs de blessure cumulés ${wsum > 0 ? '+' : ''}${wsum} : limités à ±1.`);
