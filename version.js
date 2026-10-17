@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.37.0';
+var APP_VERSION = '1.37.1';
 var APP_RELEASES = [
+  { v: '1.37.1', date: '2026-10-17', notes: ['Partie : les règles identiques apportées par plusieurs unités (ex. Doctrines de combat) sont fusionnées, avec la liste des sources.','Calculs : « Touches Létales » (et non seulement « Fatales ») est maintenant reconnu, y compris quand il vient d\'un meneur ou d\'un appui rattaché.'] },
   { v: '1.37.0', date: '2026-10-17', notes: ['Option 🇬🇧 English : l\'onglet Règles est aussi disponible en anglais (résumé).'] },
   { v: '1.36.0', date: '2026-10-17', notes: ['Onglet Armées et Creator totalement indépendants de la partie en cours (toujours les listes de la bibliothèque).','Datasheets : coût en points affiché (fiche, listes et détail du Creator).','Option de langue : datasheets, détachements et stratagèmes en anglais d\'origine (boutons 🇫🇷 / 🇬🇧).','Modifier une liste ouvre directement le constructeur du Creator.'] },
   { v: '1.35.1', date: '2026-10-16', notes: ['Données : texte de « Brandir la Bannière » corrigé (Ancien, Gardelame, Terminator, Héros de Compagnie, Gardiens d\'Ultramar).'] },

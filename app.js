@@ -72,14 +72,21 @@
     e.allModels = maxModels(u) + ls.reduce((n, l) => n + maxModels(l), 0);
     e.allPts = (+u.pts || 0) + ls.reduce((n, l) => n + (+l.pts || 0), 0);
     e.weapons = (u.weapons || []).slice();
-    e.abilities = (u.abilities || []).slice();
+    const abKey = (x) => normT(x.name) + '|' + normT(x.text || ''); const abMap = new Map();
+    e.abilities = (u.abilities || []).map((x) => { const c = Object.assign({}, x, { _src: [u.name], _base: true }); if (!abMap.has(abKey(c))) abMap.set(abKey(c), c); return c; });
     const kws = new Map((u.keywords || []).map((k) => [normT(k), k]));
     ls.forEach((l) => {
       (l.weapons || []).forEach((w) => e.weapons.push(Object.assign({}, w, { from: l.name, fromId: l.id })));
-      (l.abilities || []).forEach((x) => { if (!isStructural(x.name)) e.abilities.push(Object.assign({}, x, { from: l.name })); });
+      (l.abilities || []).forEach((x) => {
+        if (isStructural(x.name)) return;
+        const ex = abMap.get(abKey(x));
+        if (ex) { if (!ex._src.includes(l.name)) ex._src.push(l.name); return; }
+        const c = Object.assign({}, x, { from: l.name, _src: [l.name] }); abMap.set(abKey(c), c); e.abilities.push(c);
+      });
       (l.keywords || []).forEach((k) => { if (!kws.has(normT(k))) kws.set(normT(k), k); });
     });
     e.keywords = [...kws.values()];
+    e.abilities.forEach((x) => { if (x._src.length > 1) { x.srcLabel = x._src.join(', '); if (!x._base) x.from = x.srcLabel; } });
     return e;
   }
   const parseCache = new Map();
@@ -199,10 +206,11 @@
     if (defend) return ph.includes('def');
     return ph.includes(phase);
   }
-  const ruleNote = (r) => { const nm = `<b>${esc(r.name)}</b>${r.from ? ' <span class="muted">(' + esc(r.from) + ')</span>' : ''}`; return r.text && r.text.length > 140 ? `<details class="note"><summary>${nm}</summary>${esc(r.text)}</details>` : `<div class="note">${nm}${r.text ? ' — ' + esc(r.text) : ''}</div>`; };
+  const ruleNote = (r) => { const nm = `<b>${esc(r.name)}</b>${r.srcLabel || r.from ? ' <span class="muted">(' + esc(r.srcLabel || r.from) + ')</span>' : ''}`; return r.text && r.text.length > 140 ? `<details class="note"><summary>${nm}</summary>${esc(r.text)}</details>` : `<div class="note">${nm}${r.text ? ' — ' + esc(r.text) : ''}</div>`; };
   function remindersCard(u, defend) {
     const rules = (S.armyRules[S.armyId] || []).filter((r) => abilityMatches(r, S.phase, defend));
-    const abs = (u.abilities || []).filter((r) => abilityMatches(r, S.phase, defend));
+    const ruleNames = new Set(rules.map((r) => normT(r.name)));
+    const abs = (u.abilities || []).filter((r) => abilityMatches(r, S.phase, defend) && !ruleNames.has(normT(r.name)));
     const open = !!S.ui.remOpen;
     let h = `<div class="card"><div class="row sp" data-act="remToggle" style="cursor:pointer"><h2 style="margin:0">À ne pas oublier</h2><span class="muted">${open ? '▾' : '▸'}</span></div>`;
     if (!open) return h + '</div>';
@@ -346,6 +354,7 @@
     const used = S.used[stratKey()] || [];
     const srcs = [];
     const push = (group, key, title, sub, items, extra) => {
+      if (srcs.some((x) => x.key === key)) return;
       const def = !!(extra && extra.def);
       const keep = items.filter((it) => (def ? it.side === 'def' : it.side !== 'def'));
       if (!keep.length && !(extra && extra.show)) return;
@@ -358,11 +367,16 @@
       push('strat', 'strat:' + s.id, s.name, `${s.cp} PC${s.detachment ? ' · ' + s.detachment : ''}`, items, { strat: s, used: isUsed, show: isUsed });
     });
     (S.armyRules[S.armyId] || []).forEach((r) => {
-      if (/^Doctrines de combat/i.test(r.name)) Effects.splitDoctrines(r.text || '').forEach((d) => push('doctrine', 'rule:' + r.name + ':' + d.name, d.name, '', ptx(d.text)));
+      if (/^Doctrines de combat/i.test(r.name)) Effects.splitDoctrines(r.text || '').forEach((d) => push('doctrine', 'rule:doctrines:' + d.name, d.name, '', ptx(d.text)));
       else push('rule', 'rule:' + r.name, r.name, '', ptx(r.text || ''));
     });
     const own = new Set();
-    (u.abilities || []).forEach((ab) => { own.add(ab.name); push(ab.from ? 'leader' : 'unit', 'u:' + (ab.from || u.name) + ':' + ab.name, ab.name, ab.from || u.name, ptx(ab.text || '')); });
+    (u.abilities || []).forEach((ab) => {
+      own.add(ab.name);
+      if (/^Doctrines de combat/i.test(ab.name)) { Effects.splitDoctrines(ab.text || '').forEach((d) => push('doctrine', 'rule:Doctrines de combat:' + d.name, d.name, '', ptx(d.text))); return; }
+      const sub = ab.srcLabel || ab.from || u.name;
+      push(ab.from ? 'leader' : 'unit', 'u:' + sub + ':' + ab.name, ab.name, sub, ptx(ab.text || ''));
+    });
     const ar = army(); const seen = new Set(); const mine = new Set([u.id].concat((u.leaders || []).map((l) => l.id)));
     (ar ? ar.units : []).forEach((o) => {
       if (mine.has(o.id) || !alive(o)) return;

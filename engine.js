@@ -29,7 +29,7 @@ const Engine = (() => {
   const PATTERNS = [
     ['rapidFire', /^(?:rapid fire|tir rapide|rafale)\s*(\d*d?\d+)$/],
     ['sustainedHits', /^(?:sustained hits|touches? soutenues?)\s*(\d*d?\d+)$/],
-    ['lethalHits', /^(?:lethal hits|coups? fatals?|touches? fatales?|touches? mortelles?)$/],
+    ['lethalHits', /^(?:lethal hits|coups? fatals?|touches? (?:fatales?|letales?)|touches? mortelles?)$/],
     ['devastatingWounds', /^(?:devastating wounds|blessures? devastatrices?)$/],
     ['anti', /^anti[- ]?(.+?)\s*(\d)\+$/],
     ['melta', /^(?:melta|fusion)\s*(\d*d?\d+)$/],

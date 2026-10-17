@@ -58,7 +58,7 @@ const Effects = (() => {
     [/relancer les jets de blessure de 1\b/g, () => ({ rrWound: 'ones' })],
     [/relancer les jets de blessure(?! de 1\b)/g, () => ({ rrWound: 'all' })],
     [/relancer les jets de degats/g, () => ({ rrDmg: true })],
-    [/touches? fatales?|coups? fatals?/g, () => ({ lethal: true }), true],
+    [/touches? (?:fatales?|letales?)|coups? fatals?/g, () => ({ lethal: true }), true],
     [/blessures? devastatrices?/g, () => ({ dev: true }), true],
     [/touches? soutenues? (\d)/g, (m) => ({ sust: +m[1] })],
     [/\[assaut\]|aptitude assaut/g, () => ({ addAbil: ['assault'] })],
