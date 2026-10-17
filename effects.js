@@ -17,12 +17,17 @@ const Effects = (() => {
     if (/unite[^.]{0,30}\bengagee\b/.test(t)) out.push({ t: 'engaged' });
     const uk = t.match(new RegExp('unites? (?:de |d\'|du )?(?:l\')?(' + KW_LIST + ')\\b'));
     if (uk) out.push({ t: 'unit_kw', kw: kwId(uk[1]) });
-    if (/choisissez/.test(t)) out.push({ t: 'manual', label: 'Cible = unité ennemie choisie' });
+    const fm = t.match(/faction d'armee est ([a-z' \-]+?)\s*(?:[,.;:]|$)/);
+    if (fm) out.push({ t: 'army_faction', kw: fm[1].trim(), label });
+    if (/choisissez l'une des|choisissez une des|choisissez un des|choisissez l'un des/.test(t)) out.push({ t: 'manual', label: 'Option / posture choisie' });
+    else if (/choisissez (?:une|1|l'|cette) ?unite ennemie|choisissez une unite ennemie/.test(t)) out.push({ t: 'manual', soft: true, label: 'Cible = unité ennemie choisie' });
+    else if (/choisissez/.test(t)) out.push({ t: 'manual', label: 'Choix à confirmer' });
     else {
       const d = t.match(/(?:cibl\w*|ennemie)[^.]{0,60}?\ba (?:moins de )?(\d+)\s*ps/);
       if (d) out.push({ t: 'manual', label: `Cible à ${d[1]}ps ou moins` });
     }
-    if (/doctrine d'assaut est active/.test(t)) out.push({ t: 'manual', label: 'Doctrine d\'assaut active' });
+    const dm = t.match(/doctrine (d'assaut|assaut|tactique|de devastation|devastation) (?:est|sont) active/);
+    if (dm) out.push({ t: 'doctrine', d: dm[1].replace(/^d'|^de /, '') });
     if (!out.length && label) out.push({ t: 'manual', label });
     return out;
   }
@@ -120,7 +125,7 @@ const Effects = (() => {
         const tok = m[1].trim(); if (HANDLED.test(tok)) continue;
         const pre = t.slice(Math.max(0, m.index - 60), m.index);
         if (/armes? (?:de tir |de melee |a distance )?a $|equipees? de $|ayant $/.test(pre)) continue;
-        if (!/(?:\bont|\ba|gagnent|obtiennent|possedent|capacites?|\bde|\bet|,|;|:)\s*(?:la capacite\s*|les capacites\s*)?(?:\[[^\]]+\]\s*(?:,|et|;)?\s*)*$/.test(pre) || !/\b(?:ont|a|gagnent|obtiennent|possedent|capacites?)\b/.test(pre)) continue;
+        if (!/(?:\bont|\ba|gagnent|obtiennent|possedent|capacites?)\s*(?:la capacite\s*|les capacites\s*|aussi\s*)?:?\s*[•\-]?\s*(?:\[[^\]]+\]\s*(?:,|et|;)?\s*)*$/.test(pre)) continue;
         const parsed = Engine.parseAbilities(tok); const keys = Object.keys(parsed).filter((k) => k !== 'other' && k !== 'qual');
         if (!keys.length || keys.every((k) => ['lethalHits', 'devastatingWounds', 'sustainedHits', 'anti', 'assault', 'ignoresCover'].includes(k))) continue;
         found.push({ mods: { addAbilTok: [tok] }, conds: [], side: DEF.test(pre) ? 'def' : 'att' });
@@ -138,7 +143,7 @@ const Effects = (() => {
 
   /* Texte complet -> items (gère « Ou : » et les doctrines) */
   function parseText(text, opts = {}) {
-    const cm = String(text || '').match(/^([\s\S]*?)choisissez l['’]une des (?:capacit\S+|options) suivantes?\s*:\s*((?:\[[^\]]+\][\s;,.]*(?:ou\s*)?)+)/i);
+    const cm = String(text || '').match(/^([\s\S]*?)choisissez l['’]une des (?:capacit\S+|options) suivantes?[^:]*:\s*((?:[•\-\s]*\[[^\]]+\][\s;,.]*(?:ou\s*)?)+)/i);
     if (cm) {
       const toks = [...cm[2].matchAll(/\[([^\]]+)\]/g)].map((x) => x[1].trim());
       const items = [];
@@ -202,7 +207,17 @@ const Effects = (() => {
         const tk = (ctx.target && ctx.target.kw || []);
         if (tk.length && !c.kws.some((k) => Engine.hasKw(tk, k))) return { applicable: false, why: 'cible hors ' + c.kws.map((k) => k.toUpperCase()).join('/'), manual: [] };
       }
-      if (c.t === 'manual') res.manual.push(c.label);
+      if (c.t === 'doctrine') {
+        const ds = ctx.doctrines;
+        if (ds) { if (!ds.some((x) => x.includes(c.d))) return { applicable: false, why: 'doctrine ' + c.d + ' non active (coche-la dans « Doctrines de combat »)', manual: [] }; }
+        else res.manual.push('Doctrine ' + c.d + ' active');
+      }
+      if (c.t === 'army_faction') {
+        const af = (ctx.armyKw || []); const w = norm(c.kw);
+        if (af.length) { if (!af.includes(w)) return { applicable: false, why: 'faction d\'armée ≠ ' + c.kw.toUpperCase(), manual: [] }; }
+        else res.manual.push(c.label || ('Faction d\'armée : ' + c.kw.toUpperCase()));
+      }
+      if (c.t === 'manual') { if (c.soft) (res.soft = res.soft || []).push(c.label); else res.manual.push(c.label); }
     }
     return res;
   }
@@ -231,6 +246,8 @@ const Effects = (() => {
       case 'charged': return 'a chargé ce tour';
       case 'engaged': return 'unité engagée';
       case 'unit_kw': return 'unité ' + String(KWFR[c.kw] || c.kw).toUpperCase();
+      case 'doctrine': return 'doctrine ' + c.d + ' active';
+      case 'army_faction': return 'faction ' + String(c.kw || '').toUpperCase();
       case 'target_is': return 'cible ' + (c.kws || []).map((k) => String(KWFR[k] || k).toUpperCase()).join('/');
       case 'target_not': return 'cible hors ' + (c.kws || []).map((k) => String(KWFR[k] || k).toUpperCase()).join('/');
       default: return c.label || c.t;

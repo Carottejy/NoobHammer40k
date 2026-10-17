@@ -350,8 +350,15 @@
 
   /* ----- Effets des règles et stratagèmes (lus dans leur texte) ----- */
   const FX_GROUPS = [['strat', 'Stratagèmes'], ['rule', 'Règles d\'armée et de détachement'], ['doctrine', 'Doctrines de combat'], ['unit', 'Règles de l\'unité'], ['leader', 'Meneurs et appuis rattachés'], ['aura', 'Règles d\'autres unités (aura)'], ['enemy', 'Règles de la cible (défense)']];
+  function armyKwSet() {
+    const ar = army(); if (!ar) return [];
+    const set = new Set(); const add = (x) => { const n = normT(x); if (n) set.add(n); };
+    add(ar.faction); add(ar.chapter);
+    ar.units.forEach((u) => (u.factionKw || []).forEach(add));
+    return [...set];
+  }
   function fxCollect(u, w, melee, target, enemyEff) {
-    const ctx = { mode: melee ? 'melee' : 'ranged', ab: Engine.parseAbilities(w.abilities), unit: u, sit: melee ? { charged: S.play.sit.charged } : S.play.sit, target: target || S.play.target };
+    const ctx = { armyKw: armyKwSet(), doctrines: Object.keys(S.play.fx || {}).filter((k) => /^rule:doctrines:/.test(k) && S.play.fx[k]).map((k) => normT(k.replace(/^rule:doctrines:/, ''))), mode: melee ? 'melee' : 'ranged', ab: Engine.parseAbilities(w.abilities), unit: u, sit: melee ? { charged: S.play.sit.charged } : S.play.sit, target: target || S.play.target };
     const used = S.used[stratKey()] || [];
     const srcs = [];
     const push = (group, key, title, sub, items, extra) => {
@@ -417,9 +424,10 @@
       const sum = Effects.summarize(e.it.mods).join(', ');
       const conds = e.it.conds.map(Effects.condLabel).join(' · ');
       const on = fxOn(src, e);
+      const soft = (e.ev.soft || []).length ? ' ⚠ ' + e.ev.soft.join(', ') + ' (à confirmer)' : '';
       if (!e.ev.applicable) h += `<div class="muted fxoff">${esc(sum)} — ${esc(e.ev.why)}</div>`;
       else if (src.group === 'strat') h += `<div class="${src.used ? 'pos' : 'muted'}">${src.used ? '✓ ' : ''}${esc(sum)}${conds ? ' <span class="muted">(' + esc(conds) + ')</span>' : ''}</div>`;
-      else h += `<button class="chip ${on ? 'on' : ''}" data-act="fxToggle" data-key="${esc(e.key)}" data-val="${on ? 0 : 1}">${on ? '☑' : '☐'} ${esc(sum)}${conds ? ' · ' + esc(conds) : ''}</button> `;
+      else h += `<button class="chip ${on ? 'on' : ''}" data-act="fxToggle" data-key="${esc(e.key)}" data-val="${on ? 0 : 1}">${on ? '☑' : '☐'} ${esc(sum)}${conds ? ' · ' + esc(conds) : ''}${esc(soft)}</button> `;
     });
     if (src.group === 'strat') h += `<div class="row" style="margin-top:6px"><button class="btn small ${src.used ? 'ghost' : ''}" data-act="fxStrat" data-val="${esc(src.strat.id)}">${src.used ? 'Annuler ce stratagème (+' + src.strat.cp + ' PC)' : 'Utiliser (−' + src.strat.cp + ' PC)'}</button></div>`;
     return h + '</div>';
