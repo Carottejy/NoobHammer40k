@@ -288,7 +288,7 @@
       extraA: (+manual.extraA || 0) + (fxm.extraA || 0), apImp: (+manual.apImp || 0) + (fxm.apImp || 0), dmg: (+manual.dmg || 0) + (fxm.dmg || 0),
       dmgRed: (+manual.dmgRed || 0) + (fxm.dmgRed || 0),
       rrHit: bestRr(manual.rrHit, fxm.rrHit), rrWound: bestRr(manual.rrWound, fxm.rrWound), lethal: !!(manual.lethal || fxm.lethal), dev: !!(manual.dev || fxm.dev),
-      sust: (() => { const av = (x) => { const q = String(x || 0).match(/^(\d*)[dD](\d+)/); return q ? (q[1] ? +q[1] : 1) * (+q[2] + 1) / 2 : (parseInt(x, 10) || 0); }; return av(fxm.sust) > av(manual.sust) ? fxm.sust : (+manual.sust || 0); })(), anti: manual.anti || fxm.anti || null, antis: fxm.antis, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
+      sust: (() => { const av = (x) => { const q = String(x || 0).match(/^(\d*)[dD](\d+)/); return q ? (q[1] ? +q[1] : 1) * (+q[2] + 1) / 2 : (parseInt(x, 10) || 0); }; return av(fxm.sust) > av(manual.sust) ? fxm.sust : (+manual.sust || 0); })(), anti: manual.anti || fxm.anti || null, antis: fxm.antis, setA: fxm.setA, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
     const r = Engine.compute({ mode: melee ? 'melee' : 'ranged', weapon: w, nModels: n, situation: sit, target, mods, battleShocked: !!S.bs[u.id] });
     return { r, srcs, active, mods };
   }

@@ -197,6 +197,8 @@ const Effects = (() => {
       [m[2], m[3]].filter(Boolean).forEach((k) => { mods[k === 'touche' ? 'hit' : 'wound'] = n; });
       out.push({ idx: m.index, mods });
     }
+    const sa = /\bont (d?\d+(?:\s?\+\s?\d+)?) a(?![a-z0-9'])/g;
+    while ((m = sa.exec(t))) { if (!/\d/.test(m[1]) || /^\d+$/.test(m[1]) || /d/.test(m[1])) out.push({ idx: m.index, mods: { setA: m[1].replace(/\s/g, '').toUpperCase() } }); }
     const jp = /([+\-−]\s?\d)\s*pour (toucher|blesser)(?:\s*(?:,|et)\s*(?:pour )?(toucher|blesser))?/g;
     while ((m = jp.exec(t))) {
       const n = num(m[1]); const mods = {};
@@ -391,6 +393,7 @@ const Effects = (() => {
   const RR = { none: 0, ones: 1, all: 2 };
   function mergeInto(a, b) {
     ['hit', 'wound', 'strength', 'extraA', 'apImp', 'dmg', 'dmgRed'].forEach((k) => { if (b[k]) a[k] = (a[k] || 0) + b[k]; });
+    if (b.setA) a.setA = b.setA;
     ['rrHit', 'rrWound'].forEach((k) => { if (b[k] && (RR[b[k]] || 0) > (RR[a[k]] || 0)) a[k] = b[k]; });
     ['rrDmg', 'lethal', 'dev'].forEach((k) => { if (b[k]) a[k] = true; });
     if (b.sust && (!a.sust || sustAvg(b.sust) > sustAvg(a.sust))) a.sust = b.sust;
@@ -477,7 +480,7 @@ const Effects = (() => {
   function summarize(m) {
     const o = [];
     if (m.hit) o.push(sg(m.hit) + ' touche'); if (m.wound) o.push(sg(m.wound) + ' blessure');
-    if (m.strength) o.push(sg(m.strength) + ' Force'); if (m.extraA) o.push(sg(m.extraA) + ' attaque(s)/fig.');
+    if (m.strength) o.push(sg(m.strength) + ' Force'); if (m.setA) o.push('Attaques = ' + m.setA); if (m.extraA) o.push(sg(m.extraA) + ' attaque(s)/fig.');
     if (m.apImp) o.push('PA ' + sg(m.apImp)); if (m.dmg) o.push(sg(m.dmg) + ' dégâts');
     if (m.rrHit) o.push(m.rrHit === 'ones' ? 'relance touches (1)' : 'relance touches'); if (m.rrWound) o.push(m.rrWound === 'ones' ? 'relance blessures (1)' : 'relance blessures');
     if (m.rrDmg) o.push('relance dégâts'); if (m.lethal) o.push('Touches létales'); if (m.dev) o.push('Blessures dévastatrices');

@@ -113,7 +113,7 @@ const Engine = (() => {
     }
 
     /* — 1. Nombre d'attaques — */
-    const aBase = parseDice(w.A);
+    const aBase = parseDice(m.setA ? String(m.setA) : w.A);
     const parts = [{ label: 'Attaques de base', dice: aBase }];
     if (!melee && ab.rapidFire && s.halfRange) parts.push({ label: `Tir rapide ${ab.rapidFire.text} (mi-portée)`, dice: ab.rapidFire });
     if (!melee && ab.blast && t.models >= 5) {
