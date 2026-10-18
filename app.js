@@ -1395,7 +1395,7 @@
   function bUnitCard(f, e, i) {
     const d = bdef1(f, e.id); if (!d) return '';
     const sizes = bSizes(d, bOrd(e)); const open = B.open === e.k, host = e.to && B.units.find((x) => x.k === e.to);
-    const fd = !!B.fold['u' + e.k];
+    const fd = B.fold['u' + e.k] !== false;
     let h = `<div class="card"><div class="row sp fold" data-act="bFold" data-val="u${e.k}" style="cursor:pointer"><b>${fd ? '▸' : '▾'} ${B.warlord === e.k ? '👑 ' : ''}${esc(e.nm || T0(d.name))}</b><span class="muted">${bCost(f, e)} pts</span></div><div ${fd ? 'hidden' : ''}>
       <label style="margin-top:6px">Nom de l'unité${e.nm ? ' <span class="muted">(' + esc(T0(d.name)) + ')</span>' : ''}</label><input type="text" data-bu="${e.k}" data-bk="nm" value="${esc(e.nm || '')}" placeholder="${esc(T0(d.name))}">
       <div class="kws">${kwShow(d).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>
@@ -2304,7 +2304,7 @@
     },
     bRetry() { B.err = ''; B.facErr = ''; B.loading = false; B.facLoad = false; },
     bGrp(v) { B.grp = v; bsave(); },
-    bFold(id) { B.fold[id] = !B.fold[id]; bsave(); },
+    bFold(id) { B.fold[id] = /^u/.test(id) && B.fold[id] === undefined ? false : !B.fold[id]; bsave(); },
     bFoldAll(v) { B.units.forEach((e) => { B.fold['u' + e.k] = !!v; }); bsave(); },
     bAdd(id) { const f = bfac(); const d = f && bdef1(f, id); if (!d) return; const k = uid(); B.units.push({ k, id, models: ((d.pc && d.pc.t.length && d.pc.t[0][1].length) ? d.pc.t[0][1][0][0] : 1), pts: 0, wg: {}, to: '', enh: '', woff: [], aoff: [] }); B.open = null; B.msg = ''; bsave(); },
     bDs(id) { dbs.msg = ''; dbs.hist = []; dbs.mode = 'units'; Wahap.unit(id).then((u) => { dbs.unit = u; S.tab = 'db'; render(); }).catch((e) => { B.msg = e.message; render(); }); },
@@ -2426,7 +2426,7 @@
     bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
     bUpdate() { const a = bBuildArmy(B.editId); Object.assign(B, bdef()); B.msg = `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.`; S.tab = 'build'; bsave(); },
     bDone() { const a = army(); S.editUnit = null; B.cm = ''; B.msg = a ? `Armée « ${a.name} » enregistrée.` : ''; bsave(); },
-    bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: {}, open: null, q: '', msg: '' }); bsave(); },
+    bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: { set: true, ch: true, det: true, add: true }, open: null, q: '', msg: '' }); bsave(); },
     armyNew() { actions.bNew(); S.tab = 'build'; },
     gameSetList() {
       const id = (document.getElementById('gameList') || {}).value; const src = S.armies.find((x) => x.id === id && !x.gameOf); if (!src || !S.inGame) return;
