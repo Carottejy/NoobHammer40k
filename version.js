@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.40.0';
+var APP_VERSION = '1.40.1';
 var APP_RELEASES = [
+  { v: '1.40.1', date: '2026-10-18', notes: ['Données : équipements payants et paliers de points en double corrigés (Impulsor, Redemptor, Terminators, Desolation, Invader, Repulsor Executioner…).','Armées : chaque unité affiche ses options choisies (équipements payants, armes retirées) et la liste de ses options d\'armement possibles ; le Creator affiche aussi ces options dans le panneau ⚙️ Options.']},
   { v: '1.40.0', date: '2026-10-18', notes: ['Datasheets : ajout des « Options d\'armement » de chaque unité (remplacements et équipements possibles), en français et en anglais, visibles dans la base de données et dans le Creator.']},
   { v: '1.39.2', date: '2026-10-18', notes: ['Armées : chaque unité est suivie de ses meneurs et appuis rattachés (indentés).']},
   { v: '1.39.1', date: '2026-10-18', notes: ['Calculs : les Attaques fixées par une règle (ex. « ont D3+3 A ») remplacent maintenant celles de l\'arme, au lieu d\'être ignorées.']},

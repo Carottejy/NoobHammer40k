@@ -81,7 +81,7 @@ const Wahap = (() => {
         M: num(m.M), T: m.T || '', sv: m.Sv || '', inv: m.inv || '', W: m.W || '', Ld: m.Ld || '', OC: m.OC || '', fnp: '',
         weapons: (d.weapons || []).map((w) => ({ name: T(w.name), range: w.range === 'Mêlée' ? 'Mêlée' : num(w.range), A: String(w.A), skill: w.skill || '', S: String(w.S), AP: String(w.AP), D: String(w.D), abilities: w.ab || '', type: w.type })),
         abilities: (d.abilities || []).filter((a) => a.name).map((a) => ({ name: T(a.name) + (a.param ? ' ' + a.param : ''), text: T(a.text), phases: (typeof AlnPdf !== 'undefined' ? AlnPdf.phasesFromText(T(a.text) || T(a.name), T(a.name)) : ['all']), en: isEn(a.text) || isEn(a.name) })),
-        keywords: (d.kw || []).map((k) => api.kwT(k)), factionKw: (d.fkw || []).map((k) => api.kwT(k)), equipment: T(d.loadout).replace(/\n/g, ' '), subModels: [], enhancement: '', options: [], hasProfile: true, wahapId: d.id
+        keywords: (d.kw || []).map((k) => api.kwT(k)), factionKw: (d.fkw || []).map((k) => api.kwT(k)), equipment: T(d.loadout).replace(/\n/g, ' '), subModels: [], enhancement: '', options: [], wargearOpts: (d.wo || []).slice(), hasProfile: true, wahapId: d.id
       };
       if (ms.length > 1) u.profiles = ms.map((x) => ({ name: T(x.name), M: num(x.M), T: x.T, W: x.W, Ld: x.Ld, OC: x.OC, sv: x.Sv, inv: x.inv }));
       return u;
@@ -97,7 +97,7 @@ const Wahap = (() => {
           if ((u.weapons || []).length) return;
           const key = norm(String(u.name).replace(/\s*#\d+$/, ''));
           const d = f.units.find((x) => norm(x.name) === key || norm(x.en) === key);
-          if (d) { const a = api.toApp(d, () => 'x'); u.weapons = a.weapons; if (!u.T) { u.T = a.T; u.sv = a.sv; u.inv = a.inv; u.W = a.W; u.Ld = a.Ld; u.OC = a.OC; u.M = a.M; } if (!(u.abilities || []).length) u.abilities = a.abilities; u.hasProfile = true; u.wahapId = d.id; n++; }
+          if (d) { const a = api.toApp(d, () => 'x'); u.weapons = a.weapons; if (!u.T) { u.T = a.T; u.sv = a.sv; u.inv = a.inv; u.W = a.W; u.Ld = a.Ld; u.OC = a.OC; u.M = a.M; } if (!(u.abilities || []).length) u.abilities = a.abilities; u.hasProfile = true; u.wahapId = d.id; u.wargearOpts = a.wargearOpts; n++; }
         });
       }
       return n;

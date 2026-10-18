@@ -836,6 +836,16 @@
     return h;
   }
   /* Détail d'une armée de la bibliothèque : détachements, règles, unités repliées */
+  /* options d'armement possibles d'une unité : mémorisées à l'import, sinon retrouvées dans la base déjà chargée */
+  function woFor(u) {
+    if ((u.wargearOpts || []).length) return u.wargearOpts;
+    if (!u.wahapId) return [];
+    for (const k of ['AC','AE','AM','AS','AdM','AoI','CD','CSM','DG','DRU','EC','GC','GK','LoV','NEC','ORK','QI','QT','SM','TAU','TL','TS','TYR','WE']) {
+      const f = Wahap.cached(k); const d = f && f.units.find((x) => x.id === u.wahapId);
+      if (d) return d.wo || [];
+    }
+    return [];
+  }
   function unitDetail(u) {
     const ws = u.weapons || [], ab = (u.abilities || []).filter((x) => x && x.name);
     const stat = [u.M && 'M ' + u.M, u.T && 'E ' + u.T, u.sv && 'Sv ' + u.sv + (u.inv ? ' (' + u.inv + '++)' : ''), u.W && 'PV ' + u.W, u.Ld && 'CD ' + u.Ld, u.OC && 'CO ' + u.OC, u.fnp && 'FNP ' + u.fnp + '+'].filter(Boolean).join(' · ');
@@ -843,6 +853,8 @@
     if (stat) h += `<div class="muted">${esc(stat)}</div>`;
     if ((u.keywords || []).length) h += `<div class="kws" style="margin-top:4px">${u.keywords.concat(u.factionKw || []).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>`;
     if (u.equipment || (u.options || []).length || u.ptsNote) h += `<div style="margin-top:6px"><b>Équipement et options</b>${u.equipment ? `<div class="muted">${esc(u.equipment)}</div>` : ''}${(u.options || []).length ? `<div class="muted">Options choisies : ${u.options.map(esc).join(' · ')}</div>` : ''}${u.ptsNote ? `<div class="muted">${esc(u.ptsNote)}</div>` : ''}</div>`;
+    const wo = woFor(u);
+    if (wo.length) h += `<details style="margin-top:6px"><summary><b>Options d'armement possibles (${wo.length})</b></summary><ul class="fxlist">${wo.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></details>`;
     if (ws.length) h += `<div style="margin-top:6px"><b>Armes (${ws.length})</b><ul class="fxlist">${ws.map((w) => `<li>${wLine(w)}</li>`).join('')}</ul></div>`;
     if (ab.length) h += `<div style="margin-top:6px"><b>Aptitudes (${ab.length})</b>${ab.map((x) => `<details class="note"><summary><b>${esc(x.name)}</b></summary><div>${esc(x.text || '').replace(/\n/g, '<br>')}</div></details>`).join('')}</div>`;
     if (!stat && !ws.length && !ab.length) h += '<div class="muted">Aucun profil enregistré pour cette unité.</div>';
@@ -1234,6 +1246,14 @@
     const sz = bSizes(d, bOrd(e)); if (!sz.length) return 0; const n = +e.models || 0;
     const hit = sz.find((x) => x[0] === n) || sz.find((x) => x[0] >= n) || sz[sz.length - 1]; return hit[1];
   }
+  /* options choisies (équipements payants + armes retirées) sous forme de lignes lisibles */
+  const bChosen = (f, e) => {
+    const d = bdef1(f, e.id); if (!d) return [];
+    const o = [];
+    if (d.pc) d.pc.w.forEach((w, j) => { const q = +(e.wg || {})[j] || 0; if (q > 0) o.push((q > 1 ? q + ' × ' : '') + T0(w[0]) + ' (+' + w[1] * q + ' pts)'); });
+    (e.woff || []).forEach((j) => { const w = (d.weapons || [])[j]; if (w) o.push('Sans ' + T0(w.name)); });
+    return o;
+  };
   const bWg = (f, e) => { const d = bdef1(f, e.id); return d && d.pc ? d.pc.w.reduce((s, w, j) => s + w[1] * (+(e.wg || {})[j] || 0), 0) : 0; };
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
@@ -1344,7 +1364,7 @@
       const abs = (d.abilities || []).map((a, j) => [a, j]).filter((x) => x[0].name);
       if (abs.length) h += `<label style="margin-top:8px">Aptitudes</label>${abs.map(([a, j]) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-ba="${j}" ${(e.aoff || []).includes(j) ? '' : 'checked'}> ${wt(a.name)}${a.param ? ' ' + esc(a.param) : ''}</label>`).join('')}`;
       if (d.loadout) h += `<div class="muted" style="margin-top:6px">${wt(d.loadout)}</div>`;
-      if ((d.wo || []).length) h += `<details style="margin-top:6px"><summary class="muted">${L('Options d\'armement', 'Wargear options')} (${d.wo.length})</summary><ul class="fxlist">${d.wo.map((x) => `<li>${wt(x)}</li>`).join('')}</ul></details>`;
+      if ((d.wo || []).length) h += `<label style="margin-top:8px">${L('Options d\'armement possibles', 'Possible wargear options')}</label><ul class="fxlist">${d.wo.map((x) => `<li>${wt(x)}</li>`).join('')}</ul>`;
     }
     return h + '</div></div>';
   }
@@ -1393,7 +1413,7 @@
     const f = bfac(); const ix = Wahap.index();
     const idmap = {}; const units = B.units.map((e) => {
       const d = bdef1(f, e.id); const d2 = Object.assign({}, d, { weapons: (d.weapons || []).filter((w, j) => !(e.woff || []).includes(j)), abilities: (d.abilities || []).filter((a, j) => !(e.aoff || []).includes(j)) });
-      const u = Wahap.toApp(d2, uid); if (B.ch && B.ch !== 'codex' && !u.factionKw.includes(B.ch)) u.factionKw.push(B.ch); idmap[e.k] = u.id; if (e.nm) u.name = e.nm; if (B.warlord === e.k) u.warlord = true; u.pts = bCost(f, e); u.ptsNote = bWg(f, e) ? 'dont équipements ' + bWg(f, e) + ' pts' : ''; u.models = String(e.models || ''); u.section = bgrp(d); u.role = d.support ? 'support' : (d.leads || []).length ? 'leader' : '';
+      const u = Wahap.toApp(d2, uid); if (B.ch && B.ch !== 'codex' && !u.factionKw.includes(B.ch)) u.factionKw.push(B.ch); idmap[e.k] = u.id; if (e.nm) u.name = e.nm; if (B.warlord === e.k) u.warlord = true; u.pts = bCost(f, e); u.ptsNote = bWg(f, e) ? 'dont équipements ' + bWg(f, e) + ' pts' : ''; u.models = String(e.models || ''); u.options = bChosen(f, e); u.section = bgrp(d); u.role = d.support ? 'support' : (d.leads || []).length ? 'leader' : '';
       const en = bEnhs(f).find((x) => x.key === e.enh);
       if (en) { u.enhancement = en.name; u.options = [en.name]; u.abilities.push({ name: 'Amélioration — ' + en.name, text: T0(en.text), phases: AlnPdf.phasesFromText(T0(en.text), en.name), en: Wahap.isEn(en.text) }); }
       return u;
