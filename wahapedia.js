@@ -20,7 +20,7 @@ const Wahap = (() => {
       if (e.k && e.k.length === (u.kw || []).length) u.kw = e.k; if (e.fk && e.fk.length === (u.fkw || []).length) u.fkw = e.fk;
       (u.weapons || []).forEach((w) => { if (w.e) w.name = w.e; if (w.abEn != null) w.ab = w.abEn; if (w.range === 'Mêlée') w.range = 'Melee'; });
       if (e.a && e.a.length === (u.abilities || []).length) u.abilities.forEach((a, i) => { a.name = e.a[i][0]; a.text = e.a[i][1]; });
-      if (e.l != null) u.loadout = e.l; if (e.tr) u.transport = e.tr; if (e.ln) u.leaderNote = e.ln;
+      if (e.wo) u.wo = e.wo; if (e.l != null) u.loadout = e.l; if (e.tr) u.transport = e.tr; if (e.ln) u.leaderNote = e.ln;
       if (u.pc && u.pc.w && e.pw && e.pw.length === u.pc.w.length) u.pc.w.forEach((w, i) => { w[0] = e.pw[i]; });
     });
     (g.detachments || []).forEach((d) => {

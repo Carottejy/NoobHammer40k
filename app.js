@@ -1176,6 +1176,7 @@
     if ((d.weapons || []).length) h += `<div class="card"><h2>${L('Armes', 'Weapons')}</h2><ul class="fxlist">${d.weapons.map((w) => `<li>${wt(w.name)}${w.ab ? ' [' + esc(w.ab) + ']' : ''} — ${weapLine(w)}</li>`).join('')}</ul></div>`;
     if ((d.abilities || []).length) h += `<div class="card"><h2>${L('Aptitudes', 'Abilities')}</h2>${d.abilities.map((a) => `<details class="note"><summary><b>${wt(a.name) || esc(a.type)}</b>${a.param ? ' ' + esc(a.param) : ''} <span class="muted">${esc(abType(a.type))}</span></summary><div>${linkUnits(wt(a.text))}</div></details>`).join('')}</div>`;
     if (d.loadout) h += `<div class="card"><h2>${L('Équipement', 'Wargear')}</h2><div>${wt(d.loadout)}</div></div>`;
+    if ((d.wo || []).length) h += `<div class="card"><h2>${L('Options d\'armement', 'Wargear options')}</h2><ul class="fxlist">${d.wo.map((x) => `<li>${wt(x)}</li>`).join('')}</ul></div>`;
     if (d.pc) h += `<div class="card"><h2>${L('Points', 'Points')}</h2>${d.pc.t.slice().sort((a, b) => a[0] - b[0]).map((t) => `<div class="muted">${t[0] >= 9999 ? L('Unités suivantes', 'Further units') : L('Jusqu\'à la ' + t[0] + 'e unité', 'Up to unit #' + t[0])} : ${t[1].filter((z, i, arr) => arr.findIndex((y) => y[0] === z[0]) === i).map((z) => figs(z[0]) + ' = ' + z[1] + ' pts').join(' · ')}</div>`).join('')}${d.pc.w.length ? '<div class="muted">' + L('Équipements', 'Wargear') + ' : ' + d.pc.w.map((w) => wt(w[0]) + ' +' + w[1]).join(' · ') + '</div>' : ''}</div>`;
     if ((d.leads || []).length) h += `<div class="card"><h2>${L('Peut rejoindre', 'Can lead')}</h2><div class="muted">${d.leads.map(ulink).join(' · ')}</div></div>`;
     if ((d.ledBy || []).length) h += `<div class="card"><h2>${L('Meneurs possibles', 'Can be led by')}</h2><div class="muted">${d.ledBy.map(ulink).join(' · ')}</div></div>`;
@@ -1309,6 +1310,7 @@
     if ((d.weapons || []).length) h += `<h3>${L('Armes', 'Weapons')}</h3><ul class="fxlist">${d.weapons.map((w) => `<li>${wt(w.name)}${w.ab ? ' [' + esc(w.ab) + ']' : ''} — ${weapLine(w)}</li>`).join('')}</ul>`;
     if ((d.abilities || []).length) h += `<h3>${L('Aptitudes', 'Abilities')}</h3>${d.abilities.map((a) => `<details class="note"><summary><b>${wt(a.name) || esc(a.type)}</b>${a.param ? ' ' + esc(a.param) : ''}</summary><div>${wt(a.text)}</div></details>`).join('')}`;
     if (d.loadout) h += `<h3>${L('Équipement', 'Wargear')}</h3><div>${wt(d.loadout)}</div>`;
+    if ((d.wo || []).length) h += `<h3>${L('Options d\'armement', 'Wargear options')}</h3><ul class="fxlist">${d.wo.map((x) => `<li>${wt(x)}</li>`).join('')}</ul>`;
     if ((d.leads || []).length) h += `<h3>${L('Peut rejoindre', 'Can lead')}</h3><div class="muted">${d.leads.map(nm).filter(Boolean).join(' · ')}</div>`;
     if ((d.ledBy || []).length) h += `<h3>${L('Meneurs possibles', 'Can be led by')}</h3><div class="muted">${d.ledBy.map(nm).filter(Boolean).join(' · ')}</div>`;
     return `<details class="eu"><summary>${L('Voir le détail', 'Show details')}</summary>${h}</details>`;
@@ -1342,6 +1344,7 @@
       const abs = (d.abilities || []).map((a, j) => [a, j]).filter((x) => x[0].name);
       if (abs.length) h += `<label style="margin-top:8px">Aptitudes</label>${abs.map(([a, j]) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-ba="${j}" ${(e.aoff || []).includes(j) ? '' : 'checked'}> ${wt(a.name)}${a.param ? ' ' + esc(a.param) : ''}</label>`).join('')}`;
       if (d.loadout) h += `<div class="muted" style="margin-top:6px">${wt(d.loadout)}</div>`;
+      if ((d.wo || []).length) h += `<details style="margin-top:6px"><summary class="muted">${L('Options d\'armement', 'Wargear options')} (${d.wo.length})</summary><ul class="fxlist">${d.wo.map((x) => `<li>${wt(x)}</li>`).join('')}</ul></details>`;
     }
     return h + '</div></div>';
   }
