@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.39.1';
+var APP_VERSION = '1.39.2';
 var APP_RELEASES = [
+  { v: '1.39.2', date: '2026-10-18', notes: ['Armées : chaque unité est suivie de ses meneurs et appuis rattachés (indentés).']},
   { v: '1.39.1', date: '2026-10-18', notes: ['Calculs : les Attaques fixées par une règle (ex. « ont D3+3 A ») remplacent maintenant celles de l\'arme, au lieu d\'être ignorées.']},
   { v: '1.39.0', date: '2026-10-18', notes: ['Stratagèmes : le résumé « Pris en compte dans le calcul » est refait pour les 1443 stratagèmes : filtres d\'armes (Torrent, armes nommées, sauf…), mêlée/tir, conditions, « à la place », choix d\'options.','Stratagèmes : les effets défensifs ou sur l\'adversaire sont séparés (🛡️) au lieu d\'être affichés comme des bonus.','Calculs : Anti multiples et « Anti-non-… », bonus « +1 pour toucher », conditions de Force/Endurance, de cible et de mots-clés mieux lues.']},
   { v: '1.38.1', date: '2026-10-18', notes: ['Calculs : les règles conditionnées par « Faction d\'armée est … » et par « Doctrine … active » sont maintenant évaluées automatiquement (avant, 60 % des Touches létales/soutenues/dévastatrices restaient décochées).','Calculs : « choisissez une unité ennemie » est coché par défaut (à confirmer) ; les choix d\'options (Pactes Sombres…) donnent une case par option.','Capacités accordées en liste à puces (« ont : • [Lance] ») prises en compte.'] },

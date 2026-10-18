@@ -848,12 +848,24 @@
     if (!stat && !ws.length && !ab.length) h += '<div class="muted">Aucun profil enregistré pour cette unité.</div>';
     return h + '</div></details>';
   }
+  /* Unités regroupées : chaque escouade suivie de ses meneurs / appuis rattachés */
+  function armyUnitsHtml(a) {
+    const out = [];
+    a.units.forEach((u) => {
+      if (hasHost(a, u)) return;
+      out.push(unitDetail(u));
+      a.units.filter((l) => l.attachedTo === u.id).forEach((l) => {
+        out.push(`<div style="margin-left:14px;border-left:3px solid var(--accent,#888);padding-left:8px"><div class="muted" style="margin-top:4px">↳ ${roleOf(l) === 'support' ? 'Appui' : 'Meneur'} de ${esc(u.name)}</div>${unitDetail(l)}</div>`);
+      });
+    });
+    return out.join('');
+  }
   function armyDetail(a) {
     let h = '';
     h += `<div class="card"><h2>Détachements</h2>${(a.detachments || []).length ? a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('') : '<p class="muted" style="margin:0">Aucun détachement.</p>'}${a.total ? `<p class="muted" style="margin-bottom:0">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
     const rules = (S.armyRules[a.id] || []).filter((r) => r && r.name);
     h += `<div class="card"><h2>Règles d'armée et de détachement</h2>${rules.length ? rules.map((r) => `<details class="note"><summary><b>${esc(r.name)}</b></summary><div>${esc(r.text || '').replace(/\n/g, '<br>')}</div></details>`).join('') : '<p class="muted" style="margin:0">Aucune règle enregistrée pour cette armée.</p>'}</div>`;
-    h += `<div class="card"><h2>Unités (${a.units.length})</h2>${a.units.map(unitDetail).join('') || '<p class="muted">Aucune unité.</p>'}</div>`;
+    h += `<div class="card"><h2>Unités (${a.units.length})</h2>${armyUnitsHtml(a) || '<p class="muted">Aucune unité.</p>'}</div>`;
     return h;
   }
   function viewArmy() {
