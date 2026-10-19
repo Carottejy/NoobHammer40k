@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.41.2';
+var APP_VERSION = '1.42.0';
 var APP_RELEASES = [
+  { v: '1.42.0', date: '2026-10-19', notes: ['Datasheets : la liste est triée par ordre alphabétique et répartie en pages de 80 fiches (navigation Préc. / Suiv. en haut et en bas).']},
   { v: '1.41.2', date: '2026-10-19', notes: ['Creator : à l\'ouverture d\'une armée, tous les encarts (réglages, chapitre, détachements, ajout) et toutes les unités sont repliés ; les nouvelles unités le sont aussi.']},
   { v: '1.41.1', date: '2026-10-19', notes: ['Creator : les unités sont repliées par défaut (ajout et réouverture de la liste).','Creator : le descriptif de l\'amélioration choisie s\'affiche, avec un bloc repliable pour lire toutes les améliorations disponibles avant de choisir.']},
   { v: '1.41.0', date: '2026-10-19', notes: ['Creator : choix des options d\'armement avec leurs restrictions (nombre de figurines, « pour chaque tranche de N », une option parmi plusieurs, armes déjà remplacées, conditions « si équipé de… »).','Armées : seules les armes et options réellement choisies sont affichées (équipement de base + remplacements) ; la liste des options possibles n\'y figure plus.']},

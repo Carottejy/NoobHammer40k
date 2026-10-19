@@ -1153,12 +1153,17 @@
       const f = Wahap.cached(dbs.fac);
       if (!f) { if (!dbs.facLoad) { dbs.facLoad = true; Wahap.faction(dbs.fac).then(() => { dbs.facLoad = false; render(); }).catch((e) => { dbs.facLoad = false; dbs.err = e.message; dbs.fac = ''; render(); }); } return '<p class="muted">Chargement de la faction…</p>'; }
       const terms = Wahap.norm(dbs.q).split(' ').filter(Boolean);
-      r = f.units.filter((d) => chOkUnit(d, dbs.ch, dbs.fac) && (!dbs.kw || kwShow(d).includes(dbs.kw)) && terms.every((t) => Wahap.norm(d.name).includes(t) || Wahap.norm(d.en).includes(t) || Wahap.norm(d.role).includes(t) || kwShow(d).some((k) => Wahap.norm(k).includes(t)))).slice(0, 80).map((d) => ({ id: d.id, n: d.name, e: d.en, f: d.fac, r: dsp(d).role, pc: d.pc }));
+      r = f.units.filter((d) => chOkUnit(d, dbs.ch, dbs.fac) && (!dbs.kw || kwShow(d).includes(dbs.kw)) && terms.every((t) => Wahap.norm(d.name).includes(t) || Wahap.norm(d.en).includes(t) || Wahap.norm(d.role).includes(t) || kwShow(d).some((k) => Wahap.norm(k).includes(t)))).map((d) => ({ id: d.id, n: d.name, e: d.en, f: d.fac, r: dsp(d).role, pc: d.pc }));
     } else {
       const ix = Wahap.index();
-      r = Wahap.search(dbs.q, '');
+      r = Wahap.search(dbs.q, '', 100000);
     }
-    return (r.map((u) => `<div class="unit-item"><div><b>${esc(uname(u))}</b>${Wahap.lang !== 'en' && Wahap.isEn(u.n) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${ptsRow(u)}${esc(Wahap.factionName(u.f))} · ${esc(u.r)}</div></div><button class="btn small" data-act="dbOpen" data-val="${u.id}">Ouvrir</button></div>`).join('') || '<p class="muted">Aucun résultat.</p>') + (r.length >= 80 ? '<p class="muted">Seuls les 80 premiers résultats sont affichés : affine la recherche.</p>' : '');
+    r.sort((x, y) => uname(x).localeCompare(uname(y), Wahap.lang === 'en' ? 'en' : 'fr', { sensitivity: 'base' }));
+    const PG = 80, key = [dbs.fac, dbs.ch, dbs.kw, dbs.q, Wahap.lang].join('|');
+    if (dbs.pgKey !== key) { dbs.pgKey = key; dbs.page = 0; }
+    const np = Math.max(1, Math.ceil(r.length / PG)); dbs.page = Math.min(Math.max(0, dbs.page || 0), np - 1);
+    const pager = np > 1 ? `<div class="row sp" style="margin:8px 0"><button class="btn small ghost" data-act="dbPage" data-val="-1" ${dbs.page === 0 ? 'disabled' : ''}>◀ Préc.</button><span class="muted">Page ${dbs.page + 1} / ${np} · ${r.length} fiches</span><button class="btn small ghost" data-act="dbPage" data-val="1" ${dbs.page >= np - 1 ? 'disabled' : ''}>Suiv. ▶</button></div>` : '';
+    return pager + (r.slice(dbs.page * PG, dbs.page * PG + PG).map((u) => `<div class="unit-item"><div><b>${esc(uname(u))}</b>${Wahap.lang !== 'en' && Wahap.isEn(u.n) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${ptsRow(u)}${esc(Wahap.factionName(u.f))} · ${esc(u.r)}</div></div><button class="btn small" data-act="dbOpen" data-val="${u.id}">Ouvrir</button></div>`).join('') || '<p class="muted">Aucun résultat.</p>') + pager;
   }
   const statLine = (m) => (Wahap.lang === 'en' ? `M${esc(m.M)} · T${esc(m.T)} · Sv ${esc(m.Sv)}${m.inv ? '/' + esc(m.inv) + '++' : ''} · W${esc(m.W)} · Ld ${esc(m.Ld)} · OC${esc(m.OC)}` : `M${esc(m.M)} · E${esc(m.T)} · Sv ${esc(m.Sv)}${m.inv ? '/' + esc(m.inv) + '++' : ''} · PV ${esc(m.W)} · CD ${esc(m.Ld)} · CO ${esc(m.OC)}`);
   const weapLine = (w) => (Wahap.lang === 'en' ? `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · S${esc(w.S)} · AP${esc(w.AP)} · D${esc(w.D)}` : `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}`);
@@ -2290,6 +2295,7 @@
     dbBack() { dbs.msg = ''; if (dbs.mode === 'det') { dbs.det = null; return; } if ((dbs.hist || []).length) { const id = dbs.hist.pop(); Wahap.unit(id).then((u) => { dbs.unit = u; render(); }); return; } dbs.unit = null; },
     dbGo(id) { dbs.msg = ''; (dbs.hist = dbs.hist || []).push(dbs.unit.id); Wahap.unit(id).then((u) => { dbs.unit = u; window.scrollTo(0, 0); render(); }).catch((e) => { dbs.hist.pop(); dbs.msg = e.message; render(); }); },
     dbDet(id) { dbs.det = id; },
+    dbPage(v) { dbs.page = (dbs.page || 0) + (+v || 0); window.scrollTo(0, 0); },
     dbKw(v) { const d = dbs.unit; dbs.mode = 'units'; if (d) dbs.fac = d.fac; dbs.kw = v; dbs.q = ''; dbs.unit = null; },
     dbOpen(id) { dbs.msg = ''; dbs.hist = []; Wahap.unit(id).then((u) => { dbs.unit = u; render(); }).catch((e) => { dbs.msg = e.message; render(); }); },
     dbTarget() {

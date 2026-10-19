@@ -58,10 +58,10 @@ const Wahap = (() => {
     index() { return index; },
     async faction(id) { if (facs[id]) return facs[id]; await load(base + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); return facs[id]; },
     cached(id) { return facs[id] || null; },
-    search(q, fac) {
+    search(q, fac, limit) {
       if (!index) return [];
       const n = norm(q || ''); const terms = n.split(' ').filter(Boolean);
-      return index.units.filter((u) => (!fac || u.f === fac) && terms.every((t) => norm(u.n).includes(t) || norm(u.e).includes(t) || norm(u.r).includes(t))).slice(0, 80);
+      return index.units.filter((u) => (!fac || u.f === fac) && terms.every((t) => norm(u.n).includes(t) || norm(u.e).includes(t) || norm(u.r).includes(t))).slice(0, limit || 80);
     },
     async unit(id) {
       await api.ready(); const e = index.units.find((u) => u.id === id); if (!e) return null;
