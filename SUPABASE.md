@@ -40,3 +40,21 @@ La table `profiles` (pseudo unique, lisible par les joueurs connectés) prépare
 ## Amis et invitations (v1.18)
 
 Tables `friendships` et `game_invites` (RLS : chacun ne voit que ses amitiés et ses invitations), fonction `find_user(pseudo)` pour retrouver un joueur par son pseudo exact, et la lecture des profils limitée à soi-même et à ses contacts. Voir la migration « amis_et_invitations » du projet.
+
+## Retours utilisateurs (v1.43)
+
+Table `feedback` (insertion seule pour les visiteurs, aucune lecture publique : RLS sans policy select). Les messages se lisent dans Supabase → Table Editor → `feedback`.
+
+```sql
+create table public.feedback (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind in ('bug','idee')),
+  message text not null check (char_length(message) between 5 and 2000),
+  contact text check (contact is null or char_length(contact) <= 200),
+  app_version text check (app_version is null or char_length(app_version) <= 20),
+  context text check (context is null or char_length(context) <= 500)
+);
+alter table public.feedback enable row level security;
+create policy "tout le monde peut envoyer un retour" on public.feedback for insert to anon, authenticated with check (true);
+```

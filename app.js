@@ -1937,6 +1937,7 @@
     return `<h1>Règles</h1>${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
   }
 
+  var FB = { kind: 'bug', msg: '', contact: '', busy: false, ok: '', err: '' };
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
@@ -1946,6 +1947,13 @@
       <p class="muted">Les stratagèmes marqués « à vérifier » ont un coût ou un détail à confirmer dans l'appli officielle Warhammer 40,000. En cas de doute, la règle officielle prime.</p></div>
       <div class="card"><h2>Installer sur le téléphone</h2><p><b>Android (Chrome)</b> : menu ⋮ → « Installer l'application ».<br><b>iPhone (Safari)</b> : Partager → « Sur l'écran d'accueil ».</p><p class="muted">Après la première ouverture, l'appli fonctionne hors ligne.</p></div>
       <div class="card"><h2>Import depuis ALN</h2><p class="muted">Pour lire ta page ALN, l'appli essaie d'abord un accès direct ; si le navigateur le bloque (CORS), elle peut passer par un relais public après ton accord. Relais : <b>${S.relayOk ? 'autorisé' : 'non autorisé'}</b>.</p>${S.relayOk ? '<button class="btn small ghost" data-act="resetRelay">Retirer l\'autorisation</button>' : ''}</div>
+      <div class="card"><h2>Signaler une anomalie / proposer une idée</h2>
+        <p class="muted" style="margin-top:0">Un bug, une règle mal calculée, une idée d'amélioration ? Dis-le ici : le message est envoyé au créateur de l'appli. Ne mets aucune information personnelle.</p>
+        <div class="seg" style="margin-bottom:8px"><button type="button" class="${FB.kind === 'bug' ? 'on' : ''}" data-act="fbKind" data-val="bug">🐞 Anomalie</button><button type="button" class="${FB.kind === 'idee' ? 'on' : ''}" data-act="fbKind" data-val="idee">💡 Idée</button></div>
+        <label>${FB.kind === 'bug' ? 'Que s\'est-il passé ? (unité, phase, règle concernée…)' : 'Ton idée'}</label><textarea id="fbMsg" maxlength="2000" placeholder="${FB.kind === 'bug' ? 'Ex. : avec les Intercessors, la touche létale n\'est pas comptée…' : 'Ex. : pouvoir exporter la liste en PDF…'}">${esc(FB.msg)}</textarea>
+        <label>Contact (facultatif, pour te répondre)</label><input type="text" id="fbContact" maxlength="200" placeholder="email ou pseudo" value="${esc(FB.contact)}">
+        <button class="btn" style="margin-top:8px" data-act="fbSend" ${FB.busy ? 'disabled' : ''}>${FB.busy ? 'Envoi…' : 'Envoyer'}</button>
+        ${FB.ok ? `<div class="note" style="margin-top:8px">${esc(FB.ok)}</div>` : ''}${FB.err ? `<div class="warn" style="margin-top:8px">${esc(FB.err)}</div>` : ''}</div>
       <div class="card"><h2>Données</h2><button class="btn danger" data-act="resetAll">Tout effacer</button></div>`;
   }
 
@@ -2487,6 +2495,19 @@
         a.id = uid(); a.units.forEach((u) => { u.id = uid(); }); S.armies.push(a); S.armyId = a.id; S.armyRules[a.id] = d.rules || [];
       } catch (e) { alert('JSON invalide.'); }
     },
+    fbKind(v) { FB.kind = v === 'idee' ? 'idee' : 'bug'; FB.ok = ''; FB.err = ''; },
+    async fbSend() {
+      FB.ok = ''; FB.err = '';
+      const m = String(FB.msg || '').trim();
+      if (m.length < 5) { FB.err = 'Décris le problème ou l\'idée en quelques mots (5 caractères minimum).'; render(); return; }
+      FB.busy = true; render();
+      try {
+        const ctx = ['onglet ' + S.tab, 'langue ' + (S.lang || 'fr'), (navigator.userAgent || '').replace(/^Mozilla\/5\.0 /, '').slice(0, 160)].join(' · ');
+        await syReq('/rest/v1/feedback', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: FB.kind, message: m.slice(0, 2000), contact: String(FB.contact || '').trim().slice(0, 200) || null, app_version: typeof APP_VERSION !== 'undefined' ? String(APP_VERSION).slice(0, 20) : null, context: ctx.slice(0, 500) }) });
+        FB.msg = ''; FB.ok = 'Merci ! Ton message a bien été envoyé.';
+      } catch (e) { FB.err = 'Envoi impossible (' + (e.message || 'erreur') + '). Réessaie plus tard.'; }
+      FB.busy = false; render();
+    },
     resetAll() { if (confirm('Effacer toutes les données de l\'appli ?' + (syCfg() ? '\n\nLa synchronisation sera déconnectée pour ne pas effacer tes autres appareils.' : ''))) { sySet(null); S = defaults(); } },
     syMode(v) { SY.mode = v; SY.err = ''; SY.msg = ''; },
     syncIn() { syAuth('login'); },
@@ -2500,7 +2521,7 @@
     const fn = actions[el.dataset.act]; if (!fn) return;
     fn(el.dataset.val, el); render();
   });
-  document.addEventListener('input', (e) => { if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
+  document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
