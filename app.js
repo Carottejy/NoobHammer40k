@@ -2498,6 +2498,8 @@
     fbKind(v) { FB.kind = v === 'idee' ? 'idee' : 'bug'; FB.ok = ''; FB.err = ''; },
     async fbSend() {
       FB.ok = ''; FB.err = '';
+      const em = document.getElementById('fbMsg'), ec = document.getElementById('fbContact');
+      if (em) FB.msg = em.value; if (ec) FB.contact = ec.value;
       const m = String(FB.msg || '').trim();
       if (m.length < 5) { FB.err = 'Décris le problème ou l\'idée en quelques mots (5 caractères minimum).'; render(); return; }
       FB.busy = true; render();
@@ -2523,6 +2525,7 @@
   });
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
+  document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
   document.addEventListener('change', (e) => {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
