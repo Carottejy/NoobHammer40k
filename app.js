@@ -6,6 +6,7 @@
   const $tabs = document.getElementById('tabs');
   const uid = () => Math.random().toString(36).slice(2, 9);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const abc = (arr, f) => (arr || []).slice().sort((a, b) => String(f ? f(a) : a).localeCompare(String(f ? f(b) : b), 'fr', { sensitivity: 'base', numeric: true }));
   const phaseLabel = (id) => (PHASES.find((p) => p.id === id) || {}).label || id;
 
   /* ---------- État ---------- */
@@ -178,7 +179,7 @@
     const canAttack = S.phase === 'shoot' || S.phase === 'fight';
     const defend = canAttack && S.play.mode === 'defend';
     h += remindersCard(u, defend);
-    h += `<div class="card"><label>Unité</label><select data-bind="play.unitId">${topUnits(a).map((x) => `<option value="${x.id}" class="${alive(x) ? '' : 'dead'}" ${alive(x) ? '' : 'style="color:#888"'} ${x.id === ub.id ? 'selected' : ''}>${label(x)}</option>`).join('')}</select>
+    h += `<div class="card"><label>Unité</label><select data-bind="play.unitId">${abc(topUnits(a), (x) => x.name).map((x) => `<option value="${x.id}" class="${alive(x) ? '' : 'dead'}" ${alive(x) ? '' : 'style="color:#888"'} ${x.id === ub.id ? 'selected' : ''}>${label(x)}</option>`).join('')}</select>
       ${unitStatLine(u)}<div style="margin-top:8px">${modelsCtl('mine', ub, 'Figurines')}${u.leaders.map((l) => modelsCtl('mine', l, (roleOf(l) === 'support' ? 'Appui' : 'Meneur') + ' — ' + l.name)).join('')}</div>
       ${u.leaders.length ? `<div class="muted">Unité attachée : les armes, aptitudes et mots-clés de ${u.leaders.map((l) => esc(l.name)).join(', ')} sont pris en compte.</div>` : ''}
       <div class="chips" style="margin-top:8px">${chip('⚠️ En Choc de Bataille', S.bs[ub.id], `data-act="toggleBs" data-val="${ub.id}"`)}</div></div>
@@ -234,7 +235,7 @@
     if (!weapons.find((x) => x.i === S.play.weaponIdx)) S.play.weaponIdx = weapons[0].i;
     if (S.play.nModelsUnit !== u.id) { S.play.nModelsUnit = u.id; S.play.nModels = Math.max(1, curModels(u.base)); }
     const w = u.weapons[S.play.weaponIdx];
-    h += `<label>Arme</label><select data-bind="play.weaponIdx" data-type="number">${weapons.map((x) => `<option value="${x.i}" ${x.i === S.play.weaponIdx ? 'selected' : ''}>${esc(x.w.name)}${x.w.from ? ' — ' + esc(x.w.from) : ''}${x.w.abilities ? ' [' + esc(x.w.abilities) + ']' : ''}</option>`).join('')}</select>`;
+    h += `<label>Arme</label><select data-bind="play.weaponIdx" data-type="number">${abc(weapons, (x) => x.w.name).map((x) => `<option value="${x.i}" ${x.i === S.play.weaponIdx ? 'selected' : ''}>${esc(x.w.name)}${x.w.from ? ' — ' + esc(x.w.from) : ''}${x.w.abilities ? ' [' + esc(x.w.abilities) + ']' : ''}</option>`).join('')}</select>`;
     h += `<div class="grid g2" style="margin-top:8px">${num('Figurines qui utilisent cette arme', 'play.nModels', 'min="1"')}<div><label>Profil</label><div class="muted">A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}</div></div></div>`;
     h += `<h3>Situation</h3>`;
     if (!melee) {
@@ -249,7 +250,7 @@
       const ts = topUnits(S.enemy);
       const firstAlive = ts.find(alive);
       if (!S.play.targetUnitId && firstAlive) { S.play.targetUnitId = firstAlive.id; syncTarget(); }
-      h += `<label>Unité adverse ciblée</label><select data-bind="play.targetUnitId">${ts.map((x) => { const e = eff(S.enemy, x); return `<option value="${x.id}" ${alive(x) ? '' : 'disabled style="color:#888"'} ${x.id === S.play.targetUnitId ? 'selected' : ''}>${alive(x) ? '' : '☠ '}${esc(x.name)}${e.leaders.length ? ' (+ ' + esc(e.leaders.map((l) => l.name).join(', ')) + ')' : ''} · ${alive(x) ? e.nowModels + ' fig.' : 'détruite'}</option>`; }).join('')}</select>`;
+      h += `<label>Unité adverse ciblée</label><select data-bind="play.targetUnitId">${abc(ts, (x) => x.name).map((x) => { const e = eff(S.enemy, x); return `<option value="${x.id}" ${alive(x) ? '' : 'disabled style="color:#888"'} ${x.id === S.play.targetUnitId ? 'selected' : ''}>${alive(x) ? '' : '☠ '}${esc(x.name)}${e.leaders.length ? ' (+ ' + esc(e.leaders.map((l) => l.name).join(', ')) + ')' : ''} · ${alive(x) ? e.nowModels + ' fig.' : 'détruite'}</option>`; }).join('')}</select>`;
       if (S.play.targetUnitId) h += `<p class="muted">Profil lu depuis la liste adverse. Modifie ses effectifs dans l'onglet « Adverse ».</p>`;
     }
     if (!hasEn && S.targets.length) h += `<div class="chips" style="margin-bottom:8px">${S.targets.map((t, i) => chip(esc(t.name), false, `data-act="loadTarget" data-val="${i}"`)).join('')}</div>`;
@@ -511,7 +512,7 @@
     if (role) {
       const hosts = ar.units.filter((b) => b.id !== u.id && !roleOf(b));
       const clash = u.attachedTo && ar.units.some((b) => b.id !== u.id && b.attachedTo === u.attachedTo && roleOf(b) === role);
-      h += `<div class="mdl"><label>${role === 'support' ? 'Appui' : 'Meneur'} rattaché à…</label><select data-attach="${u.id}" data-who="${who}" ${liveEnemy(who) ? 'disabled' : ''}><option value="">Non rattaché</option>${hosts.map((b) => { const el = eligibleFor(u, b); return `<option value="${b.id}" ${u.attachedTo === b.id ? 'selected' : ''}>${el === true ? '✓ ' : el === false ? '✗ ' : ''}${esc(b.name)}</option>`; }).join('')}</select>
+      h += `<div class="mdl"><label>${role === 'support' ? 'Appui' : 'Meneur'} rattaché à…</label><select data-attach="${u.id}" data-who="${who}" ${liveEnemy(who) ? 'disabled' : ''}><option value="">Non rattaché</option>${abc(hosts, (x) => x.name).map((b) => { const el = eligibleFor(u, b); return `<option value="${b.id}" ${u.attachedTo === b.id ? 'selected' : ''}>${el === true ? '✓ ' : el === false ? '✗ ' : ''}${esc(b.name)}</option>`; }).join('')}</select>
         <div class="muted">✓ = éligible d'après le texte de la règle · ✗ = non listé.</div>${clash ? '<div class="warn">Max. 1 meneur et 1 appui par unité : un autre est déjà rattaché ici.</div>' : ''}</div>`;
     } else {
       const att = ar.units.filter((l) => l.attachedTo === u.id);
@@ -1129,7 +1130,7 @@
       if (!dbs.loading) { dbs.loading = true; Wahap.ready().then(() => { dbs.loading = false; render(); }).catch((e) => { dbs.loading = false; dbs.err = e.message; render(); }); }
       return h + '<div class="card"><p class="muted">Chargement de la base…</p></div>';
     }
-    const facOpts = ix.factions.map((f) => `<option value="${f.id}" ${f.id === (dbs.mode === 'det' ? dbs.detFac : dbs.fac) ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
+    const facOpts = abc(ix.factions, (f) => f.name).map((f) => `<option value="${f.id}" ${f.id === (dbs.mode === 'det' ? dbs.detFac : dbs.fac) ? 'selected' : ''}>${esc(f.name)}</option>`).join('');
     h += `<div class="card"><p class="muted">Données Wahapedia (11e édition) : ${ix.units.length} fiches. Les textes encore non traduits sont repérés <span class="tag">EN</span>.</p>
       <div class="chips"><button class="chip ${dbs.mode === 'units' ? 'on' : ''}" data-act="dbMode" data-val="units">Unités</button><button class="chip ${dbs.mode === 'det' ? 'on' : ''}" data-act="dbMode" data-val="det">Détachements</button></div>
       <label style="margin-top:8px">Faction</label><select data-dbfac="1"><option value="">${dbs.mode === 'det' ? '— choisir —' : 'Toutes'}</option>${facOpts}</select>
@@ -1143,7 +1144,7 @@
   function dbKwSel() {
     const f = dbs.fac && Wahap.cached(dbs.fac); if (!f) return '';
     const c = {}; f.units.filter((d) => chOkUnit(d, dbs.ch, dbs.fac)).forEach((d) => new Set(kwShow(d)).forEach((k) => { c[k] = (c[k] || 0) + 1; }));
-    const o = Object.entries(c).filter(([k, n]) => n >= 2 && !/^(imperium|chaos|adeptus astartes)$/i.test(k)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 80);
+    const o = Object.entries(c).filter(([k, n]) => n >= 2 && !/^(imperium|chaos|adeptus astartes)$/i.test(k)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 80).sort((a, b) => a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }));
     return `<label style="margin-top:8px">Mot-clé</label><select data-dbkw="1"><option value="">— tous —</option>${o.map(([k, n]) => `<option value="${esc(k)}" ${dbs.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select>`;
   }
   function dbResults() {
@@ -1218,7 +1219,7 @@
   /* Chapitres Space Marines : filtre les détachements et les unités selon le mot-clé de faction du chapitre */
   const CHAPTERS = { SM: [['Ultramarines', 'Ultramarines'], ['Dark Angels', 'Dark Angels (Anges Sombres)'], ['Blood Angels', 'Blood Angels (Anges Sanglants)'], ['Space Wolves', 'Space Wolves (Loups Spatiaux)'], ['Black Templars', 'Black Templars (Templiers Noirs)'], ['Deathwatch', 'Deathwatch'], ['Iron Hands', 'Iron Hands (Mains de Fer)'], ['Salamanders', 'Salamanders (Salamandres)'], ['Imperial Fists', 'Imperial Fists (Poings Impériaux)'], ['Raven Guard', 'Raven Guard (Garde du Corbeau)'], ['White Scars', 'White Scars (Cicatrices Blanches)']] };
   const DET_CHAPTER = { 'Black Spear Task Force': 'Deathwatch', 'Deathwatch Support': 'Deathwatch', 'Inner Circle Task Force': 'Dark Angels', 'Wrath of the Rock': 'Dark Angels', 'Darkflight Pursuit': 'Dark Angels', 'Angelic Inheritors': 'Blood Angels', 'Encarmine Speartip': 'Blood Angels', 'Wrath of the Doomed': 'Blood Angels', 'Champions of Fenris': 'Space Wolves', 'Saga of the Beastslayer': 'Space Wolves', 'Saga of the Great Wolf': 'Space Wolves', "Forgefather's Seekers": 'Salamanders', 'Spearpoint Task Force': 'White Scars', 'Ceramite Sentinels': 'Imperial Fists', 'Blade of Ultramar': 'Ultramarines', 'Shadowmark Talon': 'Raven Guard', "Marshal's Household": 'Black Templars', 'Vow-sworn Crusaders': 'Black Templars', 'Fist of the God-Emperor': 'Black Templars', "Medusa's Wrath": 'Iron Hands' };
-  const chList = (fac) => CHAPTERS[fac || B.fac] || null;
+  const chList = (fac) => { const c = CHAPTERS[fac || B.fac]; return c ? abc(c, (x) => x[1]) : null; };
   const chNames = (fac) => (chList(fac) || []).map((c) => c[0]);
   const chOfUnit = (d, fac) => (d.fkw || []).map(T0).find((k) => chNames(fac || d.fac || B.fac).includes(k)) || '';
   const chOfDet = (d) => DET_CHAPTER[d.e || T0(d.name)] || '';
@@ -1230,7 +1231,7 @@
   const BGRPS = ['Chefs', 'Appuis', 'Troupes', 'Véhicules & monstres', 'Transports'];
   const canEnh = (d) => { const k = kwOf(d); return k.includes('personnage') && !k.includes('heros epique'); };
   const enhOk = (en, d) => Kw.ok(T0(en.text), Object.assign({}, d, { chapter: B.ch && B.ch !== 'codex' ? B.ch : '' }), 'enh');
-  const bEnhs = (f) => { const o = []; f.detachments.filter((d) => B.dets.includes(d.id)).forEach((d) => (d.enh || []).forEach((e) => o.push({ key: d.id + '|' + T0(e.name), name: T0(e.name), en: e.e || (e.name && e.name.en) || '', cost: +e.cost || 0, text: e.text, det: T0(d.name) }))); return o; };
+  const bEnhs = (f) => { const o = []; f.detachments.filter((d) => B.dets.includes(d.id)).forEach((d) => (d.enh || []).forEach((e) => o.push({ key: d.id + '|' + T0(e.name), name: T0(e.name), en: e.e || (e.name && e.name.en) || '', cost: +e.cost || 0, text: e.text, det: T0(d.name) }))); return abc(o, (x) => x.name); };
   const T0 = (x) => Wahap.T(x);
   const bSizes = (d, ord) => { const t = d.pc && d.pc.t.slice().sort((a, b) => a[0] - b[0]).find((x) => ord <= x[0]); return t ? t[1] : []; };
   const bOrd = (e) => B.units.filter((x) => x.id === e.id).indexOf(e) + 1;
@@ -1318,7 +1319,7 @@
     if (B.cm !== 'edit' && B.cm !== 'build') return head + (B.msg ? `<div class="note">${esc(B.msg)}</div>` : '') + '<p class="muted">Choisis une option pour commencer.</p>';
     if (B.cm === 'edit') {
       const lib = libArmies(); const a = army();
-      let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
+      let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
       if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button><button class="btn small" data-act="bDone">💾 Sauvegarder</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
       if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Armées.</p>';
@@ -1338,7 +1339,7 @@
       if (!B.loading) { B.loading = true; Wahap.ready().then(() => { B.loading = false; render(); }).catch((e) => { B.loading = false; B.err = e.message; render(); }); }
       return h + `<div class="card">${B.err ? '<div class="warn">' + esc(B.err) + '</div>' : '<p class="muted">Chargement de la base…</p>'}</div>`;
     }
-    h += `<div class="card">${fh('set', 'Faction, format et nom' + (B.fac ? ' · ' + esc((ix.factions.find((x) => x.id === B.fac) || {}).name || '') : ''))}<div ${B.fold.set ? 'hidden' : ''}><label>Faction</label><select data-bf="fac"><option value="">— choisir —</option>${ix.factions.map((f) => `<option value="${f.id}" ${f.id === B.fac ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
+    h += `<div class="card">${fh('set', 'Faction, format et nom' + (B.fac ? ' · ' + esc((ix.factions.find((x) => x.id === B.fac) || {}).name || '') : ''))}<div ${B.fold.set ? 'hidden' : ''}><label>Faction</label><select data-bf="fac"><option value="">— choisir —</option>${abc(ix.factions, (f) => f.name).map((f) => `<option value="${f.id}" ${f.id === B.fac ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>
       <div class="row" style="margin-top:8px"><div style="flex:1"><label>Format</label><select data-bf="fmt">${FORMATS.map((x) => `<option value="${x[0]}" ${x[0] === B.fmt ? 'selected' : ''}>${x[1]}</option>`).join('')}</select></div>
       <div style="width:110px"><label>Limite (pts)</label><input type="number" inputmode="numeric" data-bf="limit" value="${B.limit || ''}"></div></div>
       <label style="margin-top:8px">Nom de la liste</label><input type="text" data-bf="name" value="${esc(B.name)}" placeholder="Ma liste"></div></div>`;
@@ -1353,7 +1354,7 @@
     const pts = B.units.reduce((s, e) => s + bCost(f, e), 0), over = B.limit && pts > B.limit;
     if (B.warlord && !B.units.some((x) => x.k === B.warlord)) B.warlord = '';
     const wlc = B.units.filter((x) => { const d = bdef1(f, x.id); return d && kwOf(d).some((k) => k === 'personnage' || k === 'heros epique'); });
-    h += `<div class="card"><div class="row sp"><b style="${over ? 'color:#e5484d' : ''}">${pts}${B.limit ? ' / ' + B.limit : ''} pts</b><span class="muted">${B.units.length} unité(s) · ${B.units.reduce((s, e) => s + (+e.models || 0), 0)} fig.</span></div>${wlc.length ? `<label style="margin-top:8px">👑 Seigneur de bataille</label><select data-bf="warlord"><option value="">— non choisi —</option>${wlc.map((x) => `<option value="${x.k}" ${B.warlord === x.k ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>` : '<p class="muted">Ajoute un personnage pour choisir ton seigneur de bataille.</p>'}${B.units.length ? '<div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bFoldAll" data-val="1">Tout replier</button><button class="btn small ghost" data-act="bFoldAll" data-val="">Tout déplier</button></div>' : ''}${over ? '<div class="warn">Au-dessus de la limite du format.</div>' : ''}</div>`;
+    h += `<div class="card"><div class="row sp"><b style="${over ? 'color:#e5484d' : ''}">${pts}${B.limit ? ' / ' + B.limit : ''} pts</b><span class="muted">${B.units.length} unité(s) · ${B.units.reduce((s, e) => s + (+e.models || 0), 0)} fig.</span></div>${wlc.length ? `<label style="margin-top:8px">👑 Seigneur de bataille</label><select data-bf="warlord"><option value="">— non choisi —</option>${abc(wlc, (x) => x.nm || T0(bdef1(f, x.id).name)).map((x) => `<option value="${x.k}" ${B.warlord === x.k ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>` : '<p class="muted">Ajoute un personnage pour choisir ton seigneur de bataille.</p>'}${B.units.length ? '<div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bFoldAll" data-val="1">Tout replier</button><button class="btn small ghost" data-act="bFoldAll" data-val="">Tout déplier</button></div>' : ''}${over ? '<div class="warn">Au-dessus de la limite du format.</div>' : ''}</div>`;
     h += `<div class="card">${fh('add', 'Ajouter une unité')}<div ${B.fold.add ? 'hidden' : ''}><div class="chips" style="margin-top:8px"><button class="chip ${B.grp ? '' : 'on'}" data-act="bGrp" data-val="">Toutes</button>${BGRPS.map((g) => `<button class="chip ${B.grp === g ? 'on' : ''}" data-act="bGrp" data-val="${g}">${g}</button>`).join('')}</div>
       <div class="row" style="margin-top:8px"><input type="search" id="bq" placeholder="Nom ou mot-clé (français ou anglais)…" value="${esc(B.q)}" autocomplete="off" style="flex:1"><select data-bf="kw" style="width:42%"><option value="">Mot-clé…</option>${bKwOpts(f).map(([k, n]) => `<option value="${esc(k)}" ${B.kw === k ? 'selected' : ''}>${esc(k)} (${n})</option>`).join('')}</select></div><div id="bres" style="margin-top:6px">${bResults(f)}</div></div></div>`;
     h += B.units.map((e, i) => bUnitCard(f, e, i)).join('');
@@ -1362,7 +1363,7 @@
   }
   function bKwOpts(f) {
     const c = {}; f.units.filter(chOkUnit).forEach((d) => new Set(kwShow(d)).forEach((k) => { c[k] = (c[k] || 0) + 1; }));
-    return Object.entries(c).filter(([k, n]) => n >= 2 && !/^(imperium|chaos|adeptus astartes)$/i.test(k)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 60);
+    return Object.entries(c).filter(([k, n]) => n >= 2 && !/^(imperium|chaos|adeptus astartes)$/i.test(k)).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 60).sort((a, b) => a[0].localeCompare(b[0], 'fr', { sensitivity: 'base' }));
   }
   /* changement de chapitre : retire les détachements et unités qui ne sont plus permis */
   function bChapter(v) {
@@ -1410,7 +1411,7 @@
       <div class="row" style="margin-top:6px"><button class="btn small ghost" data-act="bOpen" data-val="${e.k}">${open ? 'Fermer' : '⚙️ Options'}</button><button class="btn small ghost" data-act="bDup" data-val="${e.k}">Dupliquer</button><button class="btn small danger" data-act="bDel" data-val="${e.k}">Retirer</button></div>`;
     if (open) {
       const hosts = (d.leads || []).length ? B.units.filter((x) => x.k !== e.k && d.leads.includes(x.id)) : [];
-      if ((d.leads || []).length) h += `<label style="margin-top:8px">Rejoint (meneur / appui)</label><select data-bu="${e.k}" data-bk="to"><option value="">— aucune —</option>${hosts.map((x) => `<option value="${x.k}" ${x.k === e.to ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>${hosts.length ? '' : '<div class="muted">Ajoute d\'abord une unité compatible : ' + d.leads.map((id) => { const u = bdef1(f, id); return u ? esc(T0(u.name)) : ''; }).filter(Boolean).slice(0, 6).join(', ') + '</div>'}`;
+      if ((d.leads || []).length) h += `<label style="margin-top:8px">Rejoint (meneur / appui)</label><select data-bu="${e.k}" data-bk="to"><option value="">— aucune —</option>${abc(hosts, (x) => x.nm || T0(bdef1(f, x.id).name)).map((x) => `<option value="${x.k}" ${x.k === e.to ? 'selected' : ''}>${esc(x.nm || T0(bdef1(f, x.id).name))} #${B.units.indexOf(x) + 1}</option>`).join('')}</select>${hosts.length ? '' : '<div class="muted">Ajoute d\'abord une unité compatible : ' + d.leads.map((id) => { const u = bdef1(f, id); return u ? esc(T0(u.name)) : ''; }).filter(Boolean).slice(0, 6).join(', ') + '</div>'}`;
       if (canEnh(d)) { const used = new Set(B.units.filter((x) => x.k !== e.k).map((x) => x.enh)); h += `<label style="margin-top:8px">Amélioration</label><select data-bu="${e.k}" data-bk="enh"><option value="">— aucune —</option>${bEnhs(f).filter((x) => !used.has(x.key) && (B.allEnh || x.key === e.enh || enhOk(x, d))).map((x) => `<option value="${esc(x.key)}" ${x.key === e.enh ? 'selected' : ''}>${esc(x.name)} (${x.cost} pts)</option>`).join('')}</select>${(() => { const av = bEnhs(f).filter((x) => !used.has(x.key) && (B.allEnh || x.key === e.enh || enhOk(x, d))); const cur = av.find((x) => x.key === e.enh); return (cur ? `<div class="note" style="margin-top:6px"><b>${esc(cur.name)}</b> <span class="muted">(${cur.cost} pts)</span><div>${wt(cur.text)}</div></div>` : '') + (av.length ? `<details style="margin-top:6px"><summary class="muted">Voir le descriptif des améliorations (${av.length})</summary>${av.map((x) => `<div class="note" style="margin-top:4px"><b>${esc(x.name)}</b> <span class="muted">(${x.cost} pts)</span><div>${wt(x.text)}</div></div>`).join('')}</details>` : ''); })()}${B.dets.length ? `<label class="chk"><input type="checkbox" data-bf="allEnh" ${B.allEnh ? 'checked' : ''}> Afficher aussi les améliorations non compatibles avec les mots-clés (${bEnhs(f).filter((x) => !used.has(x.key) && !enhOk(x, d)).length})</label>` : '<div class="muted">Choisis un détachement pour voir ses améliorations.</div>'}`; }
       if (d.pc && d.pc.w.length) h += `<label style="margin-top:8px">Équipements payants (quantité)</label>${d.pc.w.map((w, j) => `<div class="row sp"><span>${wt(w[0])} <span class="muted">+${w[1]} pts</span></span><input type="number" inputmode="numeric" style="width:70px" data-bu="${e.k}" data-bg="${j}" value="${(e.wg || {})[j] || 0}"></div>`).join('')}`;
       if (wrRules(d).length) {
@@ -1821,7 +1822,7 @@
     const opt = (v, l, sel) => `<option value="${esc(v)}" ${sel ? 'selected' : ''}>${esc(l)}</option>`;
     const sel2 = (k, arr) => `<select data-af="${k}">${arr.map((x) => opt(x[0], x[1], AS[k] === x[0])).join('')}</select>`;
     h += `<div class="card"><p class="muted" style="margin-top:0">Décris ce que tu veux : l'assistant compose 3 listes avec les données de l'appli (points, chapitre, détachement, chefs, améliorations) et explique chaque choix. Aucune IA générative : des règles de composition, tu gardes la main dans Creator.</p>
-      <label>Faction</label><select data-af="fac"><option value="">— choisir —</option>${ix.factions.map((x) => opt(x.id, x.name, x.id === AS.fac)).join('')}</select>`;
+      <label>Faction</label><select data-af="fac"><option value="">— choisir —</option>${abc(ix.factions, (x) => x.name).map((x) => opt(x.id, x.name, x.id === AS.fac)).join('')}</select>`;
     if (AS.fac && chList(AS.fac)) h += `<label style="margin-top:8px">Chapitre</label><select data-af="ch">${opt('', '— tous les chapitres —', !AS.ch)}${opt('codex', 'Chapitre générique (Codex)', AS.ch === 'codex')}${chList(AS.fac).map((c) => opt(c[0], c[1], AS.ch === c[0])).join('')}</select>`;
     h += `<div class="row" style="margin-top:8px"><div style="flex:1"><label>Format</label><select data-af="fmt">${FORMATS.map((x) => opt(x[0], x[1], x[0] === AS.fmt)).join('')}</select></div><div style="width:110px"><label>Limite (pts)</label><input type="number" inputmode="numeric" data-af="limit" value="${AS.limit || ''}"></div></div>
       <label style="margin-top:8px">Style de jeu (plusieurs possibles)</label><div class="chips">${STYLES.map(([k, l]) => `<button type="button" class="chip${(AS.styles || []).includes(k) ? ' on' : ''}" data-act="asStyle" data-val="${k}">${l}</button>`).join('')}</div>
@@ -1830,7 +1831,7 @@
     if (f) {
       h += `<label style="margin-top:10px">Mots-clés : touche une fois pour privilégier ✓, deux fois pour exclure ✗</label><input type="search" id="asq" placeholder="Filtrer les mots-clés…" value="${esc(AS.q || '')}" autocomplete="off"><div class="chips" id="askw" style="margin-top:6px">${asKwChips(f)}</div>`;
       const dets = f.detachments.filter((d) => chOkDet(d, AS.ch, AS.fac));
-      h += `<label style="margin-top:10px">Détachement</label><select data-af="det">${opt('', '— laisser l\'assistant choisir —', !AS.det)}${dets.map((d) => opt(d.id, T0(d.name), d.id === AS.det)).join('')}</select>`;
+      h += `<label style="margin-top:10px">Détachement</label><select data-af="det">${opt('', '— laisser l\'assistant choisir —', !AS.det)}${abc(dets, (d) => T0(d.name)).map((d) => opt(d.id, T0(d.name), d.id === AS.det)).join('')}</select>`;
     } else if (AS.fac) h += '<p class="muted">Chargement des données de la faction…</p>';
     h += `<details style="margin-top:10px"><summary>Réglages avancés</summary><div class="grid g2">
       <div><label>Chefs</label>${sel2('leaders', [['few', 'Peu'], ['normal', 'Normal'], ['many', 'Beaucoup']])}</div>
@@ -2190,7 +2191,7 @@
     let h = `${quick}<div class="card"><div class="row sp"><h2 style="margin:0">Nouvelle partie</h2><button class="btn small ghost" data-act="ngToggle">Fermer</button></div>
       <label style="margin-top:8px">Type de partie</label>${seg('ngMode', ng.mode || '', [['local', '🏠 Locale'], ['online', '🌐 En ligne']])}`;
     if (!ng.mode) return h + '<p class="muted">Locale : vous jouez à la même table. En ligne : chacun sur son appareil, avec un code ou en invitant un ami.</p></div>';
-    h += `<label>Ma liste d'armée</label><select data-bind="armyId">${lib.map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
+    h += `<label>Ma liste d'armée</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
       ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglets Armées ou Creator).</div>'}
       <label style="margin-top:8px">Nom de la partie (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
     if (ng.mode === 'local') {
