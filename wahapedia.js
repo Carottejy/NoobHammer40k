@@ -38,6 +38,12 @@ const Wahap = (() => {
     setLang(l) { lang = l === 'en' ? 'en' : 'fr'; },
     /* Version d'affichage (anglais d'origine) d'une faction ; null tant qu'elle n'est pas chargée */
     shown(id) { if (lang !== 'en') return facs[id] || null; return disp[id] || null; },
+    /* Version anglaise d'une faction, quelle que soit la langue d'affichage (export TTS) */
+    async enFaction(id) {
+      const f = await api.faction(id); if (disp[id]) return disp[id];
+      if (!ov[id]) { try { await load(base + 'en/' + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); } catch (e) { return f; } }
+      disp[id] = mkEn(f, ov[id]); return disp[id];
+    },
     async showFaction(id) {
       const f = await api.faction(id); if (lang !== 'en') return f; if (disp[id]) return disp[id];
       if (!ov[id]) { try { await load(base + 'en/' + id + '.js?v=' + (typeof APP_VERSION !== 'undefined' ? APP_VERSION : '')); } catch (e) { return f; } }

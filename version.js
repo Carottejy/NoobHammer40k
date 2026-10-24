@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.44.0';
+var APP_VERSION = '1.45.0';
 var APP_RELEASES = [
+  { v: '1.45.0', date: '2026-10-24', notes: ['Armées : nouveau bouton « Exporter pour TTS » (JSON noobhammer-tts) avec contrôle de validité, copie dans le presse-papiers et téléchargement du fichier NomDeLaListe.tts.json.']},
   { v: '1.44.0', date: '2026-10-23', notes: ['Toutes les listes de choix sont triées par ordre alphabétique (factions, chapitres, détachements, améliorations, mots-clés, armées, unités, armes, meneurs et appuis).']},
   { v: '1.43.1', date: '2026-10-22', notes: ['Infos : le champ contact du formulaire de retour est toujours transmis (même rempli par la saisie automatique du téléphone).']},
   { v: '1.43.0', date: '2026-10-22', notes: ['Infos : nouvel encart pour signaler une anomalie ou proposer une idée (message + contact facultatif), envoyé directement au créateur de l\'appli.']},
