@@ -369,6 +369,55 @@
     return { name: a.name, faction: a.faction, subfaction: a.chapter || '', detachments: (a.detachments || []).map((d) => String(d).replace(/\s*\(\d+ pts?\)\s*$/, '')), pointsLimit: a.build && a.build.limit, edition: '11e', units };
   }
 
-  const api = { prepare, build, validate, clean, kwTitle, wbn, FORMAT, VERSION };
+  /* ---- « objet sauvegardé » Tabletop Simulator contenant l'export (bouton Télécharger) ---- */
+  const LUA = [
+    '-- Liste NoobHammer40k : la liste (JSON noobhammer-tts) est stockée dans les notes MJ de cet objet.',
+    'function onLoad()',
+    '    self.addTag("noobhammer-list")',
+    '    self.createButton({',
+    '        label = "Charger l\'armée", click_function = "chargerArmee", function_owner = self,',
+    '        position = {0, 0.6, 0}, rotation = {0, 180, 0}, width = 1500, height = 420, font_size = 150,',
+    '        color = {0.98, 0.8, 0.0}, font_color = {0, 0, 0}, tooltip = "Envoie cette liste à la NoobHammer Machine"',
+    '    })',
+    'end',
+    '',
+    'function chargerArmee(_, playerColor)',
+    '    local machines = getObjectsWithTag("noobhammer-machine")',
+    '    if #machines == 0 then',
+    '        broadcastToColor("Posez d\'abord la NoobHammer Machine sur la table (Objects → Saved Objects).", playerColor, {1, 0.3, 0.3})',
+    '        return',
+    '    end',
+    '    machines[1].call("nhImportFromObject", { guid = self.getGUID() })',
+    'end'
+  ].join('\n');
+  /* retire les caractères interdits dans un nom de fichier Windows (et les caractères de contrôle) */
+  const fileSafe = (s) => String(s == null ? '' : s).replace(/[\\/:*?"<>|\u0000-\u001f]/g, '').replace(/\s+/g, ' ').replace(/[. ]+$/, '').trim();
+  function savedObject(data, minified) {
+    const json = minified != null ? minified : JSON.stringify(data);
+    const ar = data.army || {}; const nm = ar.name || '';
+    const resume = ['Faction : ' + (ar.faction || '-'), 'Détachement : ' + (ar.detachment || '-'), 'Points : ' + ar.points + (ar.pointsLimit ? ' / ' + ar.pointsLimit : ''), 'Unités : ' + (data.units || []).length].join('\n');
+    const obj = {
+      SaveName: '', Date: '', VersionNumber: '', GameMode: '', GameType: '', GameComplexity: '',
+      Tags: [], Gravity: 0.5, PlayArea: 0.5, Table: '', Sky: '', Note: '', TabStates: {},
+      LuaScript: '', LuaScriptState: '', XmlUI: '',
+      ObjectStates: [{
+        GUID: 'a7b001', Name: 'BlockSquare',
+        Transform: { posX: 0, posY: 1, posZ: 0, rotX: 0, rotY: 0, rotZ: 0, scaleX: 2.0, scaleY: 0.3, scaleZ: 2.0 },
+        Nickname: 'Liste NoobHammer - ' + nm,
+        Description: resume + '\n\nCliquez sur « Charger l\'armée » (la NoobHammer Machine doit être sur la table).',
+        GMNotes: json,
+        ColorDiffuse: { r: 0.15, g: 0.35, b: 0.85 },
+        Tags: ['noobhammer-list'],
+        Locked: false, Grid: true, Snap: true, IgnoreFoW: false, MeasureMovement: false,
+        DragSelectable: true, Autoraise: true, Sticky: true, Tooltip: true,
+        GridProjection: false, HideWhenFaceDown: false, Hands: false,
+        LuaScriptState: '', XmlUI: '',
+        LuaScript: LUA
+      }]
+    };
+    return { fileName: 'Liste NoobHammer - ' + fileSafe(nm) + '.json', content: JSON.stringify(obj) };
+  }
+
+  const api = { savedObject, fileSafe, LUA, prepare, build, validate, clean, kwTitle, wbn, FORMAT, VERSION };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.TtsExport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

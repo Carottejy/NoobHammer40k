@@ -1947,7 +1947,7 @@
     if (mine && TT.busy) body = '<p class="muted">Préparation de l\'export…</p>';
     else if (mine && TT.err) body = '<div class="warn">' + esc(TT.err) + '</div>';
     else if (mine && TT.errs && TT.errs.length) body = '<div class="warn"><b>Export impossible : ' + TT.errs.length + ' problème(s)</b><ul style="margin:6px 0 0 18px;padding:0">' + TT.errs.slice(0, 12).map((e) => '<li>' + (e.unit ? '<b>' + esc(e.unit) + '</b> : ' : '') + esc(e.msg) + '</li>').join('') + (TT.errs.length > 12 ? '<li>… et ' + (TT.errs.length - 12) + ' autre(s)</li>' : '') + '</ul></div>';
-    else if (mine && TT.json) body = `<div class="note">✅ ${TT.units} unité(s) · ${(TT.json.length / 1024).toFixed(1)} Ko</div>${TT.warns.length ? '<details class="note" style="margin-top:6px"><summary>' + TT.warns.length + ' remarque(s) sur la répartition</summary><ul style="margin:6px 0 0 18px;padding:0">' + TT.warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul></details>' : ''}<div class="row" style="margin-top:8px"><button class="btn small" data-act="ttsCopy">📋 Copier</button><button class="btn small ghost" data-act="ttsDl">💾 Télécharger</button></div>${TT.msg ? '<p class="muted" style="margin-bottom:0">' + esc(TT.msg) + '</p>' : ''}`;
+    else if (mine && TT.json) body = `<div class="note">✅ ${TT.units} unité(s) · ${(TT.json.length / 1024).toFixed(1)} Ko</div>${TT.warns.length ? '<details class="note" style="margin-top:6px"><summary>' + TT.warns.length + ' remarque(s) sur la répartition</summary><ul style="margin:6px 0 0 18px;padding:0">' + TT.warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul></details>' : ''}<div class="row" style="margin-top:8px"><button class="btn small" data-act="ttsCopy">📋 Copier</button><button class="btn small ghost" data-act="ttsDl">💾 Télécharger</button></div><p class="muted" style="margin:6px 0 0">Placez ce fichier dans Documents\\My Games\\Tabletop Simulator\\Saves\\Saved Objects</p>${TT.msg ? '<p class="muted" style="margin-bottom:0">' + esc(TT.msg) + '</p>' : ''}`;
     return `<div class="card"><h2>Tabletop Simulator</h2><p class="muted" style="margin-top:0">Exporte la liste en JSON (caractéristiques, armes, aptitudes et composition de chaque unité) pour la table TTS.</p><button class="btn small" data-act="ttsGen" data-val="${a.id}" ${mine && TT.busy ? 'disabled' : ''}>📦 Exporter pour TTS</button>${body ? '<div style="margin-top:8px">' + body + '</div>' : ''}</div>`;
   }
   var FB = { kind: 'bug', msg: '', contact: '', busy: false, ok: '', err: '' };
@@ -2511,11 +2511,11 @@
     fbKind(v) { FB.kind = v === 'idee' ? 'idee' : 'bug'; FB.ok = ''; FB.err = ''; },
     async ttsGen(id) {
       const a = S.armies.find((x) => x.id === id); if (!a || !window.TtsExport) return;
-      TT = { id, busy: true, errs: null, warns: [], json: '', name: a.name, units: 0, err: '', msg: '' }; render();
+      TT = { id, busy: true, errs: null, warns: [], json: '', data: null, name: a.name, units: 0, err: '', msg: '' }; render();
       try {
         const ctx = await TtsExport.prepare(a, Wahap, { lang: Wahap.lang });
         const r = TtsExport.build(ctx);
-        TT = Object.assign(TT, { busy: false, errs: r.errors, warns: r.warnings, json: r.errors.length ? '' : r.json, units: r.data.units.length });
+        TT = Object.assign(TT, { busy: false, errs: r.errors, warns: r.warnings, json: r.errors.length ? '' : r.json, data: r.errors.length ? null : r.data, units: r.data.units.length });
       } catch (e) { TT = Object.assign(TT, { busy: false, err: 'Export impossible : ' + (e && e.message || e) }); }
       render();
     },
@@ -2527,8 +2527,8 @@
     },
     ttsDl() {
       if (!TT.json) return;
-      const fn = (TT.name || 'liste').replace(/[^\w\-À-ÿ ]+/g, '').trim().replace(/\s+/g, '_') || 'liste';
-      download(fn + '.tts.json', TT.json); TT.msg = 'Fichier ' + fn + '.tts.json téléchargé.'; render();
+      const so = TtsExport.savedObject(TT.data, TT.json);
+      download(so.fileName, so.content); TT.msg = 'Fichier « ' + so.fileName + ' » téléchargé.'; render();
     },
     async fbSend() {
       FB.ok = ''; FB.err = '';

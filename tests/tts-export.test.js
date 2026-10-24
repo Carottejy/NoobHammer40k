@@ -82,3 +82,25 @@ test('unité hors base : export possible avec remarque', async () => {
   const a = { id: 'x', name: 'Import', faction: 'Space Marines', detachments: [], units: [{ id: 'z1', name: 'Unité Maison', models: '3', pts: 60, M: '6', T: '4', sv: '3+', inv: '', W: '2', Ld: '6+', OC: '1', weapons: [{ name: 'Bolter', range: '24', A: '2', skill: '3+', S: '4', AP: '0', D: '1', abilities: 'Rapid Fire 1', type: 'ranged' }], abilities: [{ name: 'Fureur', text: 'Texte' }], keywords: ['Infanterie'], factionKw: [] }] };
   const r = T.build(await T.prepare(a, W, { lang: 'fr' })); assert.deepEqual(r.errors, []); assert.equal(r.data.units[0].models[0].count, 3); assert.equal(r.data.units[0].weapons[0].range, '24"'); assert.ok(r.warnings.length >= 1);
 });
+
+/* ---- objet sauvegardé TTS (bouton Télécharger) ---- */
+test('objet sauvegardé : JSON valide dont GMNotes redonne exactement l\'export', () => {
+  const so = T.savedObject(R.data, R.json); const f = JSON.parse(so.content);
+  assert.deepEqual(JSON.parse(f.ObjectStates[0].GMNotes), R.data); assert.equal(f.ObjectStates[0].GMNotes, R.json);
+  assert.deepEqual(JSON.parse(f.ObjectStates[0].GMNotes), JSON.parse(R.json));
+});
+test('objet sauvegardé : structure, nom, description et script Lua', () => {
+  const so = T.savedObject(R.data, R.json); const o = JSON.parse(so.content).ObjectStates[0];
+  assert.equal(so.fileName, 'Liste NoobHammer - Salamanders 2000pts (exemple).json');
+  assert.equal(o.Nickname, 'Liste NoobHammer - Salamanders 2000pts (exemple)'); assert.equal(o.Name, 'BlockSquare'); assert.equal(o.GUID, 'a7b001');
+  assert.deepEqual(o.Tags, ['noobhammer-list']); assert.equal(o.Transform.scaleX, 2);
+  assert.match(o.Description, /Space Marines\n.*Gladius\n.*Points : \d+ \/ 2000\nUnités : 7\n\nCliquez sur « Charger l'armée » \(la NoobHammer Machine doit être sur la table\)\.$/s);
+  assert.ok(o.LuaScript.startsWith('-- Liste NoobHammer40k : la liste (JSON noobhammer-tts)')); assert.ok(o.LuaScript.includes('function chargerArmee(_, playerColor)'));
+  assert.ok(o.LuaScript.includes('machines[1].call("nhImportFromObject", { guid = self.getGUID() })')); assert.ok(o.LuaScript.includes('label = "Charger l\'armée"'));
+  assert.ok(o.LuaScript.endsWith('end')); assert.equal(o.LuaScript.split('\n').length, 18);
+});
+test('nom de fichier : caractères interdits Windows retirés', () => {
+  const d = JSON.parse(R.json); d.army.name = 'A\\B/C:D*E?F"G<H>I|J';
+  assert.equal(T.savedObject(d, JSON.stringify(d)).fileName, 'Liste NoobHammer - ABCDEFGHIJ.json');
+  const o = JSON.parse(T.savedObject(d, JSON.stringify(d)).content).ObjectStates[0]; assert.equal(o.Nickname, 'Liste NoobHammer - A\\B/C:D*E?F"G<H>I|J');
+});
