@@ -1,7 +1,7 @@
 importScripts('./version.js');
 const CACHE = 'noobhammer40k-' + APP_VERSION;
 const ASSETS = ['./', './index.html', './style.css', './engine.js', './effects.js', './data.js', './importer.js', './alnpdf.js', './wahapedia.js', './kwfilter.js', './pdfexport.js', './tts-export.js', './sync-config.js', './rules11.js', './data/wahapedia/index.js', './version.js', './lib/pdf.classic.js', './lib/pdf.worker.classic.js', './app.js', './manifest.webmanifest',
-  './icons/accueil.jpg', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
+  './icons/accueil.jpg', './icons/codex.png', './icons/icon-192.png', './icons/icon-512.png', './icons/maskable-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
