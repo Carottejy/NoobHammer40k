@@ -131,12 +131,12 @@
     else if (S.gameArmyId) { if (S.armies.some((x) => x.id === S.gameArmyId)) S.armyId = S.gameArmyId; S.gameArmyId = null; }
   }
   /* Onglets regroupés : « Listes » = Mes listes + Creator + Assistant ; « Règles » = règles générales + Codex */
-  const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db'].includes(S.tab) : S.tab === id);
-  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 Règles générales</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button></div>`;
+  const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db', 'matrix'].includes(S.tab) : S.tab === id);
+  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 ${S.lang === 'en' ? 'Rules' : 'Règles'}</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button><button class="${S.tab === 'matrix' ? 'on' : ''}" data-act="tab" data-val="matrix">🎯 ${S.lang === 'en' ? 'Matrix' : 'Matrice'}</button></div>`;
   const backLists = () => '<button class="btn small ghost" data-act="tab" data-val="army" style="margin-bottom:8px">← Mes Listes</button>';
   function render() {
     libSwap();
-    if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
+    if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'matrix', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
     if (a && ['army', 'game', 'strats'].includes(S.tab)) frAuto(a);
     if (a) {
@@ -152,7 +152,7 @@
     if (!S.inGame && S.tab === 'strats') S.tab = 'game';
     const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Batailles']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
+    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
   }
@@ -2305,6 +2305,20 @@
     }
     return h + zoom;
   }
+  function viewMatrix() {
+    const en = S.lang === 'en'; const O = BD.FD_ORDER; const sel = S.ui.mx || null;
+    const fn = (c) => (en ? BD.FD[c].e : BD.FD[c].n), pn = (id) => (en ? BD.PM[id].e : BD.PM[id].n);
+    let h = hd(en ? 'Rules' : 'Règles') + rulesSeg();
+    h += `<div class="card"><p class="muted" style="margin:0 0 8px">${en ? 'Your Force Disposition (rows) against your opponent\'s (columns) gives your Primary Mission. Tap a cell for details.' : 'Ta Force Disposition (lignes) face à celle de l\'adversaire (colonnes) donne ta mission primaire. Touche une case pour le détail.'}</p>
+      <div style="overflow-x:auto"><table class="bwtab mx"><tr><th>${en ? 'You ▼ / Opp ▶' : 'Toi ▼ / Adv. ▶'}</th>${O.map((c) => `<th>${esc(fn(c))}</th>`).join('')}</tr>
+      ${O.map((r, i) => `<tr><th>${esc(fn(r))}</th>${O.map((c, j) => `<td class="${sel && sel[0] === i && sel[1] === j ? 'on' : ''}${i === j ? ' same' : ''}" data-act="mxPick" data-val="${i}-${j}">${esc(pn(BD.MATRIX[r][j]))}</td>`).join('')}</tr>`).join('')}</table></div></div>`;
+    if (sel) {
+      const me = BD.MATRIX[O[sel[0]]][sel[1]], op = BD.MATRIX[O[sel[1]]][sel[0]];
+      h += `<div class="card"><b>${en ? 'Matchup' : 'Duel'} : ${esc(fn(O[sel[0]]))} ${en ? 'vs' : 'contre'} ${esc(fn(O[sel[1]]))}</b></div>`;
+      h += en ? `<div class="card"><h2 style="margin:0">${esc(BD.PM[me].e)} <span class="muted" style="font-weight:400">(you)</span></h2></div><div class="card"><h2 style="margin:0">${esc(BD.PM[op].e)} <span class="muted" style="font-weight:400">(opponent)</span></h2></div><p class="muted">Scoring summaries are in French; see the official card for the English text.</p>` : pmCard(me, 'Toi') + pmCard(op, 'Adversaire') + bwNote;
+    }
+    return h;
+  }
   function battleCard() {
     const b = S.battle; if (!b) return '';
     return `<details class="card" style="margin-bottom:10px"><summary><b>⚔️ Plan de bataille</b></summary>${bwRecap(b, true)}${bwTable(Object.assign({}, b, { seed: b.seed }))}</details>`;
@@ -2399,6 +2413,7 @@
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
+    mxPick(v) { const [i, j] = v.split('-').map(Number); S.ui = Object.assign({}, S.ui, { mx: [i, j] }); },
     bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', seed: 1, two: false, role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
     bwResume() { if (S.bw) S.bw.open = true; },
     bwClose() { if (S.bw) { S.bw.open = false; S.bw.zoom = false; } },
