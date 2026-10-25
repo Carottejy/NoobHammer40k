@@ -2658,7 +2658,8 @@
     remToggle() { S.ui.remOpen = !S.ui.remOpen; },
     enemyView(v) { if (v) { S.ui.enemyView = true; if (!window.__nhEnemyHist) { window.__nhEnemyHist = true; try { history.pushState({ nh: 1 }, ''); } catch (e) { /* ignoré */ } } } else { S.ui.enemyView = false; if (window.__nhEnemyHist) { window.__nhEnemyHist = false; try { history.back(); } catch (e) { /* ignoré */ } } } },
     tab(v) {
-      if (v === 'calc' && S.tab !== 'calc' && S.inGame && S.armyId && (CALC.gameSel !== 'cur' || !CALC.armyId || (S.enemy && (!CALC.enemy || CALC.enemy.name !== S.enemy.name)))) { CALC.src = 'game'; actions.calcGame('cur'); }
+      if (v === 'calc' && S.tab !== 'calc' && S.tab !== 'game' && CALC.auto) { Object.assign(CALC, { src: 'manual', myLib: '', opLib: '', gameSel: '', enemy: null, armyId: null, open: true, msg: '', auto: false }); calcFresh(); }
+      if (v === 'calc' && S.tab === 'game' && S.inGame && S.armyId && (CALC.gameSel !== 'cur' || !CALC.armyId || (S.enemy && (!CALC.enemy || CALC.enemy.name !== S.enemy.name)))) { CALC.src = 'game'; actions.calcGame('cur'); CALC.auto = true; }
       if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
     setUi(v, el) { S.ui[el.dataset.path] = v; },
