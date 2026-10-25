@@ -278,8 +278,10 @@
       <div class="grid g2" style="margin-top:8px">${num('Attaques en plus (par fig.)', 'play.mods.extraA')}${num('PA améliorée de', 'play.mods.apImp')}${num('Force en plus', 'play.mods.strength')}${num('Dégâts en plus', 'play.mods.dmg')}${num('Réduction de dégâts adverse', 'play.mods.dmgRed')}</div>
       <div class="grid g2" style="margin-top:8px">${txt('Anti-… (mot-clé)', 'play.mods.anti')}${num('Anti seuil (X+)', 'play.mods.antiX')}</div></details>`;
     if (calc) {
+      const dp = CALC.opSrc === 'def' && CALC.src === 'manual' ? calcDefPicker() : '';
+      if (dp && !(S.enemy && S.enemy.units.length)) return top + '</div>' + dp;
       const showT = !(S.enemy && S.enemy.units.length) || !!S.play.targetUnitId;
-      return top + '</div>' + rankCard(u, w, melee) + (showT ? `<div class="card">${h}</div>` + resultCard(u, w, melee) : '<p class="muted" style="text-align:center">Touche une unité adverse ci-dessus pour voir les jets à faire.</p>');
+      return top + '</div>' + dp + rankCard(u, w, melee) + (showT ? `<div class="card">${h}</div>` + resultCard(u, w, melee) : '<p class="muted" style="text-align:center">Touche une unité adverse ci-dessus pour voir les jets à faire.</p>');
     }
     h = top + h + '</div>';
     h += resultCard(u, w, melee);
@@ -2375,6 +2377,18 @@
     const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0];
     if (t) { u.models = String(t[0]); u.pts = t[1]; } return u;
   }
+  function calcDefPicker() {
+    const ix = Wahap.index(); if (!ix && !CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; }); }
+    let h = `<div class="card"><h2>Cible</h2><div class="seg"><button class="${CALC.defTab === 'base' ? 'on' : ''}" data-act="calcDefTab" data-val="base">Infanterie de base</button><button class="${CALC.defTab === 'fac' ? 'on' : ''}" data-act="calcDefTab" data-val="fac">Par faction</button></div>`;
+    if (CALC.defTab === 'base') h += '<p class="muted" style="margin:0">Une unité d\'infanterie de base de chaque faction : le classement ci-dessous les compare toutes.</p>';
+    else if (!ix) h += '<p class="muted">Chargement de la base…</p>';
+    else {
+      h += `<label>Faction</label><div class="chips" style="margin:6px 0 10px">${abc(ix.factions, (f) => f.name).map((f) => chip(esc(f.name), CALC.defFac === f.id, `data-act="calcDef" data-val="${esc(f.id)}"`)).join('')}</div>`;
+      if (CALC.defFac && (CALC.defUnits || []).length) h += `<label>Unité</label><select data-calcunit="1"><option value="">— choisir une unité —</option>${CALC.defUnits.map((d) => `<option value="${esc(d.id)}" ${d.id === CALC.defUnit ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>`;
+    }
+    if (CALC.msg && CALC.opSrc === 'def') h += `<div class="note" style="margin-top:8px">${esc(CALC.msg)}</div>`;
+    return h + '</div>';
+  }
   async function calcImportPdf(file) {
     CALC.msg = 'Lecture du PDF…'; render();
     try {
@@ -2414,20 +2428,9 @@
         h += `<label style="margin-top:6px">Liste adverse</label><div class="seg"><button class="${CALC.opSrc === 'app' ? 'on' : ''}" data-act="calcOpSrc" data-val="app">📚 Mes listes</button><button class="${CALC.opSrc === 'aln' ? 'on' : ''}" data-act="calcOpSrc" data-val="aln">📄 Import ALN</button><button class="${CALC.opSrc === 'def' ? 'on' : ''}" data-act="calcOpSrc" data-val="def">🧪 Par défaut</button></div>`;
         if (CALC.opSrc === 'app') h += items.length ? chipsOf(items, CALC.opLib, 'calcOp') : '<p class="muted">Aucune liste dans l\'appli.</p>';
         else if (CALC.opSrc === 'aln') h += `<p class="muted" style="margin-top:0">PDF ALN ou PDF exporté par NoobHammer40k, ou export texte.</p><label class="btn" style="display:inline-block;margin:0;cursor:pointer">📄 Importer un PDF<input type="file" id="pdfCalcEnemy" accept=".pdf,application/pdf" hidden></label><details style="margin-top:10px"><summary>Ou coller un export texte / BBCode</summary><textarea id="calcEnemyText" placeholder="Orks : Liste adverse&#10;Boyz (10) : 90 pts"></textarea><button class="btn small" style="margin-top:8px" data-act="calcImportText">Importer la liste</button></details>`;
-        else {
-          const ix = Wahap.index();
-          if (!ix) { if (!CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; CALC.msg = 'Base indisponible.'; render(); }); } h += '<p class="muted">Chargement de la base…</p>'; }
-          else {
-            h += `<div class="seg"><button class="${CALC.defTab === 'base' ? 'on' : ''}" data-act="calcDefTab" data-val="base">Infanterie de base</button><button class="${CALC.defTab === 'fac' ? 'on' : ''}" data-act="calcDefTab" data-val="fac">Par faction</button></div>`;
-            if (CALC.defTab === 'base') h += '<p class="muted" style="margin-top:0">Une unité d\'infanterie de base de chaque faction : le classement ci-dessous les compare toutes.</p>';
-            else {
-              h += `<label>Faction</label>${chipsOf(abc(ix.factions, (f) => f.name).map((f) => [f.id, f.name]), CALC.defFac, 'calcDef')}`;
-              if (CALC.defFac && (CALC.defUnits || []).length) h += `<label>Unité</label><select data-calcunit="1"><option value="">— choisir une unité —</option>${CALC.defUnits.map((d) => `<option value="${esc(d.id)}" ${d.id === CALC.defUnit ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>`;
-            }
-          }
-        }
+        else h += '<p class="muted" style="margin-top:0">Choisis la cible plus bas : « Infanterie de base » (une unité par faction) ou « Par faction ».</p>';
       }
-      if (CALC.msg) h += `<div class="note">${esc(CALC.msg)}</div>`;
+      if (CALC.msg && !(CALC.src === 'manual' && CALC.opSrc === 'def')) h += `<div class="note">${esc(CALC.msg)}</div>`;
     }
     h += '</div>';
     if (!a) return h + '<p class="muted" style="text-align:center">Choisis ta liste pour commencer.</p>';
