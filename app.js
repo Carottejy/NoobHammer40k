@@ -171,10 +171,9 @@
   const GROUNDS = 5;
   const gwho = () => (S.mine ? 'me' : 'op');
   const gother = (w) => (w === 'me' ? 'op' : 'me');
-  function gNames() {
-    const n = (S.battle && S.battle.names) || {};
-    return { me: n.me || 'Moi', op: n.op || (S.enemy && S.enemy.name) || 'Adversaire' };
-  }
+  function defPlayerName() { try { const c = syCfg(); const m = c && c.s && c.s.email; if (m) return String(m).split('@')[0]; } catch (e) { /* ignoré */ } return 'Joueur'; }
+  const playerName = () => (S.playerName || '').trim() || defPlayerName();
+  function gNames() { return { me: playerName(), op: (S.enemy && S.enemy.live && S.enemy.nick) || 'Adversaire' }; }
   function gm() {
     if (!S.gm) {
       S.gm = { first: null, step: 'start', tk: '', cpOpp: 0, hand: { me: [], op: [] }, gone: { me: [], op: [] }, newIds: [], allow: 2, rd: { me: false, op: false },
@@ -323,10 +322,9 @@
       const cpa = w === 'me' ? 'data-path="cp"' : 'data-path="gm.cpOpp"';
       const cpv = live ? `<b>${S.enemy.cp == null ? '?' : S.enemy.cp}</b>` : `${cb('step', -1, '−', cpa)}<b>${gCp(w)}</b>${cb('step', 1, '+', cpa)}`;
       const row = (lab, mid) => `<div class="counter" style="gap:4px;margin-top:3px"><span class="muted" style="min-width:2.4em;font-size:.8rem">${lab}</span>${mid}</div>`;
-      const sc = (k) => { const ex = `data-who="${w}" data-key="${k}"`; return g.first && !g.over ? `${cb('gmAdj', -1, '−', ex)}<b style="font-size:1.05rem">${gSum(g.vp[w][k])}</b>${cb('gmAdj', 1, '+', ex)}${cb('gmAdj', 5, '+5', ex)}` : `<b style="font-size:1.05rem">${gSum(g.vp[w][k])}</b>`; };
-      return `<div class="note" style="padding:6px 8px;margin:0;${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div>${row('PC', cpv)}<div style="margin-top:3px"><b style="font-size:1.3rem">${gTot(w)}</b><span class="muted" style="font-size:.8rem"> /100 PV</span></div>${row('Prim.', sc('p'))}${row('Sec.', sc('s'))}</div>`;
+      return `<div class="note" style="padding:6px 8px;margin:0;${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div>${row('PC', cpv)}<div style="margin-top:3px"><b style="font-size:1.3rem">${gTot(w)}</b><span class="muted" style="font-size:.8rem"> /100 PV</span></div></div>`;
     };
-    h += `<div class="card" style="padding:10px"><div class="row sp"><b>Round ${S.round} / ${GROUNDS}</b><span class="muted" style="font-size:.85rem">${g.over ? 'Bataille terminée' : g.first ? 'Tour de ' + esc(N[gwho()]) : ''}</span></div><div class="grid g2" style="margin-top:6px;gap:6px">${col('me')}${col('op')}</div></div>`;
+    h += `<div class="card" style="padding:10px"><div class="row sp"><b>Round ${S.round} / ${GROUNDS}</b><span class="muted" style="font-size:.85rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">${g.over ? 'Bataille terminée' : g.first ? 'Tour de ' + esc(N[gwho()]) : ''}</span></div><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:6px">${col('me')}${col('op')}</div></div>`;
     const canUndo = (S.gh || []).length && !(S.enemy && S.enemy.live && (S.gh[S.gh.length - 1].round !== S.round || S.gh[S.gh.length - 1].mine !== S.mine));
     const undo = canUndo ? `<button class="btn small ghost" data-act="gmUndo" style="margin:0 0 10px">↩ Revenir en arrière</button>` : '';
     h += undo;
@@ -2380,6 +2378,7 @@
     let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="NoobHammer40k : une carotte en armure de Space Marine" width="640" height="640" style="max-width:100%;height:auto;border-radius:12px"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
     h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">⚔️ Batailles${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">📋 Mes Listes</button></div></div>`;
+    h += `<div class="card"><label>Nom de joueur</label><input type="text" data-bind="playerName" value="${esc(S.playerName || '')}" placeholder="${esc(defPlayerName())}"><div class="muted">Affiché dans les batailles. Par défaut : la partie de ton e-mail avant le @ (une fois connecté).</div></div>`;
     h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
@@ -2893,11 +2892,6 @@
       freshGame();
     },
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
-    gmAdj(v, el) {
-      const g = gm(), w = el.dataset.who, k = el.dataset.key, d = +v, r = S.round - 1;
-      if (d > 0) { const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); g.vp[w][k][r] += Math.min(d, room); g.msg = d > room ? 'Plafond atteint (15 PV par round, 45 au total).' : ''; }
-      else { let n = -d; for (let i = r; i >= 0 && n > 0; i--) { const t = Math.min(n, g.vp[w][k][i]); g.vp[w][k][i] -= t; n -= t; } }
-    },
     gmUndo() {
       const h = S.gh || []; const z = h.pop(); if (!z) return;
       S.gm = JSON.parse(z.gm); S.round = z.round; S.mine = z.mine; S.cp = z.cp; S.gm.tk = S.round + '|' + (S.mine ? 1 : 0);
@@ -3125,7 +3119,7 @@
     if (path === 'armyId') { const t = S.armies.find((x) => x.id === v); if (t && !t.gameOf) S.libId = v; }
     if (path === 'play.unitId') { S.play.weaponIdx = 0; S.play.nModelsUnit = null; }
     setPath(path, v);
-    if (path === 'net.nick' || path.startsWith('ui.')) { save(); return; }
+    if (path === 'net.nick' || path === 'playerName' || path.startsWith('ui.')) { save(); return; }
     if (path === 'play.targetUnitId') { if (!v) S.play.targetUnitId = null; syncTarget(); }
     if (path === 'play.weaponIdx') { const ub = unit(); const ew = ub && eff(army(), ub).weapons[v]; if (ew) S.play.nModels = ew.fromId ? 1 : Math.max(1, curModels(ub)); }
     render();
