@@ -2503,7 +2503,7 @@
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
-    calcStash = { armies: S.armies, armyId: S.armyId, enemy: S.enemy, armyRules: S.armyRules, customStrats: S.customStrats, play: S.play, phase: S.phase, mine: S.mine, round: S.round, used: S.used, bs: S.bs };
+    calcStash = { armies: S.armies, armyId: S.armyId, enemy: S.enemy, armyRules: S.armyRules, customStrats: S.customStrats, play: S.play, phase: S.phase, inGame: S.inGame, gameName: S.gameName, mine: S.mine, round: S.round, used: S.used, bs: S.bs };
     S.armies = calcStash.armies.concat(CALC.extra); S.armyRules = Object.assign({}, calcStash.armyRules, CALC.rules); S.customStrats = calcStash.customStrats.concat(CALC.strats);
     S.armyId = CALC.armyId; S.enemy = CALC.enemy; S.play = CALC.play; S.phase = CALC.mode === 'fight' ? 'fight' : 'shoot'; S.mine = true; S.round = 1; S.used = CALC.used; S.bs = CALC.bs;
   }
@@ -2654,7 +2654,9 @@
   const actions = {
     remToggle() { S.ui.remOpen = !S.ui.remOpen; },
     enemyView(v) { if (v) { S.ui.enemyView = true; if (!window.__nhEnemyHist) { window.__nhEnemyHist = true; try { history.pushState({ nh: 1 }, ''); } catch (e) { /* ignoré */ } } } else { S.ui.enemyView = false; if (window.__nhEnemyHist) { window.__nhEnemyHist = false; try { history.back(); } catch (e) { /* ignoré */ } } } },
-    tab(v) { if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
+    tab(v) {
+      if (v === 'calc' && S.tab !== 'calc' && S.inGame && S.armyId && (CALC.gameSel !== 'cur' || !CALC.armyId || (S.enemy && (!CALC.enemy || CALC.enemy.name !== S.enemy.name)))) { CALC.src = 'game'; actions.calcGame('cur'); }
+      if (v === 'build' && S.tab !== 'build') { B.cm = ''; S.editUnit = null; bsave(); } S.tab = v; },
     set(v, el) { const val = v === 'true' ? true : v === 'false' ? false : isNaN(v) || v === '' ? v : +v; setPath(el.dataset.path, val); },
     setUi(v, el) { S.ui[el.dataset.path] = v; },
     toggle(v, el) { setPath(el.dataset.path, !getPath(el.dataset.path)); },
