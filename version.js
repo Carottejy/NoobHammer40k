@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.59.6';
+var APP_VERSION = '1.59.7';
 var APP_RELEASES = [
+  { v: '1.59.7', date: '2026-10-25', notes: ['Batailles : la suppression d\'une partie nettoie aussi ses copies de listes et son état ; la bataille en préparation peut être abandonnée (🗑).']},
   { v: '1.59.6', date: '2026-10-25', notes: ['Bataille : l\'en-tête n\'affiche plus que le total de PV /100 et ne déborde plus de l\'écran.','Accueil : nom de joueur modifiable (par défaut la partie de l\'e-mail avant le @), utilisé dans les batailles à la place du nom de la liste.']},
   { v: '1.59.5', date: '2026-10-25', notes: ['Bataille : en-tête compact des deux joueurs (round, PC, PV /100) avec marquage des PV primaires et secondaires à tout moment (−, +, +5) ; rappels par phase repliés par défaut.']},
   { v: '1.59.4', date: '2026-10-25', notes: ['Calculs : le chargement automatique des listes de la bataille ne se fait que depuis l\'onglet Batailles ; depuis tout autre onglet, Calculs repart sur l\'initialisation normale.']},

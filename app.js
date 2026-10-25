@@ -2638,7 +2638,7 @@
     return { h, can };
   }
   function viewHub() {
-    let h = `<h1>Batailles</h1>` + (S.bw && !S.bw.open ? '<button class="btn ghost" style="width:100%;margin-bottom:8px" data-act="bwResume">▶ Reprendre la bataille en préparation</button>' : '') + '<button class="btn" style="width:100%;margin-bottom:12px" data-act="bwNew">⚔️ Nouvelle bataille</button>';
+    let h = `<h1>Batailles</h1>` + (S.bw && !S.bw.open ? '<div class="row" style="margin-bottom:8px"><button class="btn ghost grow" data-act="bwResume">▶ Reprendre la bataille en préparation</button><button class="btn danger" data-act="bwDrop" title="Abandonner la préparation">🗑</button></div>' : '') + '<button class="btn" style="width:100%;margin-bottom:12px" data-act="bwNew">⚔️ Nouvelle bataille</button>';
     h += frInvitesHtml() ? `<div class="card"><h2>Invitations</h2>${frInvitesHtml()}</div>` : '';
     h += onlineCard() + gamesCard();
     return h;
@@ -2753,6 +2753,7 @@
     },
     mxPick(v) { const [i, j] = v.split('-').map(Number); S.ui = Object.assign({}, S.ui, { mx: [i, j] }); },
     bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', seed: 1, two: false, role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
+    bwDrop() { if (confirm('Abandonner la bataille en préparation ?')) S.bw = null; },
     bwResume() { if (S.bw) S.bw.open = true; },
     bwClose() { if (S.bw) { S.bw.open = false; S.bw.zoom = false; } },
     bwBack() { if (!S.bw) return; if (S.bw.step <= 0) { S.bw.open = false; return; } S.bw.step--; window.scrollTo(0, 0); },
@@ -2881,7 +2882,16 @@
       }
       S.gameId = g.id; S.gameName = g.name; S.net = Object.assign({}, S.net, { auto: false }); S.tab = 'game'; S.inGame = true; S.ui = { gameMsg: `Partie « ${g.name} » chargée.` };
     },
-    gameDel(id) { const l = readGames(); const g = l.find((x) => x.id === id); if (!g || !confirm(`Supprimer la partie « ${g.name} » ?`)) return; writeGames(l.filter((x) => x.id !== id)); if (S.gameId === id) { S.gameId = null; S.gameName = ''; } },
+    gameDel(id) {
+      const l = readGames(); const g = l.find((x) => x.id === id); if (!g || !confirm(`Supprimer la partie « ${g.name} » ?`)) return;
+      if (!writeGames(l.filter((x) => x.id !== id))) return;
+      clearTimeout(gameTimer);
+      if (S.gameId === id) { S.gameId = null; S.gameName = ''; S.inGame = false; S.gm = null; S.gh = []; S.battle = null; }
+      const orphan = S.armies.filter((x) => x.gameOf === id).map((x) => x.id);
+      if (orphan.length) { S.armies = S.armies.filter((x) => x.gameOf !== id); orphan.forEach((k) => { delete S.armyRules[k]; S.customStrats = S.customStrats.filter((c) => c.armyId !== k); }); }
+      if (!army() || S.armyId && orphan.includes(S.armyId)) restoreLib();
+      S.ui.gameMsg = 'Partie supprimée.';
+    },
     gameRename(id) { const l = readGames(); const g = l.find((x) => x.id === id); if (!g) return; const n = prompt('Nouveau nom :', g.name); if (!n) return; g.name = n; if (writeGames(l) && S.gameId === id) S.gameName = n; },
     gameExport(id) {
       const g = readGames().find((x) => x.id === id); if (!g) return;
