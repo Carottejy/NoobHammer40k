@@ -320,9 +320,12 @@
     const col = (w) => {
       const act = gwho() === w && g.first && !g.over;
       const cpv = (w === 'op' && S.enemy && S.enemy.live) ? `<b>${S.enemy.cp == null ? '?' : S.enemy.cp}</b>` : `<button class="chip" data-act="step" data-path="${w === 'me' ? 'cp' : 'gm.cpOpp'}" data-val="-1">−</button><b>${gCp(w)}</b><button class="chip" data-act="step" data-path="${w === 'me' ? 'cp' : 'gm.cpOpp'}" data-val="1">+</button>`;
-      return `<div class="note" style="${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div><div class="counter"><span class="muted">PC</span>${cpv}</div><div class="muted">PV : <b>${gTot(w)}</b></div></div>`;
+      return `<div class="note" style="${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div><div class="counter"><span class="muted">PC</span>${cpv}</div><div style="font-size:1.25rem"><b>${gTot(w)}</b><span class="muted"> / 100 PV</span></div><div class="muted" style="font-size:.8rem">prim. ${gSum(g.vp[w].p) + (g.end.p[w] || 0)} · sec. ${gSum(g.vp[w].s)}${g.end.br[w] ? ' · +10' : ''}</div></div>`;
     };
     h += `<div class="card"><div class="row sp"><h2 style="margin:0">Round ${S.round} / ${GROUNDS}</h2><span class="muted">${g.over ? 'Bataille terminée' : g.first ? 'Tour de ' + esc(N[gwho()]) : ''}</span></div><div class="grid g2" style="margin-top:8px">${col('me')}${col('op')}</div></div>`;
+    const canUndo = (S.gh || []).length && !(S.enemy && S.enemy.live && (S.gh[S.gh.length - 1].round !== S.round || S.gh[S.gh.length - 1].mine !== S.mine));
+    const undo = canUndo ? `<button class="btn small ghost" data-act="gmUndo" style="margin:0 0 10px">↩ Revenir en arrière</button>` : '';
+    h += undo;
     if (!g.first) {
       return h + `<div class="card"><h2>Qui joue en premier ?</h2><div class="chips"><button class="chip" data-act="gmFirst" data-val="me">${esc(N.me)}</button><button class="chip" data-act="gmFirst" data-val="op">${esc(N.op)}</button></div></div>`;
     }
@@ -936,7 +939,7 @@
   const hasQuick = () => S.round > 1 || S.cp > 0 || Object.keys(S.used).length > 0 || Object.keys(S.bs).length > 0;
   function freshGame() {
     S.battle = pendingBattle; pendingBattle = null;
-    S.round = 1; S.cp = 0; S.gm = null; S.mine = true; S.phase = 'command'; S.used = {}; S.once = []; S.bs = {}; S.gameId = null; S.gameName = '';
+    S.round = 1; S.cp = 0; S.gm = null; S.gh = []; S.mine = true; S.phase = 'command'; S.used = {}; S.once = []; S.bs = {}; S.gameId = null; S.gameName = '';
     [army(), S.enemy && !S.enemy.live ? S.enemy : null].forEach((ar) => ar && ar.units.forEach((u) => { delete u.cur; delete u.hp; }));
     S.play.nModelsUnit = null; S.play.fx = {}; syncTarget();
   }
@@ -2650,6 +2653,7 @@
   }
 
   /* ---------- Actions ---------- */
+  const gSnap = () => ({ gm: JSON.stringify(S.gm), round: S.round, mine: S.mine, cp: S.cp });
   const actions = {
     remToggle() { S.ui.remOpen = !S.ui.remOpen; },
     enemyView(v) { if (v) { S.ui.enemyView = true; if (!window.__nhEnemyHist) { window.__nhEnemyHist = true; try { history.pushState({ nh: 1 }, ''); } catch (e) { /* ignoré */ } } } else { S.ui.enemyView = false; if (window.__nhEnemyHist) { window.__nhEnemyHist = false; try { history.back(); } catch (e) { /* ignoré */ } } } },
@@ -2884,6 +2888,10 @@
       freshGame();
     },
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
+    gmUndo() {
+      const h = S.gh || []; const z = h.pop(); if (!z) return;
+      S.gm = JSON.parse(z.gm); S.round = z.round; S.mine = z.mine; S.cp = z.cp; S.gm.tk = S.round + '|' + (S.mine ? 1 : 0);
+    },
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
     phOpen(v) { S.ui.phOpen = S.ui.phOpen === v ? '' : v; },
     gmStep(v) {
@@ -2897,7 +2905,7 @@
     gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); g.gone[w] = g.gone[w].filter((x) => x !== id); },
     gmRedraw(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; if (g.rd[w] || gCp(w) < 1) return; gAddCp(w, -1); g.rd[w] = true; g.hand[w] = g.hand[w].filter((x) => x !== id); g.allow += 1; },
     gmPri(v, el) { const g = gm(), w = el.dataset.who; g.draft.p[w] = Math.max(0, g.draft.p[w] + +v); },
-    gmAch(id, el) { const g = gm(), w = el.dataset.who; if (g.draft.c[w][id] != null) delete g.draft.c[w][id]; else g.draft.c[w][id] = 0; },
+    gmAch(id, el) { const g = gm(), w = el.dataset.who; if (g.draft.c[w][id] != null) delete g.draft.c[w][id]; else { const mm = /(\d+) PV/.exec(smById(id).t || ''); g.draft.c[w][id] = mm ? +mm[1] : 0; } },
     gmCv(v, el) { const g = gm(), w = el.dataset.who, id = el.dataset.id; g.draft.c[w][id] = Math.max(0, (g.draft.c[w][id] || 0) + +v); },
     gmDiscard(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; g.hand[w] = g.hand[w].filter((x) => x !== id); gAddCp(w, 1); },
     gmEnd(v, el) { const g = gm(), w = el.dataset.who; g.end.p[w] = Math.max(0, (g.end.p[w] || 0) + +v); },
@@ -2908,8 +2916,10 @@
       ['me', 'op'].forEach((w) => {
         const N = gNames();
         const add = (k, v, lab) => { if (v <= 0) return; const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); const ok = Math.min(v, room); g.vp[w][k][r] += ok; if (ok < v) notes.push(`${N[w]} : ${lab} plafonné (${ok}/${v} PV).`); };
+        const p0 = g.vp[w].p[r], s0 = g.vp[w].s[r];
         add('p', g.draft.p[w] + gSum(Object.values(g.draft.pl[w] || {})), 'primaire');
         add('s', gSum(Object.values(g.draft.c[w])), 'secondaire');
+        notes.unshift(`${N[w]} : +${g.vp[w].p[r] - p0} prim., +${g.vp[w].s[r] - s0} sec.`);
         if (gSecMode(w) === 'tac') g.hand[w] = g.hand[w].filter((id) => g.draft.c[w][id] == null);
       });
       g.msg = notes.join(' ');
@@ -3050,7 +3060,11 @@
     syncUp() { syAuth('signup'); },
     syncNow() { syncRun(true); frLoad(true); },
     syncOff() { if (confirm('Te déconnecter sur cet appareil ? Tes données restent ici et dans ton compte.')) { sySet(null); SY.msg = 'Déconnecté.'; SY.err = ''; FR.friends = []; FR.incoming = []; FR.outgoing = []; FR.invites = []; FR.loaded = false; } },
-  };
+  };  Object.keys(actions).filter((k) => /^gm/.test(k) && k !== 'gmUndo').forEach((k) => {
+    const f = actions[k];
+    actions[k] = function (v, el) { if (S.gm) { S.gh = (S.gh || []).concat([gSnap()]).slice(-40); } return f.call(this, v, el); };
+  });
+
 
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
