@@ -180,12 +180,13 @@
     if (!S.gm) {
       S.gm = { first: null, step: 'start', tk: '', cpOpp: 0, hand: { me: [], op: [] }, gone: { me: [], op: [] }, newIds: [], allow: 2, rd: { me: false, op: false },
         vp: { me: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] }, op: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] } },
-        draft: { p: { me: 0, op: 0 }, c: { me: {}, op: {} } }, end: { p: { me: 0, op: 0 }, br: { me: false, op: false } }, over: false, msg: '' };
+        draft: { p: { me: 0, op: 0 }, c: { me: {}, op: {} }, pl: { me: {}, op: {} }, ps: { me: {}, op: {} } }, end: { p: { me: 0, op: 0 }, br: { me: false, op: false } }, over: false, msg: '' };
       ['me', 'op'].forEach((w) => { const s = S.battle && S.battle.sec && S.battle.sec[w]; if (s && s.m === 'fix') S.gm.hand[w] = (s.f || []).slice(); });
     }
     const g = S.gm; const tk = S.round + '|' + (S.mine ? 1 : 0);
     if (!g.gone) g.gone = { me: [], op: [] };
-    if (g.tk !== tk) { g.tk = tk; if (g.first) { g.step = 'start'; gAward(); } g.newIds = []; g.allow = 2; g.draft = { p: { me: 0, op: 0 }, c: { me: {}, op: {} } }; }
+    if (g.tk !== tk) { g.tk = tk; if (g.first) { g.step = 'start'; gAward(); } g.newIds = []; g.allow = 2; g.draft = { p: { me: 0, op: 0 }, c: { me: {}, op: {} }, pl: { me: {}, op: {} }, ps: { me: {}, op: {} } }; }
+    if (!g.draft.pl) { g.draft.pl = { me: {}, op: {} }; g.draft.ps = { me: {}, op: {} }; }
     return g;
   }
   /* +1 PC à chaque joueur au début de chaque tour (l'adversaire en direct gère ses propres PC) */
@@ -225,6 +226,32 @@
     const c = smById(id);
     return `<details class="note"><summary><b>${esc(c.n)}</b>${extra || ''}</summary><div class="muted">${esc(c.t)}</div></details>`;
   }
+  /* Lignes de marquage d'une mission primaire : moment (cmd = fin de la phase de Commandement, end = fin du tour, battle = fin de la bataille) et rounds concernés */
+  function pmInfo(when, round) {
+    const t = String(when).toLowerCase(); let timing = /bataille/.test(t) ? 'battle' : /commandement/.test(t) ? 'cmd' : 'end';
+    if (timing === 'cmd' && round >= 5 && /round 5/.test(t.replace(/^.*\(/, ''))) timing = 'end';
+    let r1 = 1, r2 = 5; const m = /rounds? (\d)( et suivants| (?:à|et) (\d))?/.exec(t.split(' · ')[0]);
+    if (m) { r1 = +m[1]; r2 = /suivants/.test(m[2] || '') ? 5 : m[3] ? +m[3] : r1; }
+    return { timing, r1, r2 };
+  }
+  function pmApplicable(who, timing, isAct) {
+    const id = S.battle && S.battle.pm && S.battle.pm[who]; const m = id && BD.PM[id]; if (!m) return null;
+    const out = [];
+    (m.s || []).forEach((x, i) => {
+      const inf = pmInfo(x[0], S.round); if (inf.timing !== timing) return;
+      if (timing !== 'battle' && (S.round < inf.r1 || S.round > inf.r2)) return;
+      if (!isAct && !/fin d'un tour/i.test(x[0])) return;
+      const mm = /(\d+) PV/.exec(x[1]); out.push({ i, when: x[0], text: x[1], u: mm ? +mm[1] : 1 });
+    });
+    return out;
+  }
+  function gPriLines(g, w, timing, key, isAct) {
+    const l = pmApplicable(w, timing, isAct);
+    if (l === null) return null;
+    if (!l.length) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
+    return l.map((x) => { const v = (g.draft[key][w] || {})[x.i] || 0; const b = (d, lab) => `<button class="chip" data-act="gmPl" data-key="${key}" data-who="${w}" data-id="${x.i}" data-val="${d}">${lab}</button>`;
+      return `<div class="note"><div class="muted"><b>${esc(x.when)}</b></div><div>${esc(x.text)}</div><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`; }).join('');
+  }
   function pmLines(who) {
     const id = S.battle && S.battle.pm && S.battle.pm[who]; const m = id && BD.PM[id]; if (!m) return '';
     return `<details class="note"><summary><b>${esc(m.n)}</b> — comment on marque</summary>${(m.s || []).map((x) => `<div class="muted"><b>${esc(x[0])}</b> : ${esc(x[1])}</div>`).join('')}</details>`;
@@ -247,13 +274,17 @@
       } else h += '<p class="muted">Pioche terminée.</p>';
       h += `<p class="muted" style="margin-top:6px">♻ Une fois par bataille, en fin de phase de Commandement : 1 PC pour défausser une carte active et en piocher une nouvelle.</p>`;
     }
+    const pl = gPriLines(g, w, 'cmd', 'ps', true);
+    if (pl && pl.indexOf('Aucun') !== 0) h += `<h3>Points de victoire — fin de la phase de Commandement</h3><p class="muted">Missions primaires de ${esc(N[w])} : à compter maintenant.</p>${pl}`;
     return h + `<button class="btn" style="margin-top:10px" data-act="gmStep" data-val="play">Jouer le tour ▶</button></div>`;
   }
   function gScoreWho(g, w, N, isAct) {
     let h = `<div class="card"><h2>${esc(N[w])}${isAct ? ' — joueur actif' : ''}</h2>`;
     const r = S.round - 1;
     h += `<div class="muted">Primaire (déjà ${g.vp[w].p[r]}/15 ce round, ${gSum(g.vp[w].p)}/45 au total)</div>${pmLines(w)}`;
-    h += `<div class="counter" style="margin:6px 0"><span class="muted">PV primaires</span>${gStep('', 'gmPri', w, -1)}<b>${g.draft.p[w]}</b>${gStep('', 'gmPri', w, 1)}${gStep('', 'gmPri', w, 5)}</div>`;
+    const pl = gPriLines(g, w, 'end', 'pl', isAct);
+    if (pl !== null) h += pl;
+    else h += `<div class="counter" style="margin:6px 0"><span class="muted">PV primaires</span>${gStep('', 'gmPri', w, -1)}<b>${g.draft.p[w]}</b>${gStep('', 'gmPri', w, 1)}${gStep('', 'gmPri', w, 5)}</div>`;
     h += `<div class="muted" style="margin-top:8px">Secondaires (déjà ${g.vp[w].s[r]}/15 ce round, ${gSum(g.vp[w].s)}/45 au total)</div>`;
     if (!g.hand[w].length) h += '<p class="muted">Aucune carte secondaire active.</p>';
     g.hand[w].forEach((id) => {
@@ -276,7 +307,8 @@
   function gEnd(g, N) {
     let h = `<div class="card"><h2>🏁 Fin de la bataille</h2><p class="muted">Ajoute les PV marqués « à la fin de la bataille » (primaire) et les 10 PV Prêt au combat si applicable.</p>`;
     ['me', 'op'].forEach((w) => {
-      h += `<div class="note"><b>${esc(N[w])}</b><div class="counter" style="margin:6px 0"><span class="muted">PV de fin de bataille</span>${gStep('', 'gmEnd', w, -1)}<b>${g.end.p[w]}</b>${gStep('', 'gmEnd', w, 1)}${gStep('', 'gmEnd', w, 5)}</div>${chip('Prêt au combat (+10 PV)', g.end.br[w], `data-act="gmBr" data-val="${w}"`)}</div>`;
+      const bl = pmApplicable(w, 'battle', true) || [];
+      h += `<div class="note"><b>${esc(N[w])}</b>${bl.map((x) => `<div class="muted">${esc(x.text)}</div>`).join('')}<div class="counter" style="margin:6px 0"><span class="muted">PV de fin de bataille</span>${gStep('', 'gmEnd', w, -1)}<b>${g.end.p[w]}</b>${gStep('', 'gmEnd', w, 1)}${gStep('', 'gmEnd', w, 5)}</div>${chip('Prêt au combat (+10 PV)', g.end.br[w], `data-act="gmBr" data-val="${w}"`)}</div>`;
     });
     h += '</div>';
     const rows = ['me', 'op'].map((w) => `<div class="step" style="margin:0;text-align:center"><div class="t">${esc(N[w])}</div><div class="big">${gScore20(w)}/20</div><div class="muted">${gTot(w)} PV<br>primaire ${gSum(g.vp[w].p)} · secondaire ${gSum(g.vp[w].s)}${g.end.p[w] ? ' · fin ' + g.end.p[w] : ''}${g.end.br[w] ? ' · +10' : ''}</div></div>`).join('');
@@ -753,14 +785,14 @@
     if (!S.gm) return null; const g = S.gm; const o = {};
     const per = (f) => { const r = {}; ['me', 'op'].forEach((w) => { r[gRole(w)] = f(w); }); return r; };
     o.first = g.first ? gRole(g.first) : null; o.step = g.step; o.newIds = g.newIds; o.allow = g.allow; o.over = g.over; o.msg = g.msg;
-    o.hand = per((w) => g.hand[w]); o.gone = per((w) => g.gone[w]); o.rd = per((w) => g.rd[w]); o.vp = per((w) => g.vp[w]); o.dp = per((w) => g.draft.p[w]); o.dc = per((w) => g.draft.c[w]);
+    o.hand = per((w) => g.hand[w]); o.gone = per((w) => g.gone[w]); o.rd = per((w) => g.rd[w]); o.vp = per((w) => g.vp[w]); o.dp = per((w) => g.draft.p[w]); o.dc = per((w) => g.draft.c[w]); o.dpl = per((w) => g.draft.pl[w]); o.dps = per((w) => g.draft.ps[w]);
     o.ep = per((w) => g.end.p[w]); o.eb = per((w) => g.end.br[w]);
     return JSON.parse(JSON.stringify(o));
   }
   function gmFromNet(o) {
     if (!o) return; if (!S.gm) gm(); const g = S.gm; const hadFirst = !!g.first; const un = (m, f) => { Object.keys(m).forEach((r) => f(gLocal(r), m[r])); };
     g.first = o.first ? gLocal(o.first) : null; g.step = o.step; g.newIds = o.newIds || []; g.allow = o.allow || 2; g.over = !!o.over; g.msg = o.msg || '';
-    un(o.hand, (w, v) => { g.hand[w] = v; }); un(o.gone || {}, (w, v) => { g.gone[w] = v; }); un(o.rd, (w, v) => { g.rd[w] = v; }); un(o.vp, (w, v) => { g.vp[w] = v; }); un(o.dp, (w, v) => { g.draft.p[w] = v; }); un(o.dc, (w, v) => { g.draft.c[w] = v; });
+    un(o.hand, (w, v) => { g.hand[w] = v; }); un(o.gone || {}, (w, v) => { g.gone[w] = v; }); un(o.rd, (w, v) => { g.rd[w] = v; }); un(o.vp, (w, v) => { g.vp[w] = v; }); un(o.dp, (w, v) => { g.draft.p[w] = v; }); un(o.dpl || {}, (w, v) => { g.draft.pl[w] = v; }); un(o.dps || {}, (w, v) => { g.draft.ps[w] = v; }); un(o.dc, (w, v) => { g.draft.c[w] = v; });
     un(o.ep, (w, v) => { g.end.p[w] = v; }); un(o.eb, (w, v) => { g.end.br[w] = v; });
     const tk = S.round + '|' + (S.mine ? 1 : 0); if (g.tk !== tk || (!hadFirst && g.first)) { g.tk = tk; if (g.first) gAward(); }
   }
@@ -2853,7 +2885,12 @@
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
     phOpen(v) { S.ui.phOpen = S.ui.phOpen === v ? '' : v; },
-    gmStep(v) { gm().step = v; },
+    gmStep(v) {
+      const g = gm();
+      if (v === 'play' && g.step === 'start') { const w = gwho(); const n = gSum(Object.values(g.draft.ps[w] || {})); if (n > 0) { const r = S.round - 1; const room = Math.max(0, Math.min(15 - g.vp[w].p[r], 45 - gSum(g.vp[w].p))); g.vp[w].p[r] += Math.min(n, room); g.msg = n > room ? gNames()[w] + ' : primaire plafonné (' + room + '/' + n + ' PV).' : ''; } g.draft.ps = { me: {}, op: {} }; }
+      g.step = v;
+    },
+    gmPl(v, el) { const g = gm(), d = (g.draft[el.dataset.key][el.dataset.who] = g.draft[el.dataset.key][el.dataset.who] || {}), i = el.dataset.id; d[i] = Math.max(0, (d[i] || 0) + +v); },
     gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id) || g.gone[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); g.gone[w].push(id); },
     gmRand() { const g = gm(), w = gwho(); while (g.newIds.length < g.allow) { const p = BD.SM.filter((c) => !g.gone[w].includes(c.id)); if (!p.length) break; const c = p[Math.floor(Math.random() * p.length)]; g.hand[w].push(c.id); g.newIds.push(c.id); g.gone[w].push(c.id); } },
     gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); g.gone[w] = g.gone[w].filter((x) => x !== id); },
@@ -2870,7 +2907,7 @@
       ['me', 'op'].forEach((w) => {
         const N = gNames();
         const add = (k, v, lab) => { if (v <= 0) return; const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); const ok = Math.min(v, room); g.vp[w][k][r] += ok; if (ok < v) notes.push(`${N[w]} : ${lab} plafonné (${ok}/${v} PV).`); };
-        add('p', g.draft.p[w], 'primaire');
+        add('p', g.draft.p[w] + gSum(Object.values(g.draft.pl[w] || {})), 'primaire');
         add('s', gSum(Object.values(g.draft.c[w])), 'secondaire');
         if (gSecMode(w) === 'tac') g.hand[w] = g.hand[w].filter((id) => g.draft.c[w][id] == null);
       });

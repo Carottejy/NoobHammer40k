@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.58.4';
+var APP_VERSION = '1.59.0';
 var APP_RELEASES = [
+  { v: '1.59.0', date: '2026-10-25', notes: ['Comptage des PV primaires détaillé par ligne de mission et par moment : fin de la phase de Commandement (compté au début du tour), fin du tour, fin de la bataille ; seules les lignes applicables au round en cours sont proposées.']},
   { v: '1.58.4', date: '2026-10-25', notes: ['Rappels par phase : ouvrir une phase referme les autres.']},
   { v: '1.58.3', date: '2026-10-25', notes: ['Rappels par phase : une aptitude commune à plusieurs unités (ou déjà listée en règle d\'armée) n\'apparaît qu\'une seule fois.']},
   { v: '1.58.2', date: '2026-10-25', notes: ['Bataille : +1 PC automatique pour chaque joueur au début de chaque tour (bouton retiré).','Secondaires : listes déroulantes alphabétiques pour saisir les cartes tirées, et tirage aléatoire ; une carte tirée ou défaussée n\'est plus dans la pioche.']},
