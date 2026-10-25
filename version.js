@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.50.0';
+var APP_VERSION = '1.51.0';
 var APP_RELEASES = [
+  { v: '1.51.0', date: '2026-10-25', notes: ['Batailles : décors dessinés avec les empreintes officielles 11e (rectangles, triangle, lignes), cotes les plus courtes affichées, plus de lettres sur les objectifs.']},
   { v: '1.50.0', date: '2026-10-25', notes: ['Batailles : plan de table plus précis (ruines avec murs et ouvertures, couverts légers avec caisses) et cotes directement sur le plan (distance au bord gauche / haut, dimensions), affichables ou masquables.']},
   { v: '1.49.1', date: '2026-10-25', notes: ['Batailles : « Twist » devient « Péripétie ».']},
   { v: '1.49.0', date: '2026-10-25', notes: ['Règles : 3e onglet « Matrice » (Force Dispositions de chaque joueur → mission primaire), en français ou en anglais, avec le détail des deux missions du duel.']},

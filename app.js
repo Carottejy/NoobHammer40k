@@ -2232,12 +2232,12 @@
   };
   function bwTable(w) {
     const lay = BM.layout(w.dep, w.seed || 1, !!w.two); const ms = BM.measures(lay);
-    const objs = lay.objs.map((o) => `<tr><td><b>${String.fromCharCode(64 + o.i)}</b></td><td>${o.n}</td><td>${o.x}"</td><td>${o.y}"</td></tr>`).join('');
-    const rows = ms.map((m) => `<tr><td><b>${m.n}</b></td><td>${m.k === 'D' ? 'Dense' : 'Léger'}</td><td>${m.w}"×${m.h}"</td><td>${m.cx}"</td><td>${m.cy}"</td><td>${m.obj}</td></tr>`).join('');
-    return `<details class="card" open><summary><b>Cotes de placement</b></summary><p class="muted" style="margin:6px 0">Plateau 44" × 60". Mesures du <b>centre</b> de chaque élément depuis le <b>bord gauche</b> (X) et le <b>bord haut</b> (Y) du plan. Largeur × hauteur telles que dessinées.</p>
-      <div style="overflow-x:auto"><table class="bwtab"><tr><th>Obj.</th><th>Nom</th><th>X</th><th>Y</th></tr>${objs}</table>
-      <table class="bwtab" style="margin-top:8px"><tr><th>N°</th><th>Décor</th><th>Larg.×Haut.</th><th>X</th><th>Y</th><th>Sur obj.</th></tr>${rows}</table></div>
-      <p class="muted" style="margin:6px 0 0">Un élément de décor est posé sur chaque objectif. <b>Dense</b> (vert) : règle Solide. <b>Léger</b> (jaune). Laissez au moins 3" entre les éléments.</p></details>`;
+    const objs = lay.objs.map((o) => `<tr><td>${o.n}</td><td>${o.x}"</td><td>${o.y}"</td></tr>`).join('');
+    const rows = ms.map((m) => `<tr><td><b>${m.n}</b></td><td>${m.s === 'T' ? 'Triangle' : 'Rectangle'} ${m.k === 'D' ? 'dense' : 'léger'}</td><td>${m.w}"×${m.h}"</td><td>${m.near[0]}"</td><td>${m.near[1]}"</td><td>${esc(m.obj)}</td></tr>`).join('');
+    return `<details class="card" open><summary><b>Cotes de placement</b></summary><p class="muted" style="margin:6px 0">Plateau 44" × 60". Pour chaque empreinte : distance de son bord <b>le plus proche</b> au bord de table le plus proche, horizontalement puis verticalement (comme sur le plan). Largeur × hauteur telles que dessinées ; triangle : angle droit côté dessiné.</p>
+      <div style="overflow-x:auto"><table class="bwtab"><tr><th>Objectif</th><th>X</th><th>Y</th></tr>${objs}</table>
+      <table class="bwtab" style="margin-top:8px"><tr><th>N°</th><th>Empreinte</th><th>Larg.×Haut.</th><th>Au bord (←→)</th><th>Au bord (↑↓)</th><th>Sur objectif</th></tr>${rows}</table></div>
+      <p class="muted" style="margin:6px 0 0">Empreintes officielles 11e (grand rectangle 11,5"×7", triangle 8"×11,5", rectangle moyen 6"×4", lignes 10"×2,5" et 6"×2") : posez vos décors à l'intérieur. Une empreinte recouvre chaque objectif. Laissez au moins 3" entre elles.</p></details>`;
   }
   function bwSecPick(w, who, label) {
     const s = w.sec[who];
@@ -2291,7 +2291,7 @@
           <h2 style="margin:12px 0 4px">Objectifs centraux</h2><div class="muted">Jet de D6 : 1–5 = un objectif central au centre ; 6 = deux objectifs à 6" de part et d'autre du centre, le long de la ligne en pointillés.</div>${bwChips('bwTwo', w.two ? '1' : '0', [['0', '1 central (1–5)'], ['1', '2 centraux (6)']])}<button class="btn small ghost" data-act="bwTwo" data-val="">🎲 Lancer le D6</button>`;
       }
       h += '</div>';
-      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwCotes" title="Afficher / masquer les cotes">📏 ${w.cotes === false ? 'Cotes : non' : 'Cotes : oui'}</button><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div><div class="muted" style="margin-top:6px">Rouge : zone de l'Attaquant · Bleu : zone du Défenseur · Pointillés blancs : ligne de territoire. Lettres = objectifs, pastilles = n° de décor. Cotes en jaune : distance du décor au bord gauche et au bord haut ; au centre : largeur × hauteur. Vert : ruine (Dense) · Jaune : couvert (Léger). Touche le plan pour l'agrandir.</div></div>${bwTable(w)}`;
+      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwCotes" title="Afficher / masquer les cotes">📏 ${w.cotes === false ? 'Cotes : non' : 'Cotes : oui'}</button><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div><div class="muted" style="margin-top:6px">Rouge : zone de l'Attaquant · Bleu : zone du Défenseur · Pointillés blancs : ligne de territoire. Ronds blancs = objectifs, pastilles = n° d'empreinte. Cotes jaunes : distance la plus courte au bord de table, à l'horizontale et à la verticale ; au centre : largeur × hauteur. Vert : grandes empreintes · Jaune : petites. Touche le plan pour l'agrandir.</div></div>${bwTable(w)}`;
       h += bwNext(w, !!w.dep);
     } else if (w.step === 4) {
       h = bwHead(w, 'Attaquant et Défenseur') + `<div class="card"><p class="muted" style="margin:0 0 6px">Chaque joueur jette un dé : le gagnant choisit d'être Attaquant ou Défenseur.</p>${bwChips('bwRole', w.role || '', [['A', 'Je suis Attaquant'], ['D', 'Je suis Défenseur']])}<button class="btn small ghost" data-act="bwRole" data-val="">🎲 Tirage au sort</button>${w.role ? `<div class="note" style="margin-top:8px">Attaquant : <b>${esc(w.role === 'A' ? n.me : n.op)}</b><br>Défenseur : <b>${esc(w.role === 'A' ? n.op : n.me)}</b></div>` : ''}</div>` + (w.role ? `<div class="card">${bwMapHtml(w)}</div>` : '') + bwNext(w, !!w.role);

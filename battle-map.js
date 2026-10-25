@@ -19,8 +19,10 @@
     o.forEach((x, i) => { x.i = i + 1; });
     return o;
   }
-  const SIZES = [['D', 12, 6], ['D', 10, 5], ['D', 8, 5], ['L', 6, 4], ['L', 8, 3], ['L', 5, 5], ['D', 6, 6], ['L', 10, 3]];
-  const rot = (p) => ({ k: p.k, x: W - p.x, y: H - p.y, w: p.w, h: p.h, obj: p.obj });
+  /* Empreintes officielles 11e : grand rectangle 11,5×7, triangle rectangle 8×11,5, rectangle moyen 6×4, ligne longue 10×2,5, ligne courte 6×2. */
+  const SIZES = [['D', 11.5, 7, 'R'], ['D', 11.5, 7, 'R'], ['D', 11.5, 7, 'R'], ['D', 11.5, 8, 'T'], ['L', 6, 4, 'R'], ['L', 10, 2.5, 'R'], ['L', 6, 2, 'R']];
+  const OBJ = { w: 6, h: 4 };
+  const rot = (p) => ({ k: p.k, x: W - p.x, y: H - p.y, w: p.w, h: p.h, obj: p.obj, s: p.s, c: p.s === 'T' ? (p.c + 2) % 4 : 0 });
   const gap = (a, b) => { const dx = Math.max(Math.abs(a.x - b.x) - (a.w + b.w) / 2, 0), dy = Math.max(Math.abs(a.y - b.y) - (a.h + b.h) / 2, 0); return Math.hypot(dx, dy); };
   const inside = (p) => p.x - p.w / 2 >= 1 && p.x + p.w / 2 <= W - 1 && p.y - p.h / 2 >= 1 && p.y + p.h / 2 <= H - 1;
   /* Retourne { objs, pieces } ; pieces = [{n,k:'D'|'L',x,y,w,h,obj}] (x,y = centre, w = largeur, h = hauteur sur le plan). */
@@ -33,8 +35,8 @@
     objs.forEach((o) => {
       if (done.has(o.i)) return;
       const mirror = objs.find((q) => q.i !== o.i && Math.abs(q.x - (W - o.x)) < 0.6 && Math.abs(q.y - (H - o.y)) < 0.6);
-      const dense = R() < 0.5; const horiz = R() < 0.5; const w = horiz ? 6 : 4, h = horiz ? 4 : 6;
-      const p = { k: dense ? 'D' : 'L', x: o.x, y: o.y, w, h, obj: o.i };
+      const horiz = R() < 0.5; const w = horiz ? OBJ.w : OBJ.h, h = horiz ? OBJ.h : OBJ.w;
+      const p = { k: 'L', s: 'R', c: 0, x: o.x, y: o.y, w, h, obj: o.i };
       if (!inside(p)) { p.x = Math.min(Math.max(p.x, 1 + w / 2), W - 1 - w / 2); p.y = Math.min(Math.max(p.y, 1 + h / 2), H - 1 - h / 2); }
       p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
       add(p); done.add(o.i);
@@ -45,7 +47,7 @@
     while (made < want && tries < 400) {
       tries++;
       const s = pick(SIZES); const horiz = R() < 0.5; const w = horiz ? s[1] : s[2], h = horiz ? s[2] : s[1];
-      const p = { k: s[0], x: r1(3 + R() * (W - 6)), y: r1(3 + R() * (H - 6)), w, h };
+      const p = { k: s[0], s: s[3], c: Math.floor(R() * 4), x: r1(3 + R() * (W - 6)), y: r1(3 + R() * (H - 6)), w, h };
       p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
       if (!inside(p)) continue;
       const m = rot(p);
@@ -76,30 +78,20 @@
     lay.pieces.forEach((p) => {
       const dense = p.k === 'D'; const x0 = r1(p.x - p.w / 2), y0 = r1(p.y - p.h / 2), x1 = r1(p.x + p.w / 2), y1 = r1(p.y + p.h / 2);
       const col = dense ? '#3c9a55' : '#e0c84a', dk = dense ? '#0f3a1d' : '#6b5d10';
-      s += `<g><rect x="${x0}" y="${y0}" width="${p.w}" height="${p.h}" fill="${col}" fill-opacity="${dense ? .34 : .22}" stroke="${col}" stroke-width=".18" stroke-dasharray="${dense ? '' : '.7 .5'}"/>`;
-      if (dense) {
-        // ruine : murs épais avec ouvertures (déterministes)
-        const g = 1.4 + (p.n % 3) * 0.3, m = 0.55; const wall = (ax, ay, bx, by) => `<line x1="${r1(ax)}" y1="${r1(ay)}" x2="${r1(bx)}" y2="${r1(by)}" stroke="#7fd197" stroke-width=".55" stroke-linecap="square"/>`;
-        const cx = p.x + ((p.n % 2) ? 0.2 : -0.2) * p.w / 2, cy = p.y + ((p.n % 3) - 1) * p.h / 6;
-        s += wall(x0 + m / 2, y0 + m / 2, cx - g, y0 + m / 2) + wall(cx + g, y0 + m / 2, x1 - m / 2, y0 + m / 2) + wall(x0 + m / 2, y1 - m / 2, x1 - m / 2, y1 - m / 2);
-        s += wall(x0 + m / 2, y0 + m / 2, x0 + m / 2, cy - g) + wall(x0 + m / 2, cy + g, x0 + m / 2, y1 - m / 2) + wall(x1 - m / 2, y0 + m / 2, x1 - m / 2, y1 - m / 2);
-        if (p.w >= 8 && p.h >= 5) s += wall(p.x, y0 + m / 2, p.x, y0 + p.h * 0.45);
-      } else {
-        // couvert léger : caisses / barricades le long de la bordure
-        const n = Math.max(3, Math.round((p.w + p.h) / 2.2)); const per = 2 * (p.w + p.h);
-        for (let i = 0; i < n; i++) { let t = (i + 0.5) / n * per, bx, by; if (t < p.w) { bx = x0 + t; by = y0; } else if ((t -= p.w) < p.h) { bx = x1; by = y0 + t; } else if ((t -= p.h) < p.w) { bx = x1 - t; by = y1; } else { t -= p.w; bx = x0; by = y1 - t; } if (i % 4 !== 3) s += `<rect x="${r1(bx - .55)}" y="${r1(by - .55)}" width="1.1" height="1.1" fill="#c9a93a" stroke="${dk}" stroke-width=".12"/>`; }
-      }
+      s += `<g>`;
+      s += p.s === 'T' ? `<polygon points="${(p.c === 0 ? [[x0, y0], [x1, y0], [x0, y1]] : p.c === 1 ? [[x0, y0], [x1, y0], [x1, y1]] : p.c === 2 ? [[x1, y0], [x1, y1], [x0, y1]] : [[x0, y0], [x0, y1], [x1, y1]]).map((q) => q.join(',')).join(' ')}" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width=".3"/>` : `<rect x="${x0}" y="${y0}" width="${p.w}" height="${p.h}" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width=".3"/>`;
       s += `<circle cx="${r1(x0 + 1.1)}" cy="${r1(y0 + 1.1)}" r="1.05" fill="#0b1a10" fill-opacity=".85" stroke="${col}" stroke-width=".12"/><text x="${r1(x0 + 1.1)}" y="${r1(y0 + 1.75)}" font-size="1.45" font-weight="700" text-anchor="middle" fill="#fff">${p.n}</text>`;
       s += `<text x="${p.x}" y="${r1(p.obj ? y1 - .6 : p.y + .75)}" font-size="1.7" font-weight="700" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".25" paint-order="stroke">${p.w}×${p.h}</text></g>`;
       if (cotes) {
-        const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.25" text-anchor="middle" fill="#ffe08a" stroke="#000" stroke-width=".22" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
-        if (x0 > 0.5) s += `<line x1="0" y1="${p.y}" x2="${x0}" y2="${p.y}" stroke="#ffe08a" stroke-width=".12" stroke-dasharray=".4 .3" stroke-opacity=".8"/>` + t(r1(x0 / 2), r1(p.y - .35), r1(x0) + '"');
-        if (y0 > 0.5) s += `<line x1="${p.x}" y1="0" x2="${p.x}" y2="${y0}" stroke="#ffe08a" stroke-width=".12" stroke-dasharray=".4 .3" stroke-opacity=".8"/>` + t(r1(p.x - .35), r1(y0 / 2), r1(y0) + '"', true);
+        const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.3" text-anchor="middle" fill="#ffe08a" stroke="#000" stroke-width=".22" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
+        const L = x0, Rr = r1(W - x1), T = y0, B = r1(H - y1);
+        if (Math.min(L, Rr) > 0.4) { const left = L <= Rr; const v = left ? L : Rr; s += `<line x1="${left ? 0 : x1}" y1="${p.y}" x2="${left ? x0 : W}" y2="${p.y}" stroke="#ffe08a" stroke-width=".14" stroke-dasharray=".4 .3"/>` + t(r1(left ? x0 / 2 : (x1 + W) / 2), r1(p.y - .35), v + '"'); }
+        if (Math.min(T, B) > 0.4) { const top = T <= B; const v = top ? T : B; s += `<line x1="${p.x}" y1="${top ? 0 : y1}" x2="${p.x}" y2="${top ? y0 : H}" stroke="#ffe08a" stroke-width=".14" stroke-dasharray=".4 .3"/>` + t(r1(p.x - .35), r1(top ? y0 / 2 : (y1 + H) / 2), v + '"', true); }
       }
     });
     lay.objs.forEach((o) => {
       s += `<circle cx="${o.x}" cy="${o.y}" r="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".18" stroke-dasharray=".5 .4"/>`;
-      s += `<circle cx="${o.x}" cy="${o.y}" r="1.25" fill="#fff" stroke="#000" stroke-width=".25"/><text x="${o.x}" y="${r1(o.y + 0.65)}" font-size="1.8" font-weight="800" text-anchor="middle" fill="#000">${String.fromCharCode(64 + o.i)}</text>`;
+      s += `<circle cx="${o.x}" cy="${o.y}" r="1.1" fill="#fff" stroke="#000" stroke-width=".25"/><circle cx="${o.x}" cy="${o.y}" r=".45" fill="#000"/>`;
     });
     // repères de la grille (tous les 6")
     for (let x = 0; x <= W; x += 6) s += `<text x="${x}" y="-1.6" font-size="1.7" text-anchor="middle" fill="#9aa59a">${x}"</text>`;
@@ -113,7 +105,7 @@
   function measures(lay) {
     return lay.pieces.map((p) => {
       const left = r1(p.x - p.w / 2), top = r1(p.y - p.h / 2);
-      return { n: p.n, k: p.k, w: p.w, h: p.h, cx: p.x, cy: p.y, left, top, right: r1(W - (p.x + p.w / 2)), bottom: r1(H - (p.y + p.h / 2)), obj: p.obj ? String.fromCharCode(64 + p.obj) : '' };
+      return { n: p.n, k: p.k, w: p.w, h: p.h, cx: p.x, cy: p.y, left, top, right: r1(W - (p.x + p.w / 2)), bottom: r1(H - (p.y + p.h / 2)), obj: p.obj ? (lay.objs.find((o) => o.i === p.obj) || {}).n || '' : '', s: p.s, c: p.c, near: [Math.min(r1(p.x - p.w / 2), r1(W - p.x - p.w / 2)), Math.min(r1(p.y - p.h / 2), r1(H - p.y - p.h / 2))] };
     });
   }
   root.BattleMap = { W, H, objectives, layout, svg, measures };
