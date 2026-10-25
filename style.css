@@ -124,4 +124,4 @@ select option:disabled, select option.dead { color: #9a927f; }
 /* Titre de page + drapeaux de langue */
 .hd { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; } .hd h1 { margin: 0; }
 .flags { display: flex; gap: 6px; } .flags button { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px 9px; font-size: 1.2rem; line-height: 1.2; cursor: pointer; opacity: .55; } .flags button.on { opacity: 1; border-color: var(--accent); }
-.seg .ico { vertical-align: -3px; margin-right: 2px; }
+.seg .ico { vertical-align: -5px; margin-right: 2px; }
