@@ -36,6 +36,7 @@
     return d;
   }
   let S = load();
+  S.tab = 'home'; /* l'appli démarre toujours sur l'accueil */
   try { Wahap.setLang(S.lang); } catch (e) { /* ignoré */ }
   function load() {
     try { const st = normalize(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')); st.armies.forEach((x) => { if (x && typeof x.name === 'string') x.name = x.name.replace(/ \(autre appareil\)$/, ''); }); return st; } catch (e) { return defaults(); /* état corrompu */ }
@@ -2375,7 +2376,7 @@
     h += `<div class="card">`;
     h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">⚔️ Batailles${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">📋 Mes Listes</button></div></div>`;
     h += `<div class="card"><label>Nom de joueur</label><input type="text" data-bind="playerName" value="${esc(S.playerName || '')}" placeholder="${esc(defPlayerName())}"><div class="muted">Affiché dans les batailles. Par défaut : la partie de ton e-mail avant le @ (une fois connecté).</div></div>`;
-    h += syncCard() + frInvitesCardHome() + friendsCard();
+    h += frInvitesCardHome() + friendsCard() + syncCard();
     return h;
   }
   /* ----- Batailles : assistant pas à pas ----- */
