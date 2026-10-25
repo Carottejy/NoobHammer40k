@@ -124,7 +124,7 @@
         [c1, c2].forEach((c) => { s += obs(c[0] + c[2] * .3, c[1] + c[3] * .3, c[0] + c[2] * (.3 + e), c[1] + c[3] * .3) + obs(c[0] + c[2] * .3, c[1] + c[3] * .3, c[0] + c[2] * .3, c[1] + c[3] * (.3 + e)); });
       }
       s += `<text x="${p.x}" y="${r1(p.obj ? y1 - .7 : p.y + .55)}" font-size="1.45" font-weight="700" text-anchor="middle" fill="${INK}" stroke="${PAPER}" stroke-width=".35" paint-order="stroke">${p.w}×${p.h}</text>`;
-      s += `<circle cx="${r1(x0 + 1)}" cy="${r1(y0 + 1)}" r=".85" fill="${INK}"/><text x="${r1(x0 + 1)}" y="${r1(y0 + 1.5)}" font-size="1.2" font-weight="700" text-anchor="middle" fill="#fff">${p.n}</text></g>`;
+      s += '</g>';
       if (cotes) {
         const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.25" font-weight="700" text-anchor="middle" fill="${INK}" stroke="${PAPER}" stroke-width=".3" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
         const L = x0, Rr = r1(W - x1), T = y0, B = r1(H - y1);
