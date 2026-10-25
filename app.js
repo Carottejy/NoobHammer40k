@@ -132,7 +132,7 @@
   }
   /* Onglets regroupés : « Listes » = Mes listes + Creator + Assistant ; « Règles » = règles générales + Codex */
   const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db'].includes(S.tab) : S.tab === id);
-  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 Règles générales</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">📚 Codex</button></div>`;
+  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 Règles générales</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button></div>`;
   const backLists = () => '<button class="btn small ghost" data-act="tab" data-val="army" style="margin-bottom:8px">← Mes Listes</button>';
   function render() {
     libSwap();
@@ -1125,7 +1125,10 @@
   const ptsList = (d) => { const t = d && d.pc && d.pc.t.length ? d.pc.t.slice().sort((a, b) => a[0] - b[0])[0][1] : []; const seen = new Set(); return t.slice().sort((a, b) => a[0] - b[0]).filter((z) => (seen.has(z[0]) ? false : seen.add(z[0]))); };
   const figs = (n) => n + ' ' + L('fig.', n > 1 ? 'models' : 'model');
   const ptsShort = (d) => { const t = ptsList(d); if (!t.length) return ''; const m = Math.min(...t.map((z) => z[1])); return (t.length > 1 ? L('dès ', 'from ') : '') + m + ' pts'; };
-  const langBar = () => `<div class="seg" style="margin-bottom:10px">${[['fr', '🇫🇷 Français'], ['en', '🇬🇧 English (original)']].map(([k, l]) => `<button class="${(S.lang || 'fr') === k ? 'on' : ''}" data-act="lang" data-val="${k}">${l}</button>`).join('')}</div>`;
+  /* Drapeaux de langue, à droite du titre de la page */
+  const langBar = () => `<div class="flags">${[['fr', '🇫🇷', 'Français'], ['en', '🇬🇧', 'English (original)']].map(([k, f, l]) => `<button class="${(S.lang || 'fr') === k ? 'on' : ''}" data-act="lang" data-val="${k}" title="${l}" aria-label="${l}">${f}</button>`).join('')}</div>`;
+  const hd = (t) => `<div class="hd"><h1>${t}</h1>${langBar()}</div>`;
+  const ICON_MARINE = '<svg class="ico" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 2.2c-4.6 0-7.6 3.2-7.6 7.6v5.4c0 1.2.5 2.3 1.3 3.1l1.1 1.1V20h10.4v-1.6l1.1-1.1c.8-.8 1.3-1.9 1.3-3.1V9.8c0-4.4-3-7.6-7.6-7.6z"/><rect fill="currentColor" x="2.4" y="9.2" width="2.2" height="5.6" rx=".9"/><rect fill="currentColor" x="19.4" y="9.2" width="2.2" height="5.6" rx=".9"/><rect fill="currentColor" x="7.4" y="20.3" width="9.2" height="2.3" rx=".8"/><path fill="var(--panel)" d="M6.2 9h4.7v2.7L6.9 12.3zM17.8 9h-4.7v2.7l4 .6zM8.8 15.2h6.4v.8H8.8zM8.8 16.7h6.4v.8H8.8zM8.8 18.2h6.4v.8H8.8z"/></svg>';
   const ptsRow = (u) => (u.pc && ptsShort(u) ? '<b>' + ptsShort(u) + '</b> · ' : '');
   const wt = (x) => (Wahap.isEn(x) ? esc(Wahap.T(x)) + ' <span class="tag">EN</span>' : esc(x || '').replace(/\n/g, '<br>'));
   function splitWTE(t) {
@@ -1139,7 +1142,7 @@
   /* ----- Base Wahapedia ----- */
   const dbs = { fac: '', ch: '', kw: '', q: '', mode: 'units', unit: null, detFac: '', det: null, msg: '', err: '' };
   function viewDb() {
-    let h = '<h1>Règles</h1>' + rulesSeg() + langBar();
+    let h = hd('Règles') + rulesSeg();
     const ix = Wahap.index();
     if (!ix) {
       if (dbs.err) return h + `<div class="card"><div class="warn">${esc(dbs.err)}</div><button class="btn small" data-act="dbRetry">Réessayer</button></div>`;
@@ -1328,7 +1331,7 @@
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
   function creatorTabs() {
-    return `${backLists()}<h1>Creator</h1>${langBar()}`;
+    return `${backLists()}${hd('Creator')}`;
   }
   function viewBuild() {
     const head = creatorTabs();
@@ -1949,8 +1952,8 @@
   }
   function viewRules() {
     const R = rulesSrc();
-    if (S.lang === 'en') return `<h1>Rules</h1>${rulesSeg()}${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
-    return `<h1>Règles</h1>${rulesSeg()}${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    if (S.lang === 'en') return `${hd('Rules')}${rulesSeg()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    return `${hd('Règles')}${rulesSeg()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
   }
 
   /* ----- Export Tabletop Simulator (tts-export.js) ----- */
