@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.47.2';
+var APP_VERSION = '1.47.3';
 var APP_RELEASES = [
+  { v: '1.47.3', date: '2026-10-25', notes: ['Infos : retrait des encarts « Sources des règles », « Installer sur le téléphone » et « Import depuis ALN ».']},
   { v: '1.47.2', date: '2026-10-25', notes: ['Règles : l\'icône de Codex est maintenant le casque de Space Marine fourni.']},
   { v: '1.47.1', date: '2026-10-25', notes: ['Règles : l\'icône de Codex est maintenant un casque de la bibliothèque libre game-icons.net (crédit dans Infos).']},
   { v: '1.47.0', date: '2026-10-25', notes: ['Les boutons de langue (Français / English) sont réduits aux drapeaux et placés à droite du titre de la page.','Règles : l\'icône de Codex devient un casque de Space Marine.']},
