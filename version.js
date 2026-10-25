@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.53.1';
+var APP_VERSION = '1.54.0';
 var APP_RELEASES = [
+  { v: '1.54.0', date: '2026-10-25', notes: ['Nouvel onglet « Calculs » : choix des listes d\'une bataille ou à la main, unité + arme, classement des unités adverses, puis détail des jets (touches, blessures, sauvegardes, relances) au toucher d\'une cible.']},
   { v: '1.53.1', date: '2026-10-25', notes: ['Batailles : suppression du bloc « Cotes de placement », du texte sous le plan et des numéros sur le dessin.']},
   { v: '1.53.0', date: '2026-10-25', notes: ['Batailles : plans de table construits avec le kit officiel de 16 empreintes de ruines (4 grands rectangles, 2 triangles, 4 moyens, 2 lignes longues, 4 lignes courtes), bords irréguliers comme les vraies dalles.']},
   { v: '1.52.1', date: '2026-10-25', notes: ['Infos : le nombre de messages déjà reçus s\'affiche entre parenthèses sur les boutons Anomalie et Idée.']},

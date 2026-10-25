@@ -40,7 +40,9 @@
   function load() {
     try { const st = normalize(JSON.parse(localStorage.getItem(KEY) || localStorage.getItem(OLD_KEY) || 'null')); st.armies.forEach((x) => { if (x && typeof x.name === 'string') x.name = x.name.replace(/ \(autre appareil\)$/, ''); }); return st; } catch (e) { return defaults(); /* état corrompu */ }
   }
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage plein/bloqué */ } scheduleGameSave(); netPush(); syncSoon(); };
+  let calcStash = null;
+  const doSave = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* stockage plein/bloqué */ } scheduleGameSave(); netPush(); syncSoon(); };
+  const save = () => { if (calcStash) { calcOutForce(); try { doSave(); } finally { calcInForce(); } } else doSave(); };
   const army = () => S.armies.find((a) => a.id === S.armyId) || null;
   const unit = () => { const a = army(); return a ? a.units.find((u) => u.id === S.play.unitId) || null : null; };
   const setPath = (path, val) => { const k = path.split('.'); let o = S; for (let i = 0; i < k.length - 1; i++) o = o[k[i]]; o[k[k.length - 1]] = val; };
@@ -135,8 +137,9 @@
   const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 ${S.lang === 'en' ? 'Rules' : 'Règles'}</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button><button class="${S.tab === 'matrix' ? 'on' : ''}" data-act="tab" data-val="matrix">🎯 ${S.lang === 'en' ? 'Matrix' : 'Matrice'}</button></div>`;
   const backLists = () => '<button class="btn small ghost" data-act="tab" data-val="army" style="margin-bottom:8px">← Mes Listes</button>';
   function render() {
+    const calcWas = !!calcStash; if (calcWas) calcOutForce();
     libSwap();
-    if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'matrix', 'info'].includes(S.tab)) S.tab = 'home';
+    if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'matrix', 'calc', 'info'].includes(S.tab)) S.tab = 'home';
     const a = army();
     if (a && ['army', 'game', 'strats'].includes(S.tab)) frAuto(a);
     if (a) {
@@ -150,11 +153,12 @@
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
     if (!S.inGame && S.tab === 'strats') S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Batailles']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Batailles'], ['calc', '🎯', 'Calculs']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
-    $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
+    if (S.tab === 'calc') { calcInForce(); try { $app.innerHTML = viewCalc(); } finally { calcOutForce(); } } else $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
+    if (calcWas && S.tab === 'calc') calcInForce();
   }
   const chip = (label, on, attrs) => `<button class="chip ${on ? 'on' : ''}" ${attrs}>${label}</button>`;
   const tog = (label, path) => chip(label, getPath(path), `data-act="toggle" data-path="${path}"`);
@@ -231,7 +235,7 @@
     return h + '</div>';
   }
 
-  function attackCard(u) {
+  function attackCard(u, calc) {
     const melee = S.phase === 'fight';
     const weapons = (u.weapons || []).map((w, i) => ({ w, i })).filter((x) => (x.w.type === 'melee') === melee);
     let h = `<div class="card"><h2>${melee ? 'Corps à corps' : 'Tir'}</h2>`;
@@ -248,6 +252,7 @@
     } else {
       h += `<div class="chips">${tog('L\'unité a chargé ce tour', 'play.sit.charged')}</div>`;
     }
+    const top = h; h = '';
     h += `<h3>Cible</h3>`;
     const hasEn = !!(S.enemy && S.enemy.units.length);
     if (hasEn) {
@@ -270,7 +275,11 @@
       <div class="chips" style="margin-top:8px">${tog('Coups fatals', 'play.mods.lethal')}${tog('Blessures dévastatrices', 'play.mods.dev')}${radio('Touches soutenues 1', 'play.mods.sust', 1)}${radio('Touches soutenues 2', 'play.mods.sust', 2)}${radio('Sans soutenues', 'play.mods.sust', 0)}</div>
       <div class="grid g2" style="margin-top:8px">${num('Attaques en plus (par fig.)', 'play.mods.extraA')}${num('PA améliorée de', 'play.mods.apImp')}${num('Force en plus', 'play.mods.strength')}${num('Dégâts en plus', 'play.mods.dmg')}${num('Réduction de dégâts adverse', 'play.mods.dmgRed')}</div>
       <div class="grid g2" style="margin-top:8px">${txt('Anti-… (mot-clé)', 'play.mods.anti')}${num('Anti seuil (X+)', 'play.mods.antiX')}</div></details>`;
-    h += '</div>';
+    if (calc) {
+      const showT = !(S.enemy && S.enemy.units.length) || !!S.play.targetUnitId;
+      return top + '</div>' + rankCard(u, w, melee) + (showT ? `<div class="card">${h}</div>` + resultCard(u, w, melee) : '<p class="muted" style="text-align:center">Touche une unité adverse ci-dessus pour voir les jets à faire.</p>');
+    }
+    h = top + h + '</div>';
     h += resultCard(u, w, melee);
     h += rankCard(u, w, melee);
     return h;
@@ -345,7 +354,7 @@
     rows.forEach((x, i) => {
       if (x.noProfile) { h += `<div class="strat used"><b>${esc(x.b.name)}</b><div class="muted">Profil adverse incomplet (pas d'Endurance) : impossible de calculer.</div></div>`; return; }
       const sel = x.b.id === S.play.targetUnitId;
-      h += `<div class="strat ${sel ? 'sel' : ''}"><div class="row sp"><span class="nm">${i === 0 && x.pts > 0 ? '★ ' : ''}${esc(x.b.name)}${x.ee.leaders.length ? ' <span class="muted">+ ' + esc(x.ee.leaders.map((l) => l.name).join(', ')) + '</span>' : ''}</span><span class="cp">≈ ${Math.round(x.pts)} pts</span></div>
+      h += `<div class="strat ${sel ? 'sel' : ''}" data-act="aim" data-val="${x.b.id}" style="cursor:pointer"><div class="row sp"><span class="nm">${i === 0 && x.pts > 0 ? '★ ' : ''}${esc(x.b.name)}${x.ee.leaders.length ? ' <span class="muted">+ ' + esc(x.ee.leaders.map((l) => l.name).join(', ')) + '</span>' : ''}</span><span class="cp">≈ ${Math.round(x.pts)} pts</span></div>
         <div>${x.single ? `PV perdus ≈ <b>${x.dmg.toFixed(1)}</b> / ${x.t.W}` : `≈ <b>${x.kills.toFixed(1)}</b> fig. tuée(s) sur ${x.ee.nowModels} (${Math.round(x.pct * 100)} %)`}</div>
         <div class="muted">E${x.t.T} · Sv ${esc(x.t.sv || '?')}${x.t.inv ? '/' + x.t.inv + '++' : ''}${x.t.fnp ? ' · IdD ' + x.t.fnp + '+' : ''} · PV ${x.t.W} · ${x.ee.allPts} pts${x.fx.length ? ' · règles de la cible : ' + esc(x.fx.join(', ')) : ''}</div>
         <div class="row" style="margin-top:6px"><button class="btn small ${sel ? 'ghost' : ''}" data-act="aim" data-val="${x.b.id}">${sel ? 'Cible actuelle' : 'Viser cette unité'}</button></div></div>`;
@@ -2320,6 +2329,64 @@
     }
     return h;
   }
+
+  /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
+  const CALC = { src: 'manual', myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
+  function calcInForce() {
+    if (calcStash) return; if (!CALC.play) calcFresh();
+    calcStash = { armies: S.armies, armyId: S.armyId, enemy: S.enemy, armyRules: S.armyRules, customStrats: S.customStrats, play: S.play, phase: S.phase, mine: S.mine, round: S.round, used: S.used, bs: S.bs };
+    S.armies = calcStash.armies.concat(CALC.extra); S.armyRules = Object.assign({}, calcStash.armyRules, CALC.rules); S.customStrats = calcStash.customStrats.concat(CALC.strats);
+    S.armyId = CALC.armyId; S.enemy = CALC.enemy; S.play = CALC.play; S.phase = CALC.mode === 'fight' ? 'fight' : 'shoot'; S.mine = true; S.round = 1; S.used = CALC.used; S.bs = CALC.bs;
+  }
+  function calcOutForce() {
+    if (!calcStash) return;
+    CALC.armyId = S.armyId; CALC.enemy = S.enemy; CALC.play = S.play; CALC.used = S.used; CALC.bs = S.bs;
+    const k = calcStash; calcStash = null; Object.assign(S, k);
+  }
+  function inCalc(fn, skip) {
+    if (S.tab !== 'calc' || skip) return fn();
+    const was = !!calcStash; if (!was) calcInForce();
+    try { return fn(); } finally { if (!was) calcOutForce(); }
+  }
+  const cdeep = (o) => JSON.parse(JSON.stringify(o));
+  function calcSetMine(src, rules, strats) {
+    const c = cdeep(src); c.id = uid(); delete c.gameOf; delete c.fromId; delete c.live;
+    CALC.extra = [c]; CALC.rules = { [c.id]: cdeep(rules || []) }; CALC.strats = (strats || []).map((x) => Object.assign(cdeep(x), { id: 'c_' + uid(), armyId: c.id }));
+    CALC.armyId = c.id; const keep = CALC.enemy; calcFresh(); CALC.enemy = keep; CALC.open = !CALC.enemy;
+  }
+  function calcSetEnemy(e) { if (e) { const c = cdeep(e); delete c.live; c.id = uid(); CALC.enemy = c; } else CALC.enemy = null; if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; }
+  function viewCalc() {
+    const R = calcStash || S; const a = army();
+    const libs = R.armies.filter((x) => !x.gameOf);
+    const chipsOf = (items, cur, act) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => chip(esc(l), cur === v, `data-act="${act}" data-val="${esc(v)}"`)).join('')}</div>`;
+    let h = hd('Calculs');
+    const ready = !!(a && CALC.enemy);
+    const sum = `${a ? esc(a.name) : '<i>aucune liste</i>'} <span class="muted">contre</span> ${CALC.enemy ? esc(CALC.enemy.name) : '<i>aucune liste adverse</i>'}`;
+    h += `<div class="card"><div class="row sp" data-act="calcToggle" style="cursor:pointer"><b>${sum}</b><span class="muted">${CALC.open ? '▾' : '▸'}</span></div>`;
+    if (CALC.open) {
+      h += `<div class="seg" style="margin-top:10px"><button class="${CALC.src === 'game' ? 'on' : ''}" data-act="calcSrc" data-val="game">⚔️ Bataille</button><button class="${CALC.src === 'manual' ? 'on' : ''}" data-act="calcSrc" data-val="manual">✋ Manuel</button></div>`;
+      if (CALC.src === 'game') {
+        const games = readGames(); const items = (R.inGame && R.armyId ? [['cur', '⚔️ Bataille en cours' + (R.gameName ? ' — ' + R.gameName : '')]] : []).concat(games.map((g) => [g.id, g.name || 'Bataille']));
+        h += items.length ? `<label>Bataille</label>${chipsOf(items, CALC.gameSel, 'calcGame')}` : '<p class="muted">Aucune bataille enregistrée. Utilise « Manuel » ou crée une bataille.</p>';
+      } else {
+        const items = abc(libs, (x) => x.name).map((x) => [x.id, x.name]);
+        h += items.length ? `<label>Ma liste</label>${chipsOf(items, CALC.myLib, 'calcMy')}<label>Liste adverse</label>${chipsOf(items, CALC.opLib, 'calcOp')}` : '<p class="muted">Aucune liste : crée ou importe-en une dans l\'onglet « Listes ».</p>';
+      }
+      if (CALC.msg) h += `<div class="note">${esc(CALC.msg)}</div>`;
+    }
+    h += '</div>';
+    if (!a) return h + '<p class="muted" style="text-align:center">Choisis ta liste pour commencer.</p>';
+    if (!a.units.length) return h + '<p class="muted" style="text-align:center">Cette liste ne contient aucune unité.</p>';
+    if (!unit()) S.play.unitId = (topUnits(a)[0] || {}).id || null;
+    const ub = unit(); const u = eff(a, ub);
+    const label = (x) => { const e = eff(a, x); return (alive(x) ? '' : '☠ ') + esc(x.name) + (e.leaders.length ? ' (+ ' + e.leaders.map((l) => esc(l.name)).join(', ') + ')' : ''); };
+    h += `<div class="chips" style="margin-bottom:10px">${chip('🎯 Tir', CALC.mode === 'shoot', 'data-act="calcMode" data-val="shoot"')}${chip('⚔️ Corps à corps', CALC.mode === 'fight', 'data-act="calcMode" data-val="fight"')}</div>`;
+    h += `<div class="card"><label>Unité</label><select data-bind="play.unitId">${abc(topUnits(a), (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === ub.id ? 'selected' : ''}>${label(x)}</option>`).join('')}</select>
+      ${unitStatLine(u)}<div style="margin-top:8px">${modelsCtl('mine', ub, 'Figurines')}${u.leaders.map((l) => modelsCtl('mine', l, (roleOf(l) === 'support' ? 'Appui' : 'Meneur') + ' — ' + l.name)).join('')}</div></div>`;
+    if (!CALC.enemy) h += '<div class="note">Choisis aussi une liste adverse pour comparer les cibles (sinon saisis le profil de la cible à la main).</div>';
+    return h + attackCard(u, true);
+  }
   function battleCard() {
     const b = S.battle; if (!b) return '';
     return `<details class="card" style="margin-bottom:10px"><summary><b>⚔️ Plan de bataille</b></summary>${bwRecap(b, true)}</details>`;
@@ -2414,6 +2481,17 @@
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
+    calcSrc(v) { CALC.src = v; CALC.msg = ''; },
+    calcToggle() { CALC.open = !CALC.open; },
+    calcMode(v) { CALC.mode = v; if (CALC.play) CALC.play.weaponIdx = 0; },
+    calcMy(v) { const src = S.armies.find((x) => x.id === v); if (!src) return; CALC.myLib = v; CALC.gameSel = ''; calcSetMine(src, S.armyRules[src.id], S.customStrats.filter((x) => x.armyId === src.id)); CALC.msg = ''; },
+    calcOp(v) { const src = S.armies.find((x) => x.id === v); if (!src) return; CALC.opLib = v; CALC.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((x) => x.armyId === src.id)); if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; CALC.open = !CALC.armyId; },
+    calcGame(v) {
+      CALC.gameSel = v; CALC.myLib = ''; CALC.opLib = '';
+      if (v === 'cur') { const my = S.armies.find((x) => x.id === S.armyId); if (!my) { CALC.msg = 'Aucune liste dans la bataille en cours.'; return; } calcSetMine(my, S.armyRules[my.id], S.customStrats.filter((x) => x.armyId === my.id)); calcSetEnemy(S.enemy); CALC.msg = S.enemy ? '' : 'Cette bataille n\'a pas encore de liste adverse.'; }
+      else { const g = readGames().find((x) => x.id === v); const st = g && g.state; const my = st && st.armies.find((x) => x.id === st.armyId); if (!my) { CALC.msg = 'Bataille illisible.'; return; } calcSetMine(my, (st.armyRules || {})[my.id], (st.customStrats || []).filter((x) => x.armyId === my.id)); calcSetEnemy(st.enemy); CALC.msg = st.enemy ? '' : 'Cette bataille n\'a pas de liste adverse.'; }
+      CALC.open = !CALC.enemy;
+    },
     mxPick(v) { const [i, j] = v.split('-').map(Number); S.ui = Object.assign({}, S.ui, { mx: [i, j] }); },
     bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', seed: 1, two: false, role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
     bwResume() { if (S.bw) S.bw.open = true; },
@@ -2690,12 +2768,13 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el || el.disabled) return;
     const fn = actions[el.dataset.act]; if (!fn) return;
-    fn(el.dataset.val, el); render();
+    inCalc(() => fn(el.dataset.val, el), /^calc/.test(el.dataset.act)); render();
   });
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => {
+  document.addEventListener('change', (e) => inCalc(() => onChange(e)));
+  function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
     if (e.target.dataset && e.target.dataset.dbkw !== undefined) { dbs.kw = e.target.value; dbs.unit = null; render(); return; }
@@ -2736,7 +2815,7 @@
     if (path === 'play.targetUnitId') { if (!v) S.play.targetUnitId = null; syncTarget(); }
     if (path === 'play.weaponIdx') { const ub = unit(); const ew = ub && eff(army(), ub).weapons[v]; if (ew) S.play.nModels = ew.fromId ? 1 : Math.max(1, curModels(ub)); }
     render();
-  });
+  }
 
   document.addEventListener('focusout', () => { if (net.dirty) { net.dirty = false; setTimeout(() => { if (!/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) render(); }, 50); } });
   if (S.net.auto && S.net.code) setTimeout(() => netStart(S.net.role, S.net.code), 400);
