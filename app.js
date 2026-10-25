@@ -2340,7 +2340,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { src: 'manual', opSrc: 'app', defFac: '', loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2365,6 +2365,16 @@
     CALC.armyId = c.id; const keep = CALC.enemy; calcFresh(); CALC.enemy = keep; CALC.open = !CALC.enemy;
   }
   function calcSetEnemy(e) { if (e) { const c = cdeep(e); delete c.live; c.id = uid(); CALC.enemy = c; } else CALC.enemy = null; if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; }
+  const CALC_DEF = { AC: 'Garde Custodian', AE: 'Gardiens Défenseurs', AM: 'Troupes de Choc Cadiennes', AS: 'Escouade de Soeurs de Bataille', AdM: 'Rangers Skitarii', AoI: 'Breachers de la Marine Impériale', CD: 'Sanguinaires', CSM: 'Légionnaires', DG: 'Plague Marines', DRU: 'Guerriers Kabalites', EC: 'Infracteurs', GC: 'Hybrides Neophytes', GK: 'Escouade d\'Assaut', LoV: 'Guerriers Âtrekogs', NEC: 'Guerriers Nécrons', ORK: 'Boyz', QT: 'Bande de Cultistes', SM: 'Escouade Intercessor', TAU: 'Équipe D\'attaque', TS: 'Marines Rubricae', TYR: 'Termagants', WE: 'Berzerks de Khorne' };
+  const calcPpm = (x) => { const t = x.pc && x.pc.t && x.pc.t[0] && x.pc.t[0][1] && x.pc.t[0][1][0]; return t ? t[1] / t[0] : 999; };
+  function calcBasicDs(f, v) {
+    const own = f.units.filter((x) => x.fac === v); const cheap = (a) => a.slice().sort((x, y) => calcPpm(x) - calcPpm(y))[0];
+    return f.units.find((x) => CALC_DEF[v] && Wahap.norm(x.name) === Wahap.norm(CALC_DEF[v])) || cheap(own.filter((x) => x.role === 'Ligne')) || cheap(own.filter((x) => x.role === 'Infanterie' && !x.support)) || cheap(own);
+  }
+  function calcUnitFrom(d) {
+    const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0];
+    if (t) { u.models = String(t[0]); u.pts = t[1]; } return u;
+  }
   async function calcImportPdf(file) {
     CALC.msg = 'Lecture du PDF…'; render();
     try {
@@ -2407,7 +2417,14 @@
         else {
           const ix = Wahap.index();
           if (!ix) { if (!CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; CALC.msg = 'Base indisponible.'; render(); }); } h += '<p class="muted">Chargement de la base…</p>'; }
-          else h += `<p class="muted" style="margin-top:0">Une unité de base de la faction choisie (infanterie de Ligne, ou à défaut l'unité la moins chère).</p>${chipsOf(abc(ix.factions, (f) => f.name).map((f) => [f.id, f.name]), CALC.defFac, 'calcDef')}`;
+          else {
+            h += `<div class="seg"><button class="${CALC.defTab === 'base' ? 'on' : ''}" data-act="calcDefTab" data-val="base">Infanterie de base</button><button class="${CALC.defTab === 'fac' ? 'on' : ''}" data-act="calcDefTab" data-val="fac">Par faction</button></div>`;
+            if (CALC.defTab === 'base') h += '<p class="muted" style="margin-top:0">Une unité d\'infanterie de base de chaque faction : le classement ci-dessous les compare toutes.</p>';
+            else {
+              h += `<label>Faction</label>${chipsOf(abc(ix.factions, (f) => f.name).map((f) => [f.id, f.name]), CALC.defFac, 'calcDef')}`;
+              if (CALC.defFac && (CALC.defUnits || []).length) h += `<label>Unité</label><select data-calcunit="1"><option value="">— choisir une unité —</option>${CALC.defUnits.map((d) => `<option value="${esc(d.id)}" ${d.id === CALC.defUnit ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>`;
+            }
+          }
         }
       }
       if (CALC.msg) h += `<div class="note">${esc(CALC.msg)}</div>`;
@@ -2518,26 +2535,35 @@
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
-    calcOpSrc(v) { CALC.opSrc = v; CALC.msg = ''; },
+    calcOpSrc(v) { CALC.opSrc = v; CALC.msg = ''; if (v === 'def' && CALC.defTab === 'base' && !(CALC.enemy && CALC.defBasics && CALC.enemy.units === CALC.defBasics)) return actions.calcDefBase(); },
     calcImportText() {
       const r = Importer.parseList((document.getElementById('calcEnemyText') || {}).value || '');
       if (!r.units.length) { CALC.msg = 'Aucune unité reconnue. Il me faut des lignes du type « Boyz (10) : 90 pts ».'; return; }
       calcSetEnemy(Object.assign(makeArmy(r, null), { rules: [], strats: [] })); CALC.opLib = ''; CALC.defFac = ''; CALC.msg = `Liste adverse importée : ${CALC.enemy.units.length} unité(s). Sans profils : importe plutôt un PDF ALN.`; CALC.open = !CALC.armyId;
     },
+    calcDefTab(v) { CALC.defTab = v; CALC.msg = ''; if (v === 'base') return actions.calcDefBase(); if (!(CALC.defFac && CALC.defUnit)) CALC.enemy = null; else actions.calcDefPick(CALC.defUnit); },
+    async calcDefBase() {
+      if (!CALC.defBasics) {
+        CALC.msg = 'Chargement des factions…'; render();
+        try {
+          await Wahap.ready(); const out = [];
+          for (const fi of Wahap.index().factions) { let f; try { f = await Wahap.faction(fi.id); } catch (e) { continue; } const d = calcBasicDs(f, fi.id); if (!d) continue; const u = calcUnitFrom(d); u.name = `${u.name} (${fi.name})`; out.push(u); }
+          CALC.defBasics = out;
+        } catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; render(); return; }
+      }
+      CALC.opLib = ''; calcSetEnemy({ id: uid(), name: 'Infanterie de base — toutes factions', detachments: [], units: CALC.defBasics, rules: [], strats: [] });
+      CALC.msg = `${CALC.defBasics.length} factions : une unité de base chacune.`; CALC.open = !CALC.armyId; render();
+    },
     async calcDef(v) {
-      CALC.defFac = v; CALC.opLib = ''; CALC.msg = 'Chargement…'; render();
-      try {
-        const f = await Wahap.faction(v);
-        const DEF = { AC: 'Garde Custodian', AE: 'Gardiens Défenseurs', AM: 'Troupes de Choc Cadiennes', AS: 'Escouade de Soeurs de Bataille', AdM: 'Rangers Skitarii', AoI: 'Breachers de la Marine Impériale', CD: 'Sanguinaires', CSM: 'Légionnaires', DG: 'Plague Marines', DRU: 'Guerriers Kabalites', EC: 'Infracteurs', GC: 'Hybrides Neophytes', GK: 'Escouade d\'Assaut', LoV: 'Guerriers Âtrekogs', NEC: 'Guerriers Nécrons', ORK: 'Boyz', QT: 'Bande de Cultistes', SM: 'Escouade Intercessor', TAU: 'Équipe D\'attaque', TS: 'Marines Rubricae', TYR: 'Termagants', WE: 'Berzerks de Khorne' };
-        const ppm = (x) => { const t = x.pc && x.pc.t && x.pc.t[0] && x.pc.t[0][1] && x.pc.t[0][1][0]; return t ? t[1] / t[0] : 999; };
-        const own = f.units.filter((x) => x.fac === v); const cheap = (a) => a.slice().sort((x, y) => ppm(x) - ppm(y))[0];
-        const d = f.units.find((x) => DEF[v] && Wahap.norm(x.name) === Wahap.norm(DEF[v])) || cheap(own.filter((x) => x.role === 'Ligne')) || cheap(own.filter((x) => x.role === 'Infanterie' && !x.support)) || cheap(own);
-        if (!d) { CALC.msg = 'Aucune unité d\'infanterie de base dans cette faction.'; CALC.enemy = null; render(); return; }
-        const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0]; if (t) { u.models = String(t[0]); u.pts = t[1]; }
-        calcSetEnemy({ id: uid(), name: Wahap.factionName(v) + ' — ' + u.name, faction: Wahap.factionName(v), detachments: [], units: [u], rules: [], strats: [] });
-        CALC.msg = `Liste par défaut : ${u.name}${t ? ' (' + t[0] + ' fig., ' + t[1] + ' pts)' : ''}.`; CALC.open = !CALC.armyId;
-      } catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
+      CALC.defFac = v; CALC.defUnit = ''; CALC.enemy = null; CALC.defUnits = []; CALC.msg = 'Chargement…'; render();
+      try { const f = await Wahap.faction(v); CALC.defUnits = f.units.filter((x) => x.fac === v).sort((a, b) => Wahap.norm(a.name) < Wahap.norm(b.name) ? -1 : 1); CALC.msg = ''; }
+      catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
       render();
+    },
+    calcDefPick(v) {
+      const d = (CALC.defUnits || []).find((x) => x.id === v); if (!d) return;
+      CALC.defUnit = v; const u = calcUnitFrom(d); CALC.opLib = '';
+      calcSetEnemy({ id: uid(), name: Wahap.factionName(CALC.defFac) + ' — ' + u.name, detachments: [], units: [u], rules: [], strats: [] }); CALC.open = !CALC.armyId;
     },
     calcSrc(v) { CALC.src = v; CALC.msg = ''; },
     calcToggle() { CALC.open = !CALC.open; },
@@ -2832,7 +2858,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => inCalc(() => onChange(e)));
+  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.calcunit) { actions.calcDefPick(e.target.value); render(); return; } inCalc(() => onChange(e)); });
   function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
