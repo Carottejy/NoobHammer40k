@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.57.2';
+var APP_VERSION = '1.57.3';
 var APP_RELEASES = [
+  { v: '1.57.3', date: '2026-10-25', notes: ['Calculs : classement limité aux 15 meilleures cibles (bouton pour tout afficher).','Calculs : « Par faction » = liste déroulante des factions ; toutes les unités de la faction sont chargées comme une liste d\'armée adverse.']},
   { v: '1.57.2', date: '2026-10-25', notes: ['Calculs : en liste adverse « Par défaut », le choix Infanterie de base / Par faction se fait au niveau de la cible.']},
   { v: '1.57.1', date: '2026-10-25', notes: ['Calculs : liste adverse « Par défaut » sans choix de faction : onglet « Infanterie de base » (une unité par faction, toutes comparées) et onglet « Par faction » (faction puis unité).']},
   { v: '1.57.0', date: '2026-10-25', notes: ['Calculs : la liste adverse peut venir des listes de l\'appli, d\'un import ALN (PDF ou texte) ou d\'une liste par défaut (une infanterie de base par faction).']},

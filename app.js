@@ -357,7 +357,8 @@
     const pickedOnly = S.tab === 'calc' && S.play.targetUnitId && rows.some((x) => x.b.id === S.play.targetUnitId);
     if (pickedOnly) rows.splice(0, rows.length, ...rows.filter((x) => x.b.id === S.play.targetUnitId));
     let h = `<div class="card"><h2>${pickedOnly ? 'Cible choisie' : 'Quelle cible ?'}</h2><p class="muted">Classement avec <b>${esc(w.name)}</b> × ${S.play.nModels} figurine(s), situation, bonus et stratagèmes ci-dessus. Trié par points adverses éliminés (estimation moyenne).</p>`;
-    rows.forEach((x, i) => {
+    const cap = S.tab === 'calc' && !pickedOnly && rows.length > 20 && !CALC.rankAll ? 15 : rows.length;
+    rows.slice(0, cap).forEach((x, i) => {
       if (x.noProfile) { h += `<div class="strat used"><b>${esc(x.b.name)}</b><div class="muted">Profil adverse incomplet (pas d'Endurance) : impossible de calculer.</div></div>`; return; }
       const sel = x.b.id === S.play.targetUnitId;
       h += `<div class="strat ${sel ? 'sel' : ''}" data-act="aim" data-val="${x.b.id}" style="cursor:pointer"><div class="row sp"><span class="nm">${i === 0 && x.pts > 0 ? '★ ' : ''}${esc(x.b.name)}${x.ee.leaders.length ? ' <span class="muted">+ ' + esc(x.ee.leaders.map((l) => l.name).join(', ')) + '</span>' : ''}</span><span class="cp">≈ ${Math.round(x.pts)} pts</span></div>
@@ -365,6 +366,8 @@
         <div class="muted">E${x.t.T} · Sv ${esc(x.t.sv || '?')}${x.t.inv ? '/' + x.t.inv + '++' : ''}${x.t.fnp ? ' · IdD ' + x.t.fnp + '+' : ''} · PV ${x.t.W} · ${x.ee.allPts} pts${x.fx.length ? ' · règles de la cible : ' + esc(x.fx.join(', ')) : ''}</div>
         <div class="row" style="margin-top:6px"><button class="btn small ${sel ? 'ghost' : ''}" data-act="aim" data-val="${x.b.id}">${sel ? (S.tab === 'calc' ? '✕ Désélectionner' : 'Cible actuelle') : 'Viser cette unité'}</button></div></div>`;
     });
+    if (cap < rows.length) h += `<div class="row" style="margin-top:8px"><button class="btn small ghost grow" data-act="calcRankAll">Afficher les ${rows.length - cap} autres unités</button></div>`;
+    else if (S.tab === 'calc' && !pickedOnly && rows.length > 20) h += '<div class="row" style="margin-top:8px"><button class="btn small ghost grow" data-act="calcRankAll">Réduire la liste</button></div>';
     return h + '</div>';
   }
 
@@ -2342,7 +2345,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2383,8 +2386,7 @@
     if (CALC.defTab === 'base') h += '<p class="muted" style="margin:0">Une unité d\'infanterie de base de chaque faction : le classement ci-dessous les compare toutes.</p>';
     else if (!ix) h += '<p class="muted">Chargement de la base…</p>';
     else {
-      h += `<label>Faction</label><div class="chips" style="margin:6px 0 10px">${abc(ix.factions, (f) => f.name).map((f) => chip(esc(f.name), CALC.defFac === f.id, `data-act="calcDef" data-val="${esc(f.id)}"`)).join('')}</div>`;
-      if (CALC.defFac && (CALC.defUnits || []).length) h += `<label>Unité</label><select data-calcunit="1"><option value="">— choisir une unité —</option>${CALC.defUnits.map((d) => `<option value="${esc(d.id)}" ${d.id === CALC.defUnit ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select>`;
+      h += `<label>Faction</label><select data-calcfac="1"><option value="">— choisir une faction —</option>${abc(ix.factions, (f) => f.name).map((f) => `<option value="${esc(f.id)}" ${CALC.defFac === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`;
     }
     if (CALC.msg && CALC.opSrc === 'def') h += `<div class="note" style="margin-top:8px">${esc(CALC.msg)}</div>`;
     return h + '</div>';
@@ -2544,7 +2546,7 @@
       if (!r.units.length) { CALC.msg = 'Aucune unité reconnue. Il me faut des lignes du type « Boyz (10) : 90 pts ».'; return; }
       calcSetEnemy(Object.assign(makeArmy(r, null), { rules: [], strats: [] })); CALC.opLib = ''; CALC.defFac = ''; CALC.msg = `Liste adverse importée : ${CALC.enemy.units.length} unité(s). Sans profils : importe plutôt un PDF ALN.`; CALC.open = !CALC.armyId;
     },
-    calcDefTab(v) { CALC.defTab = v; CALC.msg = ''; if (v === 'base') return actions.calcDefBase(); if (!(CALC.defFac && CALC.defUnit)) CALC.enemy = null; else actions.calcDefPick(CALC.defUnit); },
+    calcDefTab(v) { CALC.defTab = v; CALC.msg = ''; if (v === 'base') return actions.calcDefBase(); if (CALC.defFac) return actions.calcDef(CALC.defFac); CALC.enemy = null; },
     async calcDefBase() {
       if (!CALC.defBasics) {
         CALC.msg = 'Chargement des factions…'; render();
@@ -2558,9 +2560,15 @@
       CALC.msg = `${CALC.defBasics.length} factions : une unité de base chacune.`; CALC.open = !CALC.armyId; render();
     },
     async calcDef(v) {
-      CALC.defFac = v; CALC.defUnit = ''; CALC.enemy = null; CALC.defUnits = []; CALC.msg = 'Chargement…'; render();
-      try { const f = await Wahap.faction(v); CALC.defUnits = f.units.filter((x) => x.fac === v).sort((a, b) => Wahap.norm(a.name) < Wahap.norm(b.name) ? -1 : 1); CALC.msg = ''; }
-      catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
+      CALC.defFac = v; CALC.defUnit = ''; CALC.opLib = ''; CALC.enemy = null;
+      if (!v) { CALC.msg = ''; render(); return; }
+      CALC.msg = 'Chargement…'; render();
+      try {
+        const f = await Wahap.faction(v); const list = f.units.filter((x) => x.fac === v).sort((a, b) => (Wahap.norm(a.name) < Wahap.norm(b.name) ? -1 : 1)).map(calcUnitFrom);
+        if (!list.length) { CALC.msg = 'Aucune unité dans cette faction.'; render(); return; }
+        calcSetEnemy({ id: uid(), name: Wahap.factionName(v) + ' — toutes les unités', faction: Wahap.factionName(v), detachments: [], units: list, rules: [], strats: [] });
+        CALC.msg = `${list.length} unités de ${Wahap.factionName(v)} chargées.`; CALC.open = !CALC.armyId;
+      } catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
       render();
     },
     calcDefPick(v) {
@@ -2568,6 +2576,7 @@
       CALC.defUnit = v; const u = calcUnitFrom(d); CALC.opLib = '';
       calcSetEnemy({ id: uid(), name: Wahap.factionName(CALC.defFac) + ' — ' + u.name, detachments: [], units: [u], rules: [], strats: [] }); CALC.open = !CALC.armyId;
     },
+    calcRankAll() { CALC.rankAll = !CALC.rankAll; },
     calcSrc(v) { CALC.src = v; CALC.msg = ''; },
     calcToggle() { CALC.open = !CALC.open; },
     calcMode(v) { CALC.mode = v; if (CALC.play) CALC.play.weaponIdx = 0; },
@@ -2861,7 +2870,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.calcunit) { actions.calcDefPick(e.target.value); render(); return; } inCalc(() => onChange(e)); });
+  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
   function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
