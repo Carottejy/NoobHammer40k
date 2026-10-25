@@ -250,11 +250,20 @@
     return out;
   }
   function gPriLines(g, w, timing, key, isAct) {
-    const l = pmApplicable(w, timing, isAct);
-    if (l === null) return null;
-    if (!l.length) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
-    return l.map((x) => { const v = (g.draft[key][w] || {})[x.i] || 0; const b = (d, lab) => `<button class="chip" data-act="gmPl" data-key="${key}" data-who="${w}" data-id="${x.i}" data-val="${d}">${lab}</button>`;
-      return `<div class="note"><div class="muted"><b>${esc(x.when)}</b></div><div>${esc(x.text)}</div><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`; }).join('');
+    const id = S.battle && S.battle.pm && S.battle.pm[w]; const m = id && BD.PM[id]; if (!m) return null;
+    const rows = [];
+    (m.s || []).forEach((x, i) => {
+      const inf = pmInfo(x[0], S.round); if (timing !== 'all' && inf.timing !== timing) return;
+      const inR = inf.timing !== 'battle' && S.round >= inf.r1 && S.round <= inf.r2; const okP = isAct || /fin d'un tour/i.test(x[0]);
+      if (timing !== 'all' && !(inR && okP)) return;
+      const mm = /(\d+) PV/.exec(x[1]); rows.push({ i, when: x[0], text: x[1], u: mm ? +mm[1] : 1, on: inR && okP, why: inf.timing === 'battle' ? 'compté en fin de bataille' : !inR ? 'pas à ce round' : 'tour adverse : non applicable' });
+    });
+    if (!rows.length) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
+    return rows.map((x) => {
+      if (!x.on) return `<div class="note" style="opacity:.55"><div class="muted"><b>${esc(x.when)}</b> — ${x.why}</div><div>${esc(x.text)}</div></div>`;
+      const v = (g.draft[key][w] || {})[x.i] || 0; const b = (d, lab) => `<button class="chip" data-act="gmPl" data-key="${key}" data-who="${w}" data-id="${x.i}" data-val="${d}">${lab}</button>`;
+      return `<div class="note"><div class="muted"><b>${esc(x.when)}</b></div><div>${esc(x.text)}</div><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`;
+    }).join('');
   }
   function pmLines(who) {
     const id = S.battle && S.battle.pm && S.battle.pm[who]; const m = id && BD.PM[id]; if (!m) return '';
@@ -278,7 +287,7 @@
       } else h += '<p class="muted">Pioche terminée.</p>';
       h += `<p class="muted" style="margin-top:6px">♻ Une fois par bataille, en fin de phase de Commandement : 1 PC pour défausser une carte active et en piocher une nouvelle.</p>`;
     }
-    const pl = gPriLines(g, w, 'cmd', 'ps', true);
+    const pl = gPriLines(g, w, 'cmd', 'pl', true);
     if (pl && pl.indexOf('Aucun') !== 0) h += `<h3>Points de victoire — fin de la phase de Commandement</h3><p class="muted">Missions primaires de ${esc(N[w])} : à compter maintenant.</p>${pl}`;
     return h + `<button class="btn" style="margin-top:10px" data-act="gmStep" data-val="play">Jouer le tour ▶</button></div>`;
   }
@@ -286,7 +295,7 @@
     let h = `<div class="card"><h2>Marquage — ${esc(N[w])}${isAct ? ' (joueur actif)' : ''}</h2>`;
     const r = S.round - 1;
     h += `<div class="muted">Primaire : ${g.vp[w].p[r]}/15 ce round · ${gSum(g.vp[w].p)}/45</div>${pmLines(w)}`;
-    const pl = gPriLines(g, w, 'end', 'pl', isAct);
+    const pl = gPriLines(g, w, 'all', 'pl', isAct);
     if (pl !== null) h += pl;
     else h += `<div class="counter" style="margin:6px 0"><span class="muted">PV primaires</span>${gStep('', 'gmPri', w, -1)}<b>${g.draft.p[w]}</b>${gStep('', 'gmPri', w, 1)}${gStep('', 'gmPri', w, 5)}</div>`;
     h += `<div class="muted" style="margin-top:8px">Secondaires : ${g.vp[w].s[r]}/15 ce round · ${gSum(g.vp[w].s)}/45</div>`;
