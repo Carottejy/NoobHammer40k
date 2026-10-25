@@ -32,34 +32,54 @@
     const pick = (a) => a[Math.floor(R() * a.length)];
     // un décor sur chaque objectif (moitié « attaquant » puis symétrique ; le central est seul)
     const done = new Set();
+    /* Kit officiel de 16 empreintes : 4 grands rectangles, 2 triangles, 4 moyens, 2 lignes longues, 4 lignes courtes. */
+    let bigLeft = 4;
     objs.forEach((o) => {
       if (done.has(o.i)) return;
       const mirror = objs.find((q) => q.i !== o.i && Math.abs(q.x - (W - o.x)) < 0.6 && Math.abs(q.y - (H - o.y)) < 0.6);
-      const horiz = R() < 0.5; const w = horiz ? OBJ.w : OBJ.h, h = horiz ? OBJ.h : OBJ.w;
-      const p = { k: 'L', s: 'R', c: 0, x: o.x, y: o.y, w, h, obj: o.i };
-      if (!inside(p)) { p.x = Math.min(Math.max(p.x, 1 + w / 2), W - 1 - w / 2); p.y = Math.min(Math.max(p.y, 1 + h / 2), H - 1 - h / 2); }
-      p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
-      add(p); done.add(o.i);
-      if (mirror) { const m = rot(p); m.obj = mirror.i; add(m); done.add(mirror.i); }
+      const big = o.k === 'C'; let horiz = R() < 0.5;
+      const mk = (hz) => { const w = big ? (hz ? 11.5 : 7) : (hz ? OBJ.w : OBJ.h), h = big ? (hz ? 7 : 11.5) : (hz ? OBJ.h : OBJ.w); const q = { k: big ? 'D' : 'L', s: 'R', c: 0, x: o.x, y: o.y, w, h, obj: o.i }; q.x = Math.round(q.x - w / 2) + w / 2; q.y = Math.round(q.y - h / 2) + h / 2; return q; };
+      let p = mk(horiz);
+      if (mirror && gap(p, rot(p)) < 0.5) { const p2 = mk(!horiz); if (gap(p2, rot(p2)) > gap(p, rot(p))) p = p2; }
+      if (!inside(p)) { p.x = Math.min(Math.max(p.x, 1 + p.w / 2), W - 1 - p.w / 2); p.y = Math.min(Math.max(p.y, 1 + p.h / 2), H - 1 - p.h / 2); }
+      add(p); done.add(o.i); if (big) bigLeft--;
+      if (mirror) { const m = rot(p); m.obj = mirror.i; add(m); done.add(mirror.i); if (big) bigLeft--; }
     });
-    // décors supplémentaires, par paires symétriques
-    const want = 4 + Math.floor(R() * 2); let tries = 0, made = 0;
-    while (made < want && tries < 400) {
-      tries++;
-      const s = pick(SIZES); const horiz = R() < 0.5; const w = horiz ? s[1] : s[2], h = horiz ? s[2] : s[1];
-      const p = { k: s[0], s: s[3], c: Math.floor(R() * 4), x: r1(3 + R() * (W - 6)), y: r1(3 + R() * (H - 6)), w, h };
-      p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
-      if (!inside(p)) continue;
-      const m = rot(p);
-      if (gap(p, m) < 3) continue;
-      if (pieces.some((q) => gap(p, q) < 3 || gap(m, q) < 3)) continue;
-      if (objs.some((o) => Math.hypot(Math.max(Math.abs(o.x - p.x) - p.w / 2, 0), Math.max(Math.abs(o.y - p.y) - p.h / 2, 0)) < 3.5 || Math.hypot(Math.max(Math.abs(o.x - m.x) - m.w / 2, 0), Math.max(Math.abs(o.y - m.y) - m.h / 2, 0)) < 3.5)) continue;
-      add(p); add(m); made++;
-    }
+    // décors supplémentaires : paires symétriques tirées dans le reste du kit
+    const pool = [['D', 8, 11.5, 'T'], ['L', 10, 2.5, 'R'], ['L', 6, 2, 'R'], ['L', 6, 2, 'R']];
+    for (let i = 0; i < Math.floor(bigLeft / 2); i++) pool.push(['D', 11.5, 7, 'R']);
+    for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); const t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
+    pool.forEach((sz) => {
+      for (let tries = 0; tries < 120; tries++) {
+        const horiz = R() < 0.5; const w = horiz ? sz[1] : sz[2], h = horiz ? sz[2] : sz[1];
+        const p = { k: sz[0], s: sz[3], c: Math.floor(R() * 4), x: 3 + R() * (W - 6), y: 3 + R() * (H - 6), w, h };
+        p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
+        if (!inside(p)) continue;
+        const m = rot(p);
+        if (gap(p, m) < 3) continue;
+        if (pieces.some((q) => gap(p, q) < 3 || gap(m, q) < 3)) continue;
+        if (objs.some((o) => Math.hypot(Math.max(Math.abs(o.x - p.x) - p.w / 2, 0), Math.max(Math.abs(o.y - p.y) - p.h / 2, 0)) < 3.5 || Math.hypot(Math.max(Math.abs(o.x - m.x) - m.w / 2, 0), Math.max(Math.abs(o.y - m.y) - m.h / 2, 0)) < 3.5)) continue;
+        add(p); add(m); break;
+      }
+    });
     pieces.forEach((p, i) => { p.n = i + 1; });
     return { objs, pieces };
   }
   const poly = (a) => a.map((p) => p.join(',')).join(' ');
+  /* Bord irrégulier (comme les dalles de ruines réelles) : un côté, déterministe, sur le côté le plus long. */
+  function ragged(pts, p) {
+    const n = pts.length; let bi = 0, bl = 0;
+    for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; const l = Math.hypot(b[0] - a[0], b[1] - a[1]); if (l > bl + 0.01 && (i + p.n) % 2 === 0 || l > bl + 3) { bl = l; bi = i; } }
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      out.push(pts[i]);
+      if (i !== bi || bl < 4) continue;
+      const a = pts[i], b = pts[(i + 1) % n]; const steps = Math.floor(bl / 1.3); const nx = -(b[1] - a[1]) / bl, ny = (b[0] - a[0]) / bl;
+      const cx = p.x, cy = p.y; const sgn = ((a[0] + b[0]) / 2 - cx) * nx + ((a[1] + b[1]) / 2 - cy) * ny >= 0 ? -1 : 1; // vers l'intérieur
+      for (let k = 1; k < steps; k++) { const t = k / steps; const h = Math.abs(Math.sin((k + p.n * 3.7) * 12.9898) * 43758.5453) % 1; const d = sgn * (0.1 + h * 0.55); out.push([r1(a[0] + (b[0] - a[0]) * t + nx * d), r1(a[1] + (b[1] - a[1]) * t + ny * d)]); }
+    }
+    return out;
+  }
   /* Dessin SVG (style « plan imprimé » : fond crème quadrillé, zones pleines, empreintes hachurées, murs verts, obstacles orange). */
   function svg(depId, lay, opts) {
     opts = opts || {}; const d = BD().DEPLOY[depId]; const nm = opts.names || {}; const uid = 'm' + (opts.id || '0');
@@ -82,6 +102,7 @@
       let pts;
       if (p.s === 'T') pts = p.c === 0 ? [[x0, y0], [x1, y0], [x0, y1]] : p.c === 1 ? [[x0, y0], [x1, y0], [x1, y1]] : p.c === 2 ? [[x1, y0], [x1, y1], [x0, y1]] : [[x0, y0], [x0, y1], [x1, y1]];
       else pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      pts = ragged(pts, p);
       s += `<g><polygon points="${poly(pts)}" fill="url(#${uid}h)" stroke="${INK}" stroke-width=".28" stroke-linejoin="round"/>`;
       const e = 1.6; // longueur des équerres
       if (p.s === 'T') {
