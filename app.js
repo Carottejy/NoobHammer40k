@@ -150,7 +150,7 @@
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
     if (!S.inGame && S.tab === 'strats') S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Batailles']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
@@ -759,6 +759,7 @@
   }
   const hasQuick = () => S.round > 1 || S.cp > 0 || Object.keys(S.used).length > 0 || Object.keys(S.bs).length > 0;
   function freshGame() {
+    S.battle = pendingBattle; pendingBattle = null;
     S.round = 1; S.cp = 0; S.mine = true; S.phase = 'command'; S.used = {}; S.once = []; S.bs = {}; S.gameId = null; S.gameName = '';
     [army(), S.enemy && !S.enemy.live ? S.enemy : null].forEach((ar) => ar && ar.units.forEach((u) => { delete u.cur; delete u.hp; }));
     S.play.nModelsUnit = null; S.play.fx = {}; syncTarget();
@@ -799,7 +800,7 @@
   const fmtDate = (t) => { const d = new Date(t); return `${d.getDate()}/${d.getMonth() + 1} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   function gamesCard() {
     const l = readGames();
-    return `<div class="card"><h2>Mes parties</h2>
+    return `<div class="card"><h2>Mes batailles</h2>
       ${S.ui.gameMsg ? `<div class="note">${esc(S.ui.gameMsg)}</div>` : ''}
       ${l.map((g) => `<div class="unit-item col"><div><b>${esc(g.name)}</b>${g.id === S.gameId ? ' <span class="tag">en cours</span>' : ''}<div class="muted">${fmtDate(g.at)} · Round ${g.state.round} · ${g.state.cp} PC · liste : ${esc(((g.state.armies || []).find((x) => x.id === g.state.armyId) || {}).name || '—')}${g.state.enemy ? ' vs ' + esc(g.state.enemy.name) : ''}</div></div>
         <div class="row"><button class="btn small" data-act="gameLoad" data-val="${g.id}">Ouvrir</button><button class="btn small ghost" data-act="gameExport" data-val="${g.id}">Exporter</button><button class="btn small ghost" data-act="gameRename" data-val="${g.id}">Renommer</button><button class="btn small danger" data-act="gameDel" data-val="${g.id}">Suppr.</button></div></div>`).join('') || '<p class="muted" style="margin-top:8px">Aucune partie sauvegardée. Crée ta première partie ci-dessus.</p>'}
@@ -2194,21 +2195,128 @@
     const a = army(); const l = readGames();
     let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
-    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes Listes</button></div></div>`;
+    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Batailles${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes Listes</button></div></div>`;
     h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
-  function newGameCard() {
+  /* ----- Batailles : assistant pas à pas ----- */
+  const BD = window.BattleData, BM = window.BattleMap;
+  let pendingBattle = null;
+  const bwOn = () => !!(S.bw && S.bw.open);
+  const bwDet = (s) => String(s).replace(/\s*\(\d+\s*pts?\)\s*$/i, '');
+  function bwFds(a) {
+    const rows = ((a && a.detachments) || []).map((s) => { const n = bwDet(s); return [n, BD.NAMEFD[Wahap.norm(n)] || '']; });
+    return { rows, fds: BD.FD_ORDER.filter((c) => rows.some((r) => r[1] === c)) };
+  }
+  function bwPrim(w) {
+    let me = BD.MATRIX[w.fdMe][BD.FD_ORDER.indexOf(w.fdOpp)], op = BD.MATRIX[w.fdOpp][BD.FD_ORDER.indexOf(w.fdMe)];
+    if (w.twist === 'mirror' && w.mirror) { me = w.mirror; op = w.mirror; } else if (w.twist === 'scrambled') { const t = me; me = op; op = t; }
+    return { me, op };
+  }
+  const bwNames = () => ({ me: (army() || {}).name || 'Ma liste', op: S.enemy ? S.enemy.name : 'Adversaire' });
+  const bwRoleNames = (w) => { const n = bwNames(); return w.role === 'A' ? { a: n.me, d: n.op } : w.role === 'D' ? { a: n.op, d: n.me } : { a: 'Attaquant', d: 'Défenseur' }; };
+  const bwHead = (w, title) => `<div class="bwh"><button class="bwi" data-act="bwBack" aria-label="Retour">←</button><div class="bwt"><b>${title}</b><span class="muted">Étape ${w.step + 1} sur 7</span></div><button class="bwi" data-act="bwClose" aria-label="Fermer">✕</button></div>`;
+  const bwNote = '<p class="muted" style="margin:6px 0 0">Résumé en français : en cas de doute, le texte officiel de la carte fait foi.</p>';
+  function pmCard(id, who) {
+    const m = BD.PM[id];
+    return `<div class="card"><div class="muted">${esc(who)}</div><h2 style="margin:2px 0 6px">${esc(m.n)} <span class="muted" style="font-weight:400;font-size:.8rem">(${esc(m.e)})</span></h2>${m.a ? `<div class="note">${esc(m.a)}</div>` : ''}${m.s.map(([t, x]) => `<div class="bwr"><b>${esc(t)}</b><div>${esc(x)}</div></div>`).join('')}${m.act ? `<div class="note"><b>Action : ${esc(m.act.n)}</b><br>${esc(m.act.t)}</div>` : ''}</div>`;
+  }
+  function smCard(c, mode) {
+    return `<div class="bwr"><b>${esc(c.n)}</b> <span class="muted">(${esc(c.e)})</span><div>${esc(c.t)}</div></div>`;
+  }
+  const bwChips = (act, cur, items, extra) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => `<button type="button" class="chip${cur === v ? ' on' : ''}" data-act="${act}" data-val="${esc(v)}"${extra || ''}>${l}</button>`).join('')}</div>`;
+  const bwMapHtml = (w, big) => {
+    if (!w.dep) return '';
+    const lay = BM.layout(w.dep, w.seed || 1, !!w.two);
+    return BM.svg(w.dep, lay, { names: bwRoleNames(w), id: big ? 'z' : 'p' });
+  };
+  function bwTable(w) {
+    const lay = BM.layout(w.dep, w.seed || 1, !!w.two); const ms = BM.measures(lay);
+    const objs = lay.objs.map((o) => `<tr><td><b>${String.fromCharCode(64 + o.i)}</b></td><td>${o.n}</td><td>${o.x}"</td><td>${o.y}"</td></tr>`).join('');
+    const rows = ms.map((m) => `<tr><td><b>${m.n}</b></td><td>${m.k === 'D' ? 'Dense' : 'Léger'}</td><td>${m.w}"×${m.h}"</td><td>${m.cx}"</td><td>${m.cy}"</td><td>${m.obj}</td></tr>`).join('');
+    return `<details class="card" open><summary><b>Cotes de placement</b></summary><p class="muted" style="margin:6px 0">Plateau 44" × 60". Mesures du <b>centre</b> de chaque élément depuis le <b>bord gauche</b> (X) et le <b>bord haut</b> (Y) du plan. Largeur × hauteur telles que dessinées.</p>
+      <div style="overflow-x:auto"><table class="bwtab"><tr><th>Obj.</th><th>Nom</th><th>X</th><th>Y</th></tr>${objs}</table>
+      <table class="bwtab" style="margin-top:8px"><tr><th>N°</th><th>Décor</th><th>Larg.×Haut.</th><th>X</th><th>Y</th><th>Sur obj.</th></tr>${rows}</table></div>
+      <p class="muted" style="margin:6px 0 0">Un élément de décor est posé sur chaque objectif. <b>Dense</b> (vert) : règle Solide. <b>Léger</b> (jaune). Laissez au moins 3" entre les éléments.</p></details>`;
+  }
+  function bwSecPick(w, who, label) {
+    const s = w.sec[who];
+    let h = `<div class="card"><h2 style="margin:0 0 6px">${esc(label)}</h2>${bwChips('bwSecMode', s.m, [['tac', 'Tactique'], ['fix', 'Fixe']], ` data-who="${who}"`)}`;
+    if (s.m === 'tac') h += '<p class="muted" style="margin:0">Tactique : piochez 2 cartes au début de chaque phase de Commandement. Une fois par bataille, dépensez 1 PC en fin de phase de Commandement pour défausser une carte active et repiocher. Les cartes réussies sont défaussées ; vous pouvez défausser une carte active à votre tour pour gagner 1 PC.</p>';
+    else {
+      h += `<p class="muted" style="margin:0 0 6px">Fixe : choisissez 2 cartes parmi les 4 ci-dessous (face visible, jamais défaussées, 20 PV max chacune).</p>${bwChips('bwFix', '', BD.SM.filter((c) => c.f).map((c) => [c.id, (s.f.includes(c.id) ? '✓ ' : '') + esc(c.n)]), ` data-who="${who}"`)}`;
+      h += BD.SM.filter((c) => s.f.includes(c.id)).map((c) => smCard(c, 'fix')).join('');
+    }
+    return h + '</div>';
+  }
+  function bwRecap(b, big) {
+    const n = b.names; const d = BD.DEPLOY[b.dep]; const role = b.role === 'A' ? [n.me, n.op] : [n.op, n.me];
+    const sec = (who) => { const s = b.sec[who]; return s.m === 'tac' ? 'Tactique' : 'Fixe : ' + (s.f.map((i) => (BD.SM.find((c) => c.id === i) || {}).n).join(' + ') || '—'); };
+    let h = `<div class="card"><div class="bwr"><b>Missions primaires</b><div>${esc(n.me)} : <b>${esc(BD.PM[b.pm.me].n)}</b> (${esc(BD.FD[b.fdMe].n)})<br>${esc(n.op)} : <b>${esc(BD.PM[b.pm.op].n)}</b> (${esc(BD.FD[b.fdOpp].n)})</div></div>
+      ${b.twist ? `<div class="bwr"><b>Twist</b><div>${esc(BD.TWISTS.find((t) => t.id === b.twist).n)}</div></div>` : ''}
+      <div class="bwr"><b>Déploiement</b><div>${esc(d.n)} <span class="muted">(${esc(d.e)})</span> · plan n° ${b.seed} · ${b.two ? '2 objectifs centraux' : '1 objectif central'}</div></div>
+      <div class="bwr"><b>Rôles</b><div>Attaquant : ${esc(role[0])}<br>Défenseur : ${esc(role[1])}</div></div>
+      <div class="bwr"><b>Missions secondaires</b><div>${esc(n.me)} : ${esc(sec('me'))}<br>${esc(n.op)} : ${esc(sec('op'))}</div></div></div>`;
+    if (big) h += `<div class="card">${BM.svg(b.dep, BM.layout(b.dep, b.seed, !!b.two), { names: { a: role[0], d: role[1] }, id: 'r' })}</div>`;
+    return h;
+  }
+  function bwBattle(w) { return { names: bwNames(), fdMe: w.fdMe, fdOpp: w.fdOpp, twist: w.twist || '', pm: bwPrim(w), dep: w.dep, seed: w.seed || 1, two: !!w.two, role: w.role, sec: w.sec }; }
+  const bwNext = (w, ok) => `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="bwNext" ${ok ? '' : 'disabled'}>Suivant →</button></div>`;
+  function viewBattle() {
+    const w = S.bw; const n = bwNames(); let h = '';
+    const zoom = w.zoom ? `<div class="bwz"><button class="bwi" data-act="bwZoom" aria-label="Fermer l'aperçu" style="position:absolute;top:10px;right:10px">✕</button>${bwMapHtml(w, true)}</div>` : '';
+    if (w.step === 0) {
+      const b = ngBody();
+      h = bwHead(w, 'Nouvelle bataille') + `<div class="card">${b.h}</div>` + bwNext(w, b.can);
+    } else if (w.step === 1) {
+      const me = bwFds(army()), op = bwFds(S.enemy);
+      const blk = (who, label, f, cur) => {
+        const fds = f.fds.length ? f.fds : BD.FD_ORDER;
+        return `<div class="card"><h2 style="margin:0 0 4px">${esc(label)}</h2>${f.rows.length ? f.rows.map((r) => `<div class="muted">${esc(r[0])} → ${r[1] ? esc(BD.FD[r[1]].n) : '<i>non reconnu</i>'}</div>`).join('') : '<div class="muted">Détachements inconnus : choisis librement.</div>'}
+          <label style="margin-top:8px">Mission choisie${f.fds.length ? '' : ' (au choix)'}</label>${bwChips('bwFd', cur, fds.map((c) => [c, esc(BD.FD[c].n)]), ` data-who="${who}"`)}${cur ? `<div class="muted">${esc(BD.FD[cur].d)}</div>` : ''}</div>`;
+      };
+      h = bwHead(w, 'Choix de la mission') + '<p class="muted" style="margin:0 0 8px">Chaque joueur choisit (en secret) une mission parmi celles que permettent ses détachements, puis on les révèle.</p>' + blk('me', n.me, me, w.fdMe) + blk('op', n.op, op, w.fdOpp) + bwNext(w, !!(w.fdMe && w.fdOpp));
+    } else if (w.step === 2) {
+      const p = bwPrim(w);
+      h = bwHead(w, 'Objectifs primaires') + pmCard(p.me, n.me) + pmCard(p.op, n.op) + bwNote;
+      h += `<div class="card" style="margin-top:10px"><h2 style="margin:0 0 4px">Twist (facultatif)</h2><div class="muted">À utiliser seulement si les deux joueurs sont d'accord.</div>${bwChips('bwTwist', w.twist || '', [['', 'Aucun']].concat(BD.TWISTS.map((t) => [t.id, esc(t.n)])))}`;
+      const t = BD.TWISTS.find((x) => x.id === w.twist);
+      if (t) h += `<div class="note"><b>${esc(t.n)}</b> (${esc(t.e)}) — ${esc(t.t)}</div>`;
+      if (w.twist === 'mirror') h += `<label>Mission commune</label>${bwChips('bwMirror', w.mirror || '', BD.MIRROR.map((i) => [i, esc(BD.PM[i].n)]))}<button class="btn small ghost" data-act="bwMirror" data-val="">🎲 Au hasard</button>`;
+      h += '</div>' + bwNext(w, w.twist !== 'mirror' || !!w.mirror);
+    } else if (w.step === 3) {
+      h = bwHead(w, 'Champ de bataille') + `<div class="card"><h2 style="margin:0 0 4px">Carte de déploiement</h2>${bwChips('bwDep', w.dep || '', Object.keys(BD.DEPLOY).map((k) => [k, esc(BD.DEPLOY[k].n)]))}<button class="btn small ghost" data-act="bwDep" data-val="">🎲 Au hasard</button>`;
+      if (w.dep) {
+        h += `<h2 style="margin:12px 0 4px">Plan des décors</h2><div class="chips" style="margin:6px 0">${[1, 2, 3, 4, 5, 6].map((i) => `<button type="button" class="chip${(w.seed || 1) === i ? ' on' : ''}" data-act="bwSeed" data-val="${i}">Plan ${i}</button>`).join('')}</div><button class="btn small ghost" data-act="bwSeed" data-val="">🎲 Plan au hasard</button>
+          <h2 style="margin:12px 0 4px">Objectifs centraux</h2><div class="muted">Jet de D6 : 1–5 = un objectif central au centre ; 6 = deux objectifs à 6" de part et d'autre du centre, le long de la ligne en pointillés.</div>${bwChips('bwTwo', w.two ? '1' : '0', [['0', '1 central (1–5)'], ['1', '2 centraux (6)']])}<button class="btn small ghost" data-act="bwTwo" data-val="">🎲 Lancer le D6</button>`;
+      }
+      h += '</div>';
+      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div><div class="muted" style="margin-top:6px">Rouge : zone de l'Attaquant · Bleu : zone du Défenseur · Pointillés : ligne de territoire. Lettres = objectifs, chiffres = décors.</div></div>${bwTable(w)}`;
+      h += bwNext(w, !!w.dep);
+    } else if (w.step === 4) {
+      h = bwHead(w, 'Attaquant et Défenseur') + `<div class="card"><p class="muted" style="margin:0 0 6px">Chaque joueur jette un dé : le gagnant choisit d'être Attaquant ou Défenseur.</p>${bwChips('bwRole', w.role || '', [['A', 'Je suis Attaquant'], ['D', 'Je suis Défenseur']])}<button class="btn small ghost" data-act="bwRole" data-val="">🎲 Tirage au sort</button>${w.role ? `<div class="note" style="margin-top:8px">Attaquant : <b>${esc(w.role === 'A' ? n.me : n.op)}</b><br>Défenseur : <b>${esc(w.role === 'A' ? n.op : n.me)}</b></div>` : ''}</div>` + (w.role ? `<div class="card">${bwMapHtml(w)}</div>` : '') + bwNext(w, !!w.role);
+    } else if (w.step === 5) {
+      h = bwHead(w, 'Missions secondaires') + bwSecPick(w, 'me', n.me) + bwSecPick(w, 'op', n.op)
+        + `<details class="card"><summary><b>Voir les 18 cartes secondaires</b></summary>${BD.SM.map((c) => smCard(c, 'tac')).join('')}${bwNote}</details>`
+        + bwNext(w, w.sec.me.m === 'tac' || w.sec.me.f.length === 2 ? (w.sec.op.m === 'tac' || w.sec.op.f.length === 2) : false);
+    } else {
+      const b = bwBattle(w);
+      h = bwHead(w, 'Prêt à commencer') + bwRecap(b, true) + `<details class="card"><summary><b>Déroulé à suivre</b></summary>${BD.SEQ.slice(6).map((s, i) => `<div class="bwr"><b>${i + 7}. ${esc(s[0])}</b><div>${esc(s[1])}</div></div>`).join('')}</details><div class="row" style="margin-top:12px"><button class="btn grow" data-act="bwStart">⚔️ Commencer la bataille</button></div>`;
+    }
+    return h + zoom;
+  }
+  function battleCard() {
+    const b = S.battle; if (!b) return '';
+    return `<details class="card" style="margin-bottom:10px"><summary><b>⚔️ Plan de bataille</b></summary>${bwRecap(b, true)}${bwTable(Object.assign({}, b, { seed: b.seed }))}</details>`;
+  }
+  function ngBody() {
     const ng = S.ui.ng || {}; const a = army(); const lib = libArmies();
-    const quick = '';
-    if (!ng.open) return `${quick}<button class="btn" style="width:100%;margin-bottom:12px" data-act="ngToggle">➕ Nouvelle partie</button>`;
     const seg = (act, cur, items) => `<div class="seg">${items.map(([v, l]) => `<button type="button" class="${cur === v ? 'on' : ''}" data-act="${act}" data-val="${v}">${l}</button>`).join('')}</div>`;
-    let h = `${quick}<div class="card"><div class="row sp"><h2 style="margin:0">Nouvelle partie</h2><button class="btn small ghost" data-act="ngToggle">Fermer</button></div>
-      <label style="margin-top:8px">Type de partie</label>${seg('ngMode', ng.mode || '', [['local', '🏠 Locale'], ['online', '🌐 En ligne']])}`;
-    if (!ng.mode) return h + '<p class="muted">Locale : vous jouez à la même table. En ligne : chacun sur son appareil, avec un code ou en invitant un ami.</p></div>';
+    let h = `<label>Type de bataille</label>${seg('ngMode', ng.mode || '', [['local', '🏠 Locale'], ['online', '🌐 En ligne']])}`;
+    if (!ng.mode) return { h: h + '<p class="muted">Locale : vous jouez à la même table. En ligne : chacun sur son appareil, avec un code ou en invitant un ami.</p>', can: false };
     h += `<label>Ma liste d'armée</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
       ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglet Listes).</div>'}
-      <label style="margin-top:8px">Nom de la partie (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
+      <label style="margin-top:8px">Nom de la bataille (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
     if (ng.mode === 'local') {
       h += `<label style="margin-top:8px">Liste de l'adversaire</label>`;
       if (S.enemy) h += `<div class="note">Adversaire : <b>${esc(S.enemy.name)}</b>${S.enemy.live ? ' (en direct)' : ''} · ${S.enemy.units.length} unités.${S.enemy.live ? '' : ' <button class="btn small ghost" data-act="enemyDrop">Changer</button>'}</div>`;
@@ -2227,23 +2335,24 @@
       else h += `<div class="chips">${FR.friends.map((f) => `<button type="button" class="chip${ng.friend === f.uid ? ' on' : ''}" data-act="ngFriend" data-val="${esc(f.uid)}">${esc(f.pseudo)}</button>`).join('')}</div>`;
     }
     const can = !!a && (ng.mode === 'local' || (ng.online || 'code') === 'code' || !!ng.friend);
-    return h + `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="gameCreate" ${can ? '' : 'disabled'}>🎲 Créer la partie</button></div></div>`;
+    return { h, can };
   }
   function viewHub() {
-    let h = `<h1>Parties</h1>` + newGameCard();
+    let h = `<h1>Batailles</h1>` + (S.bw && !S.bw.open ? '<button class="btn ghost" style="width:100%;margin-bottom:8px" data-act="bwResume">▶ Reprendre la bataille en préparation</button>' : '') + '<button class="btn" style="width:100%;margin-bottom:12px" data-act="bwNew">⚔️ Nouvelle bataille</button>';
     h += frInvitesHtml() ? `<div class="card"><h2>Invitations</h2>${frInvitesHtml()}</div>` : '';
     h += onlineCard() + gamesCard();
     return h;
   }
   function viewGame() {
+    if (bwOn()) return viewBattle();
     if (!S.inGame) return viewHub();
     const onlineOn = !!(S.net.code && net.status !== 'off');
     const showE = !!S.ui.enemyView;
-    const head = `<div class="row sp" style="margin-bottom:8px">${showE ? '<button class="btn small ghost" data-act="enemyView" data-val="">← Partie</button>' : '<button class="btn small ghost" data-act="gameClose">← Parties</button>'}<span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie'}</span><button class="btn small ${showE ? '' : 'ghost'}" data-act="enemyView" data-val="${showE ? '' : '1'}" title="Liste de l'adversaire">⚔️ Adversaire</button><button class="btn small" data-act="gameSave">💾</button></div>`;
+    const head = `<div class="row sp" style="margin-bottom:8px">${showE ? '<button class="btn small ghost" data-act="enemyView" data-val="">← Partie</button>' : '<button class="btn small ghost" data-act="gameClose">← Batailles</button>'}<span class="muted" style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${S.gameId ? esc(S.gameName) : 'Partie'}</span><button class="btn small ${showE ? '' : 'ghost'}" data-act="enemyView" data-val="${showE ? '' : '1'}" title="Liste de l'adversaire">⚔️ Adversaire</button><button class="btn small" data-act="gameSave">💾</button></div>`;
     if (showE) return head + viewEnemy().replace('<h1>Armée adverse</h1>', '');
     const sub = army() ? `<div class="muted" style="margin:-4px 0 8px;text-align:center">Liste associée : <b>${esc(army().name)}</b></div>` : '';
     const online = onlineOn ? `<details style="margin-bottom:10px"><summary>🌐 Partie en ligne${net.status === 'on' ? ' — connecté' : ''}</summary>${onlineCard()}</details>` : '';
-    return head + sub + viewPlay().replace('<h1>NoobHammer40k</h1>', '').replace(/^/, online);
+    return head + sub + battleCard() + viewPlay().replace('<h1>NoobHammer40k</h1>', '').replace(/^/, online);
   }
 
   /* ---------- Actions ---------- */
@@ -2290,6 +2399,22 @@
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
+    bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', seed: 1, two: false, role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
+    bwResume() { if (S.bw) S.bw.open = true; },
+    bwClose() { if (S.bw) { S.bw.open = false; S.bw.zoom = false; } },
+    bwBack() { if (!S.bw) return; if (S.bw.step <= 0) { S.bw.open = false; return; } S.bw.step--; window.scrollTo(0, 0); },
+    bwNext() { if (S.bw && S.bw.step < 6) { S.bw.step++; window.scrollTo(0, 0); } },
+    bwFd(v, el) { S.bw[el.dataset.who === 'me' ? 'fdMe' : 'fdOpp'] = v; },
+    bwTwist(v) { S.bw.twist = v; if (v !== 'mirror') S.bw.mirror = ''; },
+    bwMirror(v) { S.bw.mirror = v || BD.MIRROR[Math.floor(Math.random() * BD.MIRROR.length)]; },
+    bwDep(v) { const k = Object.keys(BD.DEPLOY); S.bw.dep = v || k[Math.floor(Math.random() * k.length)]; },
+    bwSeed(v) { S.bw.seed = v ? +v : 1 + Math.floor(Math.random() * 6); },
+    bwTwo(v) { S.bw.two = v === '' ? Math.floor(Math.random() * 6) === 5 : v === '1'; },
+    bwRole(v) { S.bw.role = v || (Math.random() < 0.5 ? 'A' : 'D'); },
+    bwSecMode(v, el) { const s = S.bw.sec[el.dataset.who]; s.m = v; if (v === 'tac') s.f = []; },
+    bwFix(v, el) { const s = S.bw.sec[el.dataset.who]; const i = s.f.indexOf(v); if (i >= 0) s.f.splice(i, 1); else { if (s.f.length >= 2) s.f.shift(); s.f.push(v); } },
+    bwZoom() { S.bw.zoom = !S.bw.zoom; },
+    bwStart() { pendingBattle = bwBattle(S.bw); S.bw = null; actions.gameCreate(); },
     gameCreate() {
       const a = army(); if (!a) { alert('Importe ou crée d\'abord une armée.'); return; }
       const ng = S.ui.ng || {}; const typed = (S.ui.ngName || '').trim();
