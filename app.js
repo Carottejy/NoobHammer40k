@@ -1328,24 +1328,23 @@
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
   function creatorTabs() {
-    return `${backLists()}<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${B.cm === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div><div style="height:8px"></div>${langBar()}`;
+    return `${backLists()}<h1>Creator</h1>${langBar()}`;
   }
   function viewBuild() {
     const head = creatorTabs();
-    if (B.cm !== 'edit' && B.cm !== 'build') return head + (B.msg ? `<div class="note">${esc(B.msg)}</div>` : '') + '<p class="muted">Choisis une option pour commencer.</p>';
     if (B.cm === 'edit') {
-      const lib = libArmies(); const a = army();
-      let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
-      if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button><button class="btn small" data-act="bDone">💾 Sauvegarder</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
+      const a = army();
+      let h = head + `<div class="card"><b>${a ? esc(a.name) : 'Aucune liste'}</b>`;
+      if (a) h += `<div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small" data-act="bDone">💾 Sauvegarder</button></div>${a.build ? '' : '<p class="muted">Cette liste a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
-      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Listes.</p>';
+      if (!a) return h + '<p class="muted">Aucune liste à modifier : retourne dans Mes Listes.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
       h += armyBody(a);
       if (!S.editUnit) h += `<div class="card"><button class="btn" data-act="bDone">💾 Sauvegarder</button></div>` + profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
       return h;
     }
     let h = head;
-    if (B.editId) { const ea = S.armies.find((x) => x.id === B.editId); h += ea ? `<div class="note">Modification de l'armée « ${esc(ea.name)} ». <button class="btn small ghost" data-act="bNew">Nouvelle liste</button></div>` : ''; if (!ea) B.editId = ''; }
+    if (B.editId) { const ea = S.armies.find((x) => x.id === B.editId); h += ea ? `<div class="note">Modification de la liste « ${esc(ea.name)} ».</div>` : ''; if (!ea) B.editId = ''; }
     return viewBuilder(h);
   }
   function viewBuilder(h) {
