@@ -174,7 +174,7 @@
   const SEQ = [
     ['Constituer les armées', 'Chacun apporte sa liste.'],
     ['Déterminer la mission', 'Chacun choisit en secret une Force Disposition parmi celles de ses détachements, puis on les révèle.'],
-    ['Déterminer le déploiement', 'Une carte de déploiement est tirée. Twist facultatif si les deux joueurs sont d\'accord.'],
+    ['Déterminer le déploiement', 'Une carte de déploiement est tirée. Péripétie facultative si les deux joueurs sont d\'accord.'],
     ['Créer le champ de bataille', '44" × 60". Objectifs, puis décors posés à tour de rôle.'],
     ['Attaquant et Défenseur', 'Le gagnant du jet de dé choisit son rôle.'],
     ['Missions secondaires', 'Chacun choisit en secret Tactique ou Fixe.'],

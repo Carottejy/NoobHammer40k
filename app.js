@@ -2253,7 +2253,7 @@
     const n = b.names; const d = BD.DEPLOY[b.dep]; const role = b.role === 'A' ? [n.me, n.op] : [n.op, n.me];
     const sec = (who) => { const s = b.sec[who]; return s.m === 'tac' ? 'Tactique' : 'Fixe : ' + (s.f.map((i) => (BD.SM.find((c) => c.id === i) || {}).n).join(' + ') || '—'); };
     let h = `<div class="card"><div class="bwr"><b>Missions primaires</b><div>${esc(n.me)} : <b>${esc(BD.PM[b.pm.me].n)}</b> (${esc(BD.FD[b.fdMe].n)})<br>${esc(n.op)} : <b>${esc(BD.PM[b.pm.op].n)}</b> (${esc(BD.FD[b.fdOpp].n)})</div></div>
-      ${b.twist ? `<div class="bwr"><b>Twist</b><div>${esc(BD.TWISTS.find((t) => t.id === b.twist).n)}</div></div>` : ''}
+      ${b.twist ? `<div class="bwr"><b>Péripétie</b><div>${esc(BD.TWISTS.find((t) => t.id === b.twist).n)}</div></div>` : ''}
       <div class="bwr"><b>Déploiement</b><div>${esc(d.n)} <span class="muted">(${esc(d.e)})</span> · plan n° ${b.seed} · ${b.two ? '2 objectifs centraux' : '1 objectif central'}</div></div>
       <div class="bwr"><b>Rôles</b><div>Attaquant : ${esc(role[0])}<br>Défenseur : ${esc(role[1])}</div></div>
       <div class="bwr"><b>Missions secondaires</b><div>${esc(n.me)} : ${esc(sec('me'))}<br>${esc(n.op)} : ${esc(sec('op'))}</div></div></div>`;
@@ -2279,7 +2279,7 @@
     } else if (w.step === 2) {
       const p = bwPrim(w);
       h = bwHead(w, 'Objectifs primaires') + pmCard(p.me, n.me) + pmCard(p.op, n.op) + bwNote;
-      h += `<div class="card" style="margin-top:10px"><h2 style="margin:0 0 4px">Twist (facultatif)</h2><div class="muted">À utiliser seulement si les deux joueurs sont d'accord.</div>${bwChips('bwTwist', w.twist || '', [['', 'Aucun']].concat(BD.TWISTS.map((t) => [t.id, esc(t.n)])))}`;
+      h += `<div class="card" style="margin-top:10px"><h2 style="margin:0 0 4px">Péripétie (facultative)</h2><div class="muted">À utiliser seulement si les deux joueurs sont d'accord.</div>${bwChips('bwTwist', w.twist || '', [['', 'Aucun']].concat(BD.TWISTS.map((t) => [t.id, esc(t.n)])))}`;
       const t = BD.TWISTS.find((x) => x.id === w.twist);
       if (t) h += `<div class="note"><b>${esc(t.n)}</b> (${esc(t.e)}) — ${esc(t.t)}</div>`;
       if (w.twist === 'mirror') h += `<label>Mission commune</label>${bwChips('bwMirror', w.mirror || '', BD.MIRROR.map((i) => [i, esc(BD.PM[i].n)]))}<button class="btn small ghost" data-act="bwMirror" data-val="">🎲 Au hasard</button>`;
