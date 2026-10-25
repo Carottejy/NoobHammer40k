@@ -178,15 +178,18 @@
   }
   function gm() {
     if (!S.gm) {
-      S.gm = { first: null, step: 'start', tk: '', cpOpp: 0, hand: { me: [], op: [] }, newIds: [], allow: 2, rd: { me: false, op: false },
+      S.gm = { first: null, step: 'start', tk: '', cpOpp: 0, hand: { me: [], op: [] }, gone: { me: [], op: [] }, newIds: [], allow: 2, rd: { me: false, op: false },
         vp: { me: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] }, op: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] } },
         draft: { p: { me: 0, op: 0 }, c: { me: {}, op: {} } }, end: { p: { me: 0, op: 0 }, br: { me: false, op: false } }, over: false, msg: '' };
       ['me', 'op'].forEach((w) => { const s = S.battle && S.battle.sec && S.battle.sec[w]; if (s && s.m === 'fix') S.gm.hand[w] = (s.f || []).slice(); });
     }
     const g = S.gm; const tk = S.round + '|' + (S.mine ? 1 : 0);
-    if (g.tk !== tk) { g.tk = tk; if (g.first) g.step = 'start'; g.newIds = []; g.allow = 2; g.draft = { p: { me: 0, op: 0 }, c: { me: {}, op: {} } }; }
+    if (!g.gone) g.gone = { me: [], op: [] };
+    if (g.tk !== tk) { g.tk = tk; if (g.first) { g.step = 'start'; gAward(); } g.newIds = []; g.allow = 2; g.draft = { p: { me: 0, op: 0 }, c: { me: {}, op: {} } }; }
     return g;
   }
+  /* +1 PC à chaque joueur au début de chaque tour (l'adversaire en direct gère ses propres PC) */
+  function gAward() { gAddCp('me', 1); gAddCp('op', 1); }
   const gSecMode = (w) => ((S.battle && S.battle.sec && S.battle.sec[w]) || {}).m || 'tac';
   const gCp = (w) => (w === 'me' ? S.cp : (S.enemy && S.enemy.live ? (S.enemy.cp == null ? 0 : S.enemy.cp) : (S.gm.cpOpp || 0)));
   const gAddCp = (w, d) => { if (w === 'me') S.cp = Math.max(0, S.cp + d); else if (S.enemy && S.enemy.live) return; else S.gm.cpOpp = Math.max(0, (S.gm.cpOpp || 0) + d); };
@@ -227,7 +230,7 @@
   }
   function gStart(g, N) {
     const w = gwho(); let h = `<div class="card"><h2>Début du tour — ${esc(N[w])}</h2>`;
-    h += `<div class="row" style="gap:6px;margin-bottom:8px"><button class="btn small ghost" data-act="gmCpAll">+1 PC chacun (phase de Commandement)</button></div>`;
+    h += `<div class="note">+1 PC ajouté à chaque joueur pour ce tour.</div>`;
     if (gSecMode(w) === 'fix') {
       h += `<p class="muted">Secondaires fixes : elles restent actives toute la bataille.</p>` + g.hand[w].map((id) => secCardLine(id)).join('');
     } else {
@@ -235,9 +238,12 @@
       if (g.hand[w].length) h += g.hand[w].map((id) => `<div class="row sp">${secCardLine(id, g.newIds.includes(id) ? ' <span class="tag">nouvelle</span>' : '')}<span>${g.newIds.includes(id) ? `<button class="chip xs" data-act="gmUndraw" data-val="${id}">✕</button>` : `<button class="chip xs" ${g.rd[w] || gCp(w) < 1 || gLiveOp(w) ? 'disabled' : ''} data-act="gmRedraw" data-val="${id}" title="1 PC, une fois par bataille">♻ 1 PC</button>`}</span></div>`).join('');
       else h += '<p class="muted">Aucune carte active.</p>';
       const left = g.allow - g.newIds.length;
+      const pool = abc(BD.SM.filter((c) => !g.gone[w].includes(c.id)), (c) => c.n);
       h += `<h3>Cartes piochées ce tour (${g.newIds.length}/${g.allow})</h3>`;
-      if (left > 0) h += `<div class="chips">${BD.SM.filter((c) => !g.hand[w].includes(c.id)).map((c) => `<button class="chip" data-act="gmDraw" data-val="${c.id}">${esc(c.n)}</button>`).join('')}</div>`;
-      else h += '<p class="muted">Pioche terminée.</p>';
+      if (left > 0) {
+        for (let i = 0; i < left; i++) h += `<select data-gmdraw="1" style="margin-bottom:6px"><option value="">— Carte tirée n° ${g.newIds.length + i + 1} —</option>${pool.map((c) => `<option value="${c.id}">${esc(c.n)}</option>`).join('')}</select>`;
+        h += `<button class="btn small ghost" data-act="gmRand" ${pool.length ? '' : 'disabled'}>🎲 Tirage aléatoire${left > 1 ? ' (' + left + ' cartes)' : ''}</button><div class="muted">${pool.length} carte(s) restante(s) dans la pioche (les cartes déjà tirées ou défaussées n'y sont plus).</div>`;
+      } else h += '<p class="muted">Pioche terminée.</p>';
       h += `<p class="muted" style="margin-top:6px">♻ Une fois par bataille, en fin de phase de Commandement : 1 PC pour défausser une carte active et en piocher une nouvelle.</p>`;
     }
     return h + `<button class="btn" style="margin-top:10px" data-act="gmStep" data-val="play">Jouer le tour ▶</button></div>`;
@@ -746,16 +752,16 @@
     if (!S.gm) return null; const g = S.gm; const o = {};
     const per = (f) => { const r = {}; ['me', 'op'].forEach((w) => { r[gRole(w)] = f(w); }); return r; };
     o.first = g.first ? gRole(g.first) : null; o.step = g.step; o.newIds = g.newIds; o.allow = g.allow; o.over = g.over; o.msg = g.msg;
-    o.hand = per((w) => g.hand[w]); o.rd = per((w) => g.rd[w]); o.vp = per((w) => g.vp[w]); o.dp = per((w) => g.draft.p[w]); o.dc = per((w) => g.draft.c[w]);
+    o.hand = per((w) => g.hand[w]); o.gone = per((w) => g.gone[w]); o.rd = per((w) => g.rd[w]); o.vp = per((w) => g.vp[w]); o.dp = per((w) => g.draft.p[w]); o.dc = per((w) => g.draft.c[w]);
     o.ep = per((w) => g.end.p[w]); o.eb = per((w) => g.end.br[w]);
     return JSON.parse(JSON.stringify(o));
   }
   function gmFromNet(o) {
-    if (!o) return; if (!S.gm) gm(); const g = S.gm; const un = (m, f) => { Object.keys(m).forEach((r) => f(gLocal(r), m[r])); };
+    if (!o) return; if (!S.gm) gm(); const g = S.gm; const hadFirst = !!g.first; const un = (m, f) => { Object.keys(m).forEach((r) => f(gLocal(r), m[r])); };
     g.first = o.first ? gLocal(o.first) : null; g.step = o.step; g.newIds = o.newIds || []; g.allow = o.allow || 2; g.over = !!o.over; g.msg = o.msg || '';
-    un(o.hand, (w, v) => { g.hand[w] = v; }); un(o.rd, (w, v) => { g.rd[w] = v; }); un(o.vp, (w, v) => { g.vp[w] = v; }); un(o.dp, (w, v) => { g.draft.p[w] = v; }); un(o.dc, (w, v) => { g.draft.c[w] = v; });
+    un(o.hand, (w, v) => { g.hand[w] = v; }); un(o.gone || {}, (w, v) => { g.gone[w] = v; }); un(o.rd, (w, v) => { g.rd[w] = v; }); un(o.vp, (w, v) => { g.vp[w] = v; }); un(o.dp, (w, v) => { g.draft.p[w] = v; }); un(o.dc, (w, v) => { g.draft.c[w] = v; });
     un(o.ep, (w, v) => { g.end.p[w] = v; }); un(o.eb, (w, v) => { g.end.br[w] = v; });
-    g.tk = S.round + '|' + (S.mine ? 1 : 0);
+    const tk = S.round + '|' + (S.mine ? 1 : 0); if (g.tk !== tk || (!hadFirst && g.first)) { g.tk = tk; if (g.first) gAward(); }
   }
   function netPush() {
     if (net.status !== 'on' || !net.conn) return;
@@ -2846,9 +2852,9 @@
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
     gmStep(v) { gm().step = v; },
-    gmCpAll() { gAddCp('me', 1); gAddCp('op', 1); },
-    gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); },
-    gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); },
+    gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id) || g.gone[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); g.gone[w].push(id); },
+    gmRand() { const g = gm(), w = gwho(); while (g.newIds.length < g.allow) { const p = BD.SM.filter((c) => !g.gone[w].includes(c.id)); if (!p.length) break; const c = p[Math.floor(Math.random() * p.length)]; g.hand[w].push(c.id); g.newIds.push(c.id); g.gone[w].push(c.id); } },
+    gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); g.gone[w] = g.gone[w].filter((x) => x !== id); },
     gmRedraw(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; if (g.rd[w] || gCp(w) < 1) return; gAddCp(w, -1); g.rd[w] = true; g.hand[w] = g.hand[w].filter((x) => x !== id); g.allow += 1; },
     gmPri(v, el) { const g = gm(), w = el.dataset.who; g.draft.p[w] = Math.max(0, g.draft.p[w] + +v); },
     gmAch(id, el) { const g = gm(), w = el.dataset.who; if (g.draft.c[w][id] != null) delete g.draft.c[w][id]; else g.draft.c[w][id] = 0; },
@@ -3020,6 +3026,7 @@
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
     if (e.target.dataset && e.target.dataset.dbkw !== undefined) { dbs.kw = e.target.value; dbs.unit = null; render(); return; }
     const t0 = e.target, ds = t0.dataset || {};
+    if (ds.gmdraw) { if (t0.value) { actions.gmDraw(t0.value); save(); render(); } return; }
     if (ds.bf) { const v = t0.value; if (ds.bf === 'fac') { B.facErr = ''; B.fac = v; B.dets = []; B.units = []; B.open = null; B.ch = ''; B.kw = ''; } else if (ds.bf === 'ch') bChapter(v); else if (ds.bf === 'kw') B.kw = v; else if (ds.bf === 'warlord') B.warlord = v; else if (ds.bf === 'allEnh') B.allEnh = !!t0.checked; else if (ds.bf === 'fmt') { B.fmt = v; if (+v) B.limit = +v; } else if (ds.bf === 'limit') B.limit = +v || 0; else B.name = v; bsave(); render(); return; }
     if (ds.bu) { const en = B.units.find((x) => x.k === ds.bu); if (en) { if (ds.bs != null) { const [ri, ai] = String(ds.bs).split(':').map(Number); en.sel = en.sel || {}; en.sel[ri] = en.sel[ri] || []; en.sel[ri][ai] = Math.max(0, +t0.value || 0); } else if (ds.bw != null) { const j = +ds.bw; en.woff = (en.woff || []).filter((x) => x !== j); if (!t0.checked) en.woff.push(j); } else if (ds.bg != null) { en.wg = en.wg || {}; en.wg[ds.bg] = Math.max(0, +t0.value || 0); } else if (ds.ba != null) { const j = +ds.ba; en.aoff = (en.aoff || []).filter((x) => x !== j); if (!t0.checked) en.aoff.push(j); } else en[ds.bk] = ['models', 'pts'].includes(ds.bk) ? Math.max(0, +t0.value || 0) : t0.value; bsave(); render(); } return; }
     if (ds.af) { const v = t0.value; if (ds.af === 'fac') { AS.fac = v; AS.ch = ''; AS.det = ''; AS.kws = {}; AS.q = ''; AS.err = ''; } else if (ds.af === 'ch') { AS.ch = v; AS.det = ''; AS.kws = {}; } else if (ds.af === 'fmt') { AS.fmt = v; if (+v) AS.limit = +v; } else if (ds.af === 'limit') AS.limit = +v || 0; else AS[ds.af] = v; AS.res = []; asave(); render(); return; }
