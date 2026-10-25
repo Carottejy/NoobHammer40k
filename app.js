@@ -245,17 +245,19 @@
     const w = u.weapons[S.play.weaponIdx];
     h += `<label>Arme</label><select data-bind="play.weaponIdx" data-type="number">${abc(weapons, (x) => x.w.name).map((x) => `<option value="${x.i}" ${x.i === S.play.weaponIdx ? 'selected' : ''}>${esc(x.w.name)}${x.w.from ? ' — ' + esc(x.w.from) : ''}${x.w.abilities ? ' [' + esc(x.w.abilities) + ']' : ''}</option>`).join('')}</select>`;
     h += `<div class="grid g2" style="margin-top:8px">${num('Figurines qui utilisent cette arme', 'play.nModels', 'min="1"')}<div><label>Profil</label><div class="muted">A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}</div></div></div>`;
-    h += `<h3>Situation</h3>`;
+    const rel = calc ? calcRelevant(u, w, melee) : null; const R = (k) => !calc || rel[k];
+    if (!calc || Object.keys(rel).some((k) => rel[k] && (melee ? k === 'charged' : k !== 'charged'))) h += `<h3>Situation</h3>`;
     if (!melee) {
-      h += `<div class="chips">${[['stationary', 'Immobile'], ['le3', 'Bougé ≤ 3″'], ['normal', 'Bougé'], ['advanced', 'Avancé'], ['fellback', 'Retraite']].map(([v, l]) => radio(l, 'play.sit.moved', v)).join('')}</div>
-        <div class="chips" style="margin-top:8px">${tog('À mi-portée', 'play.sit.halfRange')}${tog('Unité engagée', 'play.sit.engaged')}${tog('Tir plongeant', 'play.sit.elevated')}${tog('Déployée ce tour', 'play.sit.setUp')}${tog('Tir de réaction (Overwatch)', 'play.sit.snap')}${tog('Cible cachée / non visible', 'play.sit.hiddenTarget')}</div>`;
-    } else {
+      if (R('moved')) h += `<div class="chips">${[['stationary', 'Immobile'], ['le3', 'Bougé ≤ 3″'], ['normal', 'Bougé'], ['advanced', 'Avancé'], ['fellback', 'Retraite']].map(([v, l]) => radio(l, 'play.sit.moved', v)).join('')}</div>`;
+      const tg = (R('halfRange') ? tog('À mi-portée', 'play.sit.halfRange') : '') + (R('engaged') ? tog('Unité engagée', 'play.sit.engaged') : '') + (R('elevated') ? tog('Tir plongeant', 'play.sit.elevated') : '') + (R('setUp') ? tog('Déployée ce tour', 'play.sit.setUp') : '') + (R('snap') ? tog('Tir de réaction (Overwatch)', 'play.sit.snap') : '') + (R('hiddenTarget') ? tog('Cible cachée / non visible', 'play.sit.hiddenTarget') : '');
+      if (tg) h += `<div class="chips" style="margin-top:8px">${tg}</div>`;
+    } else if (R('charged')) {
       h += `<div class="chips">${tog('L\'unité a chargé ce tour', 'play.sit.charged')}</div>`;
     }
     const top = h; h = '';
     h += `<h3>Cible</h3>`;
     const hasEn = !!(S.enemy && S.enemy.units.length);
-    if (hasEn) {
+    if (hasEn && !calc) {
       const ts = topUnits(S.enemy);
       const firstAlive = ts.find(alive);
       if (!S.play.targetUnitId && firstAlive) { S.play.targetUnitId = firstAlive.id; syncTarget(); }
@@ -267,7 +269,7 @@
     else h += `<div class="grid">${num('Endurance', 'play.target.T')}${txt('Sauvegarde (3+)', 'play.target.sv')}${num('Invulnérable (0 = aucune)', 'play.target.inv')}${num('Ignorer douleur (0 = aucun)', 'play.target.fnp')}${num('PV / figurine', 'play.target.W')}${num('Figurines', 'play.target.models')}</div>
       <div class="chips" style="margin-top:8px">${TARGET_KEYWORDS.map(([k, l]) => chip(l, S.play.target.kw.includes(k), `data-act="toggleKw" data-val="${k}"`)).join('')}</div>
       <div class="chips" style="margin-top:8px">${melee ? '' : tog('Cible à couvert', 'play.target.inCover') + tog('Cible Furtive', 'play.target.stealth')}<button class="chip" data-act="saveTarget">💾 Mémoriser cette cible</button></div>`;
-    h += fxPanel(u, w, melee);
+    h += fxPanel(u, w, melee, calc);
     h += `<details style="margin-top:10px"><summary>Bonus manuels supplémentaires</summary>
       <div class="grid g2">${stepper('Modif. à la touche', 'play.mods.hit')}${stepper('Modif. à la blessure', 'play.mods.wound')}</div>
       <label style="margin-top:8px">Relance des touches</label><div class="chips">${[['none', 'Aucune'], ['ones', 'Les 1'], ['all', 'Tout']].map(([v, l]) => radio(l, 'play.mods.rrHit', v)).join('')}</div>
@@ -350,14 +352,16 @@
       return { b, ee, t, dmg, kills, pct, pts, single, fx: c.active.filter((x) => x.src.group === 'enemy').map((x) => x.src.title), score: pts };
     }).sort((x, y) => y.score - x.score || (y.dmg || 0) - (x.dmg || 0));
     if (!rows.length) return '';
-    let h = `<div class="card"><h2>Quelle cible ?</h2><p class="muted">Classement avec <b>${esc(w.name)}</b> × ${S.play.nModels} figurine(s), situation, bonus et stratagèmes ci-dessus. Trié par points adverses éliminés (estimation moyenne).</p>`;
+    const pickedOnly = S.tab === 'calc' && S.play.targetUnitId && rows.some((x) => x.b.id === S.play.targetUnitId);
+    if (pickedOnly) rows.splice(0, rows.length, ...rows.filter((x) => x.b.id === S.play.targetUnitId));
+    let h = `<div class="card"><h2>${pickedOnly ? 'Cible choisie' : 'Quelle cible ?'}</h2><p class="muted">Classement avec <b>${esc(w.name)}</b> × ${S.play.nModels} figurine(s), situation, bonus et stratagèmes ci-dessus. Trié par points adverses éliminés (estimation moyenne).</p>`;
     rows.forEach((x, i) => {
       if (x.noProfile) { h += `<div class="strat used"><b>${esc(x.b.name)}</b><div class="muted">Profil adverse incomplet (pas d'Endurance) : impossible de calculer.</div></div>`; return; }
       const sel = x.b.id === S.play.targetUnitId;
       h += `<div class="strat ${sel ? 'sel' : ''}" data-act="aim" data-val="${x.b.id}" style="cursor:pointer"><div class="row sp"><span class="nm">${i === 0 && x.pts > 0 ? '★ ' : ''}${esc(x.b.name)}${x.ee.leaders.length ? ' <span class="muted">+ ' + esc(x.ee.leaders.map((l) => l.name).join(', ')) + '</span>' : ''}</span><span class="cp">≈ ${Math.round(x.pts)} pts</span></div>
         <div>${x.single ? `PV perdus ≈ <b>${x.dmg.toFixed(1)}</b> / ${x.t.W}` : `≈ <b>${x.kills.toFixed(1)}</b> fig. tuée(s) sur ${x.ee.nowModels} (${Math.round(x.pct * 100)} %)`}</div>
         <div class="muted">E${x.t.T} · Sv ${esc(x.t.sv || '?')}${x.t.inv ? '/' + x.t.inv + '++' : ''}${x.t.fnp ? ' · IdD ' + x.t.fnp + '+' : ''} · PV ${x.t.W} · ${x.ee.allPts} pts${x.fx.length ? ' · règles de la cible : ' + esc(x.fx.join(', ')) : ''}</div>
-        <div class="row" style="margin-top:6px"><button class="btn small ${sel ? 'ghost' : ''}" data-act="aim" data-val="${x.b.id}">${sel ? 'Cible actuelle' : 'Viser cette unité'}</button></div></div>`;
+        <div class="row" style="margin-top:6px"><button class="btn small ${sel ? 'ghost' : ''}" data-act="aim" data-val="${x.b.id}">${sel ? (S.tab === 'calc' ? '✕ Désélectionner' : 'Cible actuelle') : 'Viser cette unité'}</button></div></div>`;
     });
     return h + '</div>';
   }
@@ -422,10 +426,15 @@
     if (src.group === 'doctrine' || src.group === 'aura') return false;
     return e.ev.manual.length === 0 && !src.partial;
   }
-  function fxPanel(u, w, melee) {
+  function calcRelevant(u, w, melee) {
+    const ab = Engine.parseAbilities(w.abilities); const keys = new Set();
+    fxCollect(u, w, melee, S.play.target, enemyEffNow()).filter((x) => x.group !== 'strat').forEach((x) => x.entries.forEach((e) => (e.it.conds || []).forEach((c) => keys.add(c.t === 'sit' ? c.key : c.t))));
+    return { moved: !!(ab.heavy || ab.assault || keys.has('moved_normal')), halfRange: !!(ab.rapidFire || ab.melta || keys.has('halfRange')), engaged: !!(ab.heavy || ab.pistol || keys.has('engaged')), elevated: keys.has('elevated'), setUp: !!(ab.heavy || keys.has('setUp')), snap: keys.has('snap'), hiddenTarget: !!(ab.indirectFire || keys.has('hiddenTarget')), charged: !!(ab.lance || keys.has('charged')) };
+  }
+  function fxPanel(u, w, melee, calc) {
     const srcs = fxCollect(u, w, melee, S.play.target, enemyEffNow());
     if (!srcs.length) return '';
-    let h = `<h3>Règles et stratagèmes pris en compte</h3><p class="muted">Coche ce qui s'applique à cette attaque : l'effet est ajouté au calcul ci-dessous. Les conditions sont vérifiées quand c'est possible, sinon c'est à toi de les confirmer.</p>`;
+    let h = `<h3>Règles et stratagèmes pris en compte</h3>${calc ? '' : '<p class="muted">Coche ce qui s\'applique à cette attaque : l\'effet est ajouté au calcul ci-dessous. Les conditions sont vérifiées quand c\'est possible, sinon c\'est à toi de les confirmer.</p>'}`;
     FX_GROUPS.forEach(([g, label]) => {
       const list = srcs.filter((s) => s.group === g); if (!list.length) return;
       h += `<div class="fxgrp"><div class="t">${label}</div>` + list.map(fxSource).join('') + '</div>';
@@ -443,7 +452,7 @@
       else if (src.group === 'strat') h += `<div class="${src.used ? 'pos' : 'muted'}">${src.used ? '✓ ' : ''}${esc(sum)}${conds ? ' <span class="muted">(' + esc(conds) + ')</span>' : ''}</div>`;
       else h += `<button class="chip ${on ? 'on' : ''}" data-act="fxToggle" data-key="${esc(e.key)}" data-val="${on ? 0 : 1}">${on ? '☑' : '☐'} ${esc(sum)}${conds ? ' · ' + esc(conds) : ''}${esc(soft)}</button> `;
     });
-    if (src.group === 'strat') h += `<div class="row" style="margin-top:6px"><button class="btn small ${src.used ? 'ghost' : ''}" data-act="fxStrat" data-val="${esc(src.strat.id)}">${src.used ? 'Annuler ce stratagème (+' + src.strat.cp + ' PC)' : 'Utiliser (−' + src.strat.cp + ' PC)'}</button></div>`;
+    if (src.group === 'strat') h += `<div class="row" style="margin-top:6px"><button class="btn small ${src.used ? 'ghost' : ''}" data-act="fxStrat" data-val="${esc(src.strat.id)}">${S.tab === 'calc' ? (src.used ? 'Retirer ce stratagème' : 'Appliquer ce stratagème') : (src.used ? 'Annuler ce stratagème (+' + src.strat.cp + ' PC)' : 'Utiliser (−' + src.strat.cp + ' PC)')}</button></div>`;
     return h + '</div>';
   }
 
@@ -2467,7 +2476,7 @@
       const ar = el.dataset.who === 'enemy' ? S.enemy : army(); if (!ar || !confirm('Rétablir l\'effectif complet de toutes les unités ?')) return;
       ar.units.forEach((u) => { delete u.cur; delete u.hp; }); S.play.nModelsUnit = null; syncTarget();
     },
-    aim(id, el) { S.play.targetUnitId = id; syncTarget(); if (el && el.dataset.go) { S.tab = 'game'; S.inGame = true; } },
+    aim(id, el) { S.play.targetUnitId = (S.tab === 'calc' && S.play.targetUnitId === id) ? null : id; syncTarget(); if (el && el.dataset.go) { S.tab = 'game'; S.inGame = true; } },
     removeEnemy() { if (!confirm('Retirer l\'armée adverse ?')) return; S.enemy = null; S.play.targetUnitId = null; },
     importEnemyList() {
       const r = Importer.parseList(document.getElementById('enemyText').value);
@@ -2649,6 +2658,7 @@
     fxToggle(v, el) { S.play.fx[el.dataset.key] = v === '1'; },
     fxStrat(id) {
       const s = allStrats().find((x) => x.id === id); const u = unit(); if (!s || !u) return;
+      if (S.tab === 'calc') { const k0 = stratKey(); const u0 = S.used[k0] || []; const m0 = u0.find((x) => x.strat === id && x.unitId === u.id); S.used[k0] = m0 ? u0.filter((x) => x !== m0) : u0.concat([{ strat: id, name: s.name, unitId: u.id }]); return; }
       const k = stratKey(); const used = S.used[k] || []; const mine = used.find((x) => x.strat === id && x.unitId === u.id);
       if (mine) { S.used[k] = used.filter((x) => x !== mine); S.cp += s.cp; S.once = S.once.filter((x) => x !== id); return; }
       if (S.bs[u.id]) { alert('Unité en Choc de Bataille : elle ne peut pas être ciblée par un stratagème.'); return; }
