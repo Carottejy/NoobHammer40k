@@ -1959,14 +1959,15 @@
 
   /* ----- Export Tabletop Simulator (tts-export.js) ----- */
   var TT = { id: '', busy: false, errs: null, warns: [], json: '', name: '', units: 0, err: '', msg: '' };
-  var FB = { kind: 'bug', msg: '', contact: '', busy: false, ok: '', err: '' };
+  var FB = { counts: null, cLoad: false, kind: 'bug', msg: '', contact: '', busy: false, ok: '', err: '' };
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
     const ver = `<div class="card"><h2>Version ${esc(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?')}</h2>${last ? `<div class="muted">Notes de version · ${esc(last.date || '')}</div><ul class="fxlist">${last.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}${rel.length > 1 ? `<details><summary>Versions précédentes</summary>${rel.slice(1).map((r) => `<h3>${esc(r.v)} · ${esc(r.date || '')}</h3><ul class="fxlist">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}</details>` : ''}</div>`;
+    if (!FB.counts && !FB.cLoad) { FB.cLoad = true; syReq('/rest/v1/rpc/feedback_counts', { method: 'POST', body: '{}' }).then((r) => { if (r && typeof r.bug === 'number') FB.counts = r; FB.cLoad = false; if (S.tab === 'info') render(); }).catch(() => { setTimeout(() => { FB.cLoad = false; }, 30000); }); }
     return `<h1>Infos</h1>${ver}<div class="card"><h2>Signaler une anomalie / proposer une idée</h2>
         <p class="muted" style="margin-top:0">Un bug, une règle mal calculée, une idée d'amélioration ? Dis-le ici : le message est envoyé au créateur de l'appli. Ne mets aucune information personnelle.</p>
-        <div class="seg" style="margin-bottom:8px"><button type="button" class="${FB.kind === 'bug' ? 'on' : ''}" data-act="fbKind" data-val="bug">🐞 Anomalie</button><button type="button" class="${FB.kind === 'idee' ? 'on' : ''}" data-act="fbKind" data-val="idee">💡 Idée</button></div>
+        <div class="seg" style="margin-bottom:8px"><button type="button" class="${FB.kind === 'bug' ? 'on' : ''}" data-act="fbKind" data-val="bug">🐞 Anomalie${FB.counts ? ' (' + FB.counts.bug + ')' : ''}</button><button type="button" class="${FB.kind === 'idee' ? 'on' : ''}" data-act="fbKind" data-val="idee">💡 Idée${FB.counts ? ' (' + FB.counts.idee + ')' : ''}</button></div>
         <label>${FB.kind === 'bug' ? 'Que s\'est-il passé ? (unité, phase, règle concernée…)' : 'Ton idée'}</label><textarea id="fbMsg" maxlength="2000" placeholder="${FB.kind === 'bug' ? 'Ex. : avec les Intercessors, la touche létale n\'est pas comptée…' : 'Ex. : pouvoir exporter la liste en PDF…'}">${esc(FB.msg)}</textarea>
         <label>Contact (facultatif, pour te répondre)</label><input type="text" id="fbContact" maxlength="200" placeholder="email ou pseudo" value="${esc(FB.contact)}">
         <button class="btn" style="margin-top:8px" data-act="fbSend" ${FB.busy ? 'disabled' : ''}>${FB.busy ? 'Envoi…' : 'Envoyer'}</button>
@@ -2674,7 +2675,7 @@
       try {
         const ctx = ['onglet ' + S.tab, 'langue ' + (S.lang || 'fr'), (navigator.userAgent || '').replace(/^Mozilla\/5\.0 /, '').slice(0, 160)].join(' · ');
         await syReq('/rest/v1/feedback', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ kind: FB.kind, message: m.slice(0, 2000), contact: String(FB.contact || '').trim().slice(0, 200) || null, app_version: typeof APP_VERSION !== 'undefined' ? String(APP_VERSION).slice(0, 20) : null, context: ctx.slice(0, 500) }) });
-        FB.msg = ''; FB.ok = 'Merci ! Ton message a bien été envoyé.';
+        FB.msg = ''; FB.counts = null; FB.ok = 'Merci ! Ton message a bien été envoyé.';
       } catch (e) { FB.err = 'Envoi impossible (' + (e.message || 'erreur') + '). Réessaie plus tard.'; }
       FB.busy = false; render();
     },
