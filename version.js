@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.60.2';
+var APP_VERSION = '1.60.3';
 var APP_RELEASES = [
+  { v: '1.60.3', date: '2026-10-25', notes: ['Listes : coche verte retirée ; Creator / Assistant / Importer gardent icône et texte sur une seule ligne.']},
   { v: '1.60.2', date: '2026-10-25', notes: ['Bataille : toutes les façons de marquer la mission primaire sont visibles en permanence (fin de phase de Commandement, fin de tour, fin de bataille) ; celles qui ne s\'appliquent pas à ce round sont grisées.']},
   { v: '1.60.1', date: '2026-10-25', notes: ['L\'appli démarre toujours sur l\'accueil ; sur l\'accueil, la liste d\'amis passe au-dessus de la synchronisation.']},
   { v: '1.60.0', date: '2026-10-25', notes: ['Bataille : marquage des PV primaires (par ligne de mission) et secondaires directement sous les rappels, pris en compte immédiatement dans le total ; plus d\'écran de comptage de fin de tour, un simple bouton « Tour suivant ».']},
