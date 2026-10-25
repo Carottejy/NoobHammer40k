@@ -2340,7 +2340,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { src: 'manual', myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { src: 'manual', opSrc: 'app', defFac: '', loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2365,6 +2365,26 @@
     CALC.armyId = c.id; const keep = CALC.enemy; calcFresh(); CALC.enemy = keep; CALC.open = !CALC.enemy;
   }
   function calcSetEnemy(e) { if (e) { const c = cdeep(e); delete c.live; c.id = uid(); CALC.enemy = c; } else CALC.enemy = null; if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; }
+  async function calcImportPdf(file) {
+    CALC.msg = 'Lecture du PDF…'; render();
+    try {
+      const nh = await nhFromPdf(file);
+      if (nh) { calcSetEnemy(enemyFromArmy(nh.army, nh.rules, nh.strats)); CALC.msg = `Liste adverse importée (PDF NoobHammer40k) : ${CALC.enemy.units.length} unité(s).`; }
+      else {
+        let res = null; try { res = await parsePdfStructured(file); } catch (x) { res = null; }
+        if (res && res.units.length) {
+          const en = { id: uid(), name: (res.faction ? res.faction + ' — ' : '') + (res.name || 'Armée adverse'), faction: res.faction, detachments: res.detachments.map((d) => d.name), total: res.total, units: res.units.map(unitFromParsed), rules: res.rules.slice(), strats: res.strats.map((x) => Object.assign({ id: 'e_' + uid() }, x)) };
+          linkParsed(en.units, res.units); calcSetEnemy(en); CALC.msg = `Liste adverse importée : ${en.units.length} unité(s).`;
+          Wahap.fill(en.units, Wahap.facIds(res.faction)).then((n) => { if (n) { CALC.msg += ` + ${n} unité(s) complétée(s) depuis la base.`; render(); } }).catch(() => {});
+        } else {
+          const text = await readPdf(file); const r = Importer.parseList(text); const ar = makeArmy(r, Importer.parseAlnPage(text));
+          if (!ar.units.length) CALC.msg = 'Aucune unité reconnue dans ce PDF.'; else { calcSetEnemy(Object.assign(ar, { rules: [], strats: [] })); CALC.msg = `Liste adverse importée (lecture générique) : ${ar.units.length} unité(s).`; }
+        }
+      }
+      CALC.opLib = ''; CALC.defFac = ''; CALC.open = !CALC.armyId;
+    } catch (e) { CALC.msg = 'Impossible de lire ce PDF (' + (e.message || 'erreur') + ').'; }
+    render();
+  }
   function viewCalc() {
     const R = calcStash || S; const a = army();
     const libs = R.armies.filter((x) => !x.gameOf);
@@ -2380,7 +2400,15 @@
         h += items.length ? `<label>Bataille</label>${chipsOf(items, CALC.gameSel, 'calcGame')}` : '<p class="muted">Aucune bataille enregistrée. Utilise « Manuel » ou crée une bataille.</p>';
       } else {
         const items = abc(libs, (x) => x.name).map((x) => [x.id, x.name]);
-        h += items.length ? `<label>Ma liste</label>${chipsOf(items, CALC.myLib, 'calcMy')}<label>Liste adverse</label>${chipsOf(items, CALC.opLib, 'calcOp')}` : '<p class="muted">Aucune liste : crée ou importe-en une dans l\'onglet « Listes ».</p>';
+        h += items.length ? `<label>Ma liste</label>${chipsOf(items, CALC.myLib, 'calcMy')}` : '<p class="muted">Aucune liste : crée ou importe-en une dans l\'onglet « Listes ».</p>';
+        h += `<label style="margin-top:6px">Liste adverse</label><div class="seg"><button class="${CALC.opSrc === 'app' ? 'on' : ''}" data-act="calcOpSrc" data-val="app">📚 Mes listes</button><button class="${CALC.opSrc === 'aln' ? 'on' : ''}" data-act="calcOpSrc" data-val="aln">📄 Import ALN</button><button class="${CALC.opSrc === 'def' ? 'on' : ''}" data-act="calcOpSrc" data-val="def">🧪 Par défaut</button></div>`;
+        if (CALC.opSrc === 'app') h += items.length ? chipsOf(items, CALC.opLib, 'calcOp') : '<p class="muted">Aucune liste dans l\'appli.</p>';
+        else if (CALC.opSrc === 'aln') h += `<p class="muted" style="margin-top:0">PDF ALN ou PDF exporté par NoobHammer40k, ou export texte.</p><label class="btn" style="display:inline-block;margin:0;cursor:pointer">📄 Importer un PDF<input type="file" id="pdfCalcEnemy" accept=".pdf,application/pdf" hidden></label><details style="margin-top:10px"><summary>Ou coller un export texte / BBCode</summary><textarea id="calcEnemyText" placeholder="Orks : Liste adverse&#10;Boyz (10) : 90 pts"></textarea><button class="btn small" style="margin-top:8px" data-act="calcImportText">Importer la liste</button></details>`;
+        else {
+          const ix = Wahap.index();
+          if (!ix) { if (!CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; CALC.msg = 'Base indisponible.'; render(); }); } h += '<p class="muted">Chargement de la base…</p>'; }
+          else h += `<p class="muted" style="margin-top:0">Une unité de base de la faction choisie (infanterie de Ligne, ou à défaut l'unité la moins chère).</p>${chipsOf(abc(ix.factions, (f) => f.name).map((f) => [f.id, f.name]), CALC.defFac, 'calcDef')}`;
+        }
       }
       if (CALC.msg) h += `<div class="note">${esc(CALC.msg)}</div>`;
     }
@@ -2490,11 +2518,32 @@
     ngEnemyApp(id) { const src = libArmies().find((x) => x.id === id); if (!src) return; S.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((s) => s.armyId === src.id)); S.play.targetUnitId = null; S.ui.enemyMsg = `Armée adverse : « ${src.name} » (liste de l'appli).`; },
     ngOnline(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { online: v }) }); },
     ngFriend(v) { S.ui = Object.assign({}, S.ui, { ng: Object.assign({}, S.ui.ng, { friend: v }) }); },
+    calcOpSrc(v) { CALC.opSrc = v; CALC.msg = ''; },
+    calcImportText() {
+      const r = Importer.parseList((document.getElementById('calcEnemyText') || {}).value || '');
+      if (!r.units.length) { CALC.msg = 'Aucune unité reconnue. Il me faut des lignes du type « Boyz (10) : 90 pts ».'; return; }
+      calcSetEnemy(Object.assign(makeArmy(r, null), { rules: [], strats: [] })); CALC.opLib = ''; CALC.defFac = ''; CALC.msg = `Liste adverse importée : ${CALC.enemy.units.length} unité(s). Sans profils : importe plutôt un PDF ALN.`; CALC.open = !CALC.armyId;
+    },
+    async calcDef(v) {
+      CALC.defFac = v; CALC.opLib = ''; CALC.msg = 'Chargement…'; render();
+      try {
+        const f = await Wahap.faction(v);
+        const DEF = { AC: 'Garde Custodian', AE: 'Gardiens Défenseurs', AM: 'Troupes de Choc Cadiennes', AS: 'Escouade de Soeurs de Bataille', AdM: 'Rangers Skitarii', AoI: 'Breachers de la Marine Impériale', CD: 'Sanguinaires', CSM: 'Légionnaires', DG: 'Plague Marines', DRU: 'Guerriers Kabalites', EC: 'Infracteurs', GC: 'Hybrides Neophytes', GK: 'Escouade d\'Assaut', LoV: 'Guerriers Âtrekogs', NEC: 'Guerriers Nécrons', ORK: 'Boyz', QT: 'Bande de Cultistes', SM: 'Escouade Intercessor', TAU: 'Équipe D\'attaque', TS: 'Marines Rubricae', TYR: 'Termagants', WE: 'Berzerks de Khorne' };
+        const ppm = (x) => { const t = x.pc && x.pc.t && x.pc.t[0] && x.pc.t[0][1] && x.pc.t[0][1][0]; return t ? t[1] / t[0] : 999; };
+        const own = f.units.filter((x) => x.fac === v); const cheap = (a) => a.slice().sort((x, y) => ppm(x) - ppm(y))[0];
+        const d = f.units.find((x) => DEF[v] && Wahap.norm(x.name) === Wahap.norm(DEF[v])) || cheap(own.filter((x) => x.role === 'Ligne')) || cheap(own.filter((x) => x.role === 'Infanterie' && !x.support)) || cheap(own);
+        if (!d) { CALC.msg = 'Aucune unité d\'infanterie de base dans cette faction.'; CALC.enemy = null; render(); return; }
+        const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0]; if (t) { u.models = String(t[0]); u.pts = t[1]; }
+        calcSetEnemy({ id: uid(), name: Wahap.factionName(v) + ' — ' + u.name, faction: Wahap.factionName(v), detachments: [], units: [u], rules: [], strats: [] });
+        CALC.msg = `Liste par défaut : ${u.name}${t ? ' (' + t[0] + ' fig., ' + t[1] + ' pts)' : ''}.`; CALC.open = !CALC.armyId;
+      } catch (e) { CALC.msg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
+      render();
+    },
     calcSrc(v) { CALC.src = v; CALC.msg = ''; },
     calcToggle() { CALC.open = !CALC.open; },
     calcMode(v) { CALC.mode = v; if (CALC.play) CALC.play.weaponIdx = 0; },
     calcMy(v) { const src = S.armies.find((x) => x.id === v); if (!src) return; CALC.myLib = v; CALC.gameSel = ''; calcSetMine(src, S.armyRules[src.id], S.customStrats.filter((x) => x.armyId === src.id)); CALC.msg = ''; },
-    calcOp(v) { const src = S.armies.find((x) => x.id === v); if (!src) return; CALC.opLib = v; CALC.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((x) => x.armyId === src.id)); if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; CALC.open = !CALC.armyId; },
+    calcOp(v) { const src = S.armies.find((x) => x.id === v); if (!src) return; CALC.opLib = v; CALC.defFac = ''; CALC.enemy = enemyFromArmy(src, S.armyRules[src.id], S.customStrats.filter((x) => x.armyId === src.id)); if (!CALC.play) calcFresh(); CALC.play.targetUnitId = null; CALC.open = !CALC.armyId; },
     calcGame(v) {
       CALC.gameSel = v; CALC.myLib = ''; CALC.opLib = '';
       if (v === 'cur') { const my = S.armies.find((x) => x.id === S.armyId); if (!my) { CALC.msg = 'Aucune liste dans la bataille en cours.'; return; } calcSetMine(my, S.armyRules[my.id], S.customStrats.filter((x) => x.armyId === my.id)); calcSetEnemy(S.enemy); CALC.msg = S.enemy ? '' : 'Cette bataille n\'a pas encore de liste adverse.'; }
@@ -2794,6 +2843,7 @@
     if (ds.af) { const v = t0.value; if (ds.af === 'fac') { AS.fac = v; AS.ch = ''; AS.det = ''; AS.kws = {}; AS.q = ''; AS.err = ''; } else if (ds.af === 'ch') { AS.ch = v; AS.det = ''; AS.kws = {}; } else if (ds.af === 'fmt') { AS.fmt = v; if (+v) AS.limit = +v; } else if (ds.af === 'limit') AS.limit = +v || 0; else AS[ds.af] = v; AS.res = []; asave(); render(); return; }
     const el = e.target;
     if ((el.id === 'pdfNew' || el.id === 'pdfEnrich') && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importPdfFile(f, el.id === 'pdfNew' ? 'new' : 'enrich'); return; }
+    if (el.id === 'pdfCalcEnemy' && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; calcImportPdf(f); return; }
     if (el.id === 'pdfEnemy' && el.files && el.files[0]) { const f = el.files[0]; el.value = ''; importEnemyPdf(f); return; }
     if (el.id === 'gameFile' && el.files && el.files[0]) {
       const fr = new FileReader();

@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.56.0';
+var APP_VERSION = '1.57.0';
 var APP_RELEASES = [
+  { v: '1.57.0', date: '2026-10-25', notes: ['Calculs : la liste adverse peut venir des listes de l\'appli, d\'un import ALN (PDF ou texte) ou d\'une liste par défaut (une infanterie de base par faction).']},
   { v: '1.56.0', date: '2026-10-25', notes: ['Calculs : la cible choisie masque les autres unités (touche-la pour la désélectionner) ; stratagèmes sans coût en PC ; situations affichées seulement si les règles de l\'unité, de l\'arme ou de la cible les concernent ; section Cible allégée.']},
   { v: '1.55.1', date: '2026-10-25', notes: ['Onglet Batailles : icône de bolter fournie.']},
   { v: '1.55.0', date: '2026-10-25', notes: ['Nouvelle icône d\'application et nouvelle image d\'accueil (la carotte Space Marine).','Onglets : Listes = 📋, Batailles = bolter, Calculs = 🎲.']},
