@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.55.0';
+var APP_VERSION = '1.55.1';
 var APP_RELEASES = [
+  { v: '1.55.1', date: '2026-10-25', notes: ['Onglet Batailles : icône de bolter fournie.']},
   { v: '1.55.0', date: '2026-10-25', notes: ['Nouvelle icône d\'application et nouvelle image d\'accueil (la carotte Space Marine).','Onglets : Listes = 📋, Batailles = bolter, Calculs = 🎲.']},
   { v: '1.54.0', date: '2026-10-25', notes: ['Nouvel onglet « Calculs » : choix des listes d\'une bataille ou à la main, unité + arme, classement des unités adverses, puis détail des jets (touches, blessures, sauvegardes, relances) au toucher d\'une cible.']},
   { v: '1.53.1', date: '2026-10-25', notes: ['Batailles : suppression du bloc « Cotes de placement », du texte sous le plan et des numéros sur le dessin.']},
