@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.59.1';
+var APP_VERSION = '1.59.2';
 var APP_RELEASES = [
+  { v: '1.59.2', date: '2026-10-25', notes: ['Stratagèmes : l\'onglet n\'apparaît plus dans la barre du bas, il est maintenant un 4e volet de Règles (Règles / Codex / Matrice / Stratagèmes).']},
   { v: '1.59.1', date: '2026-10-25', notes: ['Depuis une bataille, l\'onglet Calculs s\'ouvre directement avec les listes de la bataille en cours.']},
   { v: '1.59.0', date: '2026-10-25', notes: ['Comptage des PV primaires détaillé par ligne de mission et par moment : fin de la phase de Commandement (compté au début du tour), fin du tour, fin de la bataille ; seules les lignes applicables au round en cours sont proposées.']},
   { v: '1.58.4', date: '2026-10-25', notes: ['Rappels par phase : ouvrir une phase referme les autres.']},

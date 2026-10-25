@@ -133,8 +133,8 @@
     else if (S.gameArmyId) { if (S.armies.some((x) => x.id === S.gameArmyId)) S.armyId = S.gameArmyId; S.gameArmyId = null; }
   }
   /* Onglets regroupés : « Listes » = Mes listes + Creator + Assistant ; « Règles » = règles générales + Codex */
-  const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db', 'matrix'].includes(S.tab) : S.tab === id);
-  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 ${S.lang === 'en' ? 'Rules' : 'Règles'}</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button><button class="${S.tab === 'matrix' ? 'on' : ''}" data-act="tab" data-val="matrix">🎯 ${S.lang === 'en' ? 'Matrix' : 'Matrice'}</button></div>`;
+  const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db', 'matrix', 'strats'].includes(S.tab) : S.tab === id);
+  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 ${S.lang === 'en' ? 'Rules' : 'Règles'}</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">${ICON_MARINE} Codex</button><button class="${S.tab === 'matrix' ? 'on' : ''}" data-act="tab" data-val="matrix">🎯 ${S.lang === 'en' ? 'Matrix' : 'Matrice'}</button><button class="${S.tab === 'strats' ? 'on' : ''}" data-act="tab" data-val="strats">📜 Stratagèmes</button></div>`;
   const backLists = () => '<button class="btn small ghost" data-act="tab" data-val="army" style="margin-bottom:8px">← Mes Listes</button>';
   function render() {
     const calcWas = !!calcStash; if (calcWas) calcOutForce();
@@ -152,8 +152,7 @@
     else if (!S.inGame && a && !a.gameOf) S.libId = a.id;
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
-    if (!S.inGame && S.tab === 'strats') S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '📋', 'Listes'], ['game', '<img src="icons/bolter.png" alt="" style="display:block;margin:2px auto 0;height:20px;width:auto;image-rendering:pixelated">', 'Batailles'], ['calc', '🎲', 'Calculs']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '📋', 'Listes'], ['game', '<img src="icons/bolter.png" alt="" style="display:block;margin:2px auto 0;height:20px;width:auto;image-rendering:pixelated">', 'Batailles'], ['calc', '🎲', 'Calculs']].concat([]).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     if (S.tab === 'calc') { calcInForce(); try { $app.innerHTML = viewCalc(); } finally { calcOutForce(); } } else $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
@@ -652,7 +651,7 @@
     const f = S.ui.stratPhase || 'all';
     const ar = army(); const onlyKw = !!S.ui.stratKw && !!ar;
     let list = allStrats().filter((s) => (f === 'all' || s.phases.includes(f)) && (!onlyKw || !s.target || ar.units.some((u) => Kw.ok(s.target, u, 'strat'))));
-    let h = `<h1>Stratagèmes</h1>${ar ? `<div class="chips" style="margin-bottom:8px">${chip('Seulement ceux dont la cible correspond aux mots-clés de mon armée', onlyKw, 'data-act="setUi" data-path="stratKw" data-val="' + (onlyKw ? '' : '1') + '"')}</div>` : ''}<div class="chips" style="margin-bottom:10px">${chip('Tous', f === 'all', 'data-act="setUi" data-path="stratPhase" data-val="all"')}${PHASES.map((p) => chip(p.label, f === p.id, `data-act="setUi" data-path="stratPhase" data-val="${p.id}"`)).join('')}</div>`;
+    let h = `${hd('Stratagèmes')}${rulesSeg()}${ar ? `<div class="chips" style="margin-bottom:8px">${chip('Seulement ceux dont la cible correspond aux mots-clés de mon armée', onlyKw, 'data-act="setUi" data-path="stratKw" data-val="' + (onlyKw ? '' : '1') + '"')}</div>` : ''}<div class="chips" style="margin-bottom:10px">${chip('Tous', f === 'all', 'data-act="setUi" data-path="stratPhase" data-val="all"')}${PHASES.map((p) => chip(p.label, f === p.id, `data-act="setUi" data-path="stratPhase" data-val="${p.id}"`)).join('')}</div>`;
     h += `<div class="card">${list.map((s) => `<div class="strat"><div class="row sp"><span class="nm">${esc(s.name)}</span><span><span class="cp">${s.cp} PC</span> ${s.verify ? '<span class="tag verify">à vérifier</span>' : ''} ${s.custom ? '<span class="tag">perso</span>' : '<span class="tag">base</span>'}</span></div>
       <div class="muted">${s.phases.map(phaseLabel).join(', ')} · ${s.turn === 'mine' ? 'mon tour' : s.turn === 'opp' ? 'tour adverse' : 'les deux tours'}</div>
       ${s.detachment ? `<div class="muted">${esc(s.detachment)}</div>` : ''}<div class="muted"><b>Quand :</b> ${esc(s.when || '—')}</div>${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div><b>Effet :</b> ${esc(s.effect || '—')}</div>
