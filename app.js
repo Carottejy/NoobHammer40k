@@ -2363,6 +2363,7 @@
     frRemove(id) { if (!confirm('Retirer cette personne de tes amis ?')) return; frDo(() => frReq('/rest/v1/friendships?id=eq.' + id, { method: 'DELETE' }), 'Retiré.'); },
     frInvite(uid) {
       const f = FR.friends.find((x) => x.uid === uid); if (!f) return;
+      if (!(S.net.code && S.net.role === 'h' && net.status !== 'off')) { actions.bwNew(); S.ui.ng = { open: true, mode: 'online', online: 'friend', friend: uid }; S.tab = 'game'; return; }
       frDo(async () => {
         if (!(S.net.code && S.net.role === 'h' && net.status !== 'off')) { S.net.nick = S.net.nick && S.net.nick !== 'Joueur' ? S.net.nick : (syCfg().s.pseudo || 'Joueur'); const code = newCode(); ensureGame('Partie en ligne ' + code); netStart('h', code); }
         await frReq('/rest/v1/game_invites', { method: 'POST', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ from_user: syCfg().s.uid, to_user: uid, code: S.net.code }) });
