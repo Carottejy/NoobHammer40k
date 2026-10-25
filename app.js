@@ -153,7 +153,7 @@
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
     if (!S.inGame && S.tab === 'strats') S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Batailles'], ['calc', '🎯', 'Calculs']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '📋', 'Listes'], ['game', '<svg viewBox="0 0 24 24" width="28" height="24" fill="currentColor" aria-hidden="true" style="display:block;margin:0 auto"><path d="M2 10h2V8h8v2h5V9h2v1h3v3h-3v1h-2v-1H12v6H9v-6H8l-1 4H4l1-4H2z"/></svg>', 'Batailles'], ['calc', '🎲', 'Calculs']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     if (S.tab === 'calc') { calcInForce(); try { $app.innerHTML = viewCalc(); } finally { calcOutForce(); } } else $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
@@ -2203,9 +2203,9 @@
   /* ----- Accueil, hub des parties, écran de partie ----- */
   function viewHome() {
     const a = army(); const l = readGames();
-    let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><div style="height:12px"></div>`;
+    let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="NoobHammer40k : une carotte en armure de Space Marine" width="640" height="640" style="max-width:100%;height:auto;border-radius:12px"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
-    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Batailles${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes Listes</button></div></div>`;
+    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">⚔️ Batailles${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">📋 Mes Listes</button></div></div>`;
     h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
