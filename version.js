@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.49.1';
+var APP_VERSION = '1.50.0';
 var APP_RELEASES = [
+  { v: '1.50.0', date: '2026-10-25', notes: ['Batailles : plan de table plus précis (ruines avec murs et ouvertures, couverts légers avec caisses) et cotes directement sur le plan (distance au bord gauche / haut, dimensions), affichables ou masquables.']},
   { v: '1.49.1', date: '2026-10-25', notes: ['Batailles : « Twist » devient « Péripétie ».']},
   { v: '1.49.0', date: '2026-10-25', notes: ['Règles : 3e onglet « Matrice » (Force Dispositions de chaque joueur → mission primaire), en français ou en anglais, avec le détail des deux missions du duel.']},
   { v: '1.48.0', date: '2026-10-25', notes: ['« Parties » devient « Batailles » : assistant pas à pas (nom et listes, mission selon les détachements, objectifs primaires des deux joueurs, champ de bataille avec carte de déploiement et plan des décors cotés au choix ou au hasard, Attaquant / Défenseur, missions secondaires tactiques ou fixes, lancement).','Chaque étape a une flèche de retour (en haut à gauche) et une croix (en haut à droite), sans texte.','Le plan de bataille reste consultable pendant la partie.']},

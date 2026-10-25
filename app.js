@@ -2228,7 +2228,7 @@
   const bwMapHtml = (w, big) => {
     if (!w.dep) return '';
     const lay = BM.layout(w.dep, w.seed || 1, !!w.two);
-    return BM.svg(w.dep, lay, { names: bwRoleNames(w), id: big ? 'z' : 'p' });
+    return BM.svg(w.dep, lay, { names: bwRoleNames(w), id: big ? 'z' : 'p', cotes: w.cotes !== false });
   };
   function bwTable(w) {
     const lay = BM.layout(w.dep, w.seed || 1, !!w.two); const ms = BM.measures(lay);
@@ -2291,7 +2291,7 @@
           <h2 style="margin:12px 0 4px">Objectifs centraux</h2><div class="muted">Jet de D6 : 1–5 = un objectif central au centre ; 6 = deux objectifs à 6" de part et d'autre du centre, le long de la ligne en pointillés.</div>${bwChips('bwTwo', w.two ? '1' : '0', [['0', '1 central (1–5)'], ['1', '2 centraux (6)']])}<button class="btn small ghost" data-act="bwTwo" data-val="">🎲 Lancer le D6</button>`;
       }
       h += '</div>';
-      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div><div class="muted" style="margin-top:6px">Rouge : zone de l'Attaquant · Bleu : zone du Défenseur · Pointillés : ligne de territoire. Lettres = objectifs, chiffres = décors.</div></div>${bwTable(w)}`;
+      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwCotes" title="Afficher / masquer les cotes">📏 ${w.cotes === false ? 'Cotes : non' : 'Cotes : oui'}</button><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div><div class="muted" style="margin-top:6px">Rouge : zone de l'Attaquant · Bleu : zone du Défenseur · Pointillés blancs : ligne de territoire. Lettres = objectifs, pastilles = n° de décor. Cotes en jaune : distance du décor au bord gauche et au bord haut ; au centre : largeur × hauteur. Vert : ruine (Dense) · Jaune : couvert (Léger). Touche le plan pour l'agrandir.</div></div>${bwTable(w)}`;
       h += bwNext(w, !!w.dep);
     } else if (w.step === 4) {
       h = bwHead(w, 'Attaquant et Défenseur') + `<div class="card"><p class="muted" style="margin:0 0 6px">Chaque joueur jette un dé : le gagnant choisit d'être Attaquant ou Défenseur.</p>${bwChips('bwRole', w.role || '', [['A', 'Je suis Attaquant'], ['D', 'Je suis Défenseur']])}<button class="btn small ghost" data-act="bwRole" data-val="">🎲 Tirage au sort</button>${w.role ? `<div class="note" style="margin-top:8px">Attaquant : <b>${esc(w.role === 'A' ? n.me : n.op)}</b><br>Défenseur : <b>${esc(w.role === 'A' ? n.op : n.me)}</b></div>` : ''}</div>` + (w.role ? `<div class="card">${bwMapHtml(w)}</div>` : '') + bwNext(w, !!w.role);
@@ -2428,6 +2428,7 @@
     bwRole(v) { S.bw.role = v || (Math.random() < 0.5 ? 'A' : 'D'); },
     bwSecMode(v, el) { const s = S.bw.sec[el.dataset.who]; s.m = v; if (v === 'tac') s.f = []; },
     bwFix(v, el) { const s = S.bw.sec[el.dataset.who]; const i = s.f.indexOf(v); if (i >= 0) s.f.splice(i, 1); else { if (s.f.length >= 2) s.f.shift(); s.f.push(v); } },
+    bwCotes() { S.bw.cotes = S.bw.cotes === false; },
     bwZoom() { S.bw.zoom = !S.bw.zoom; },
     bwStart() { pendingBattle = bwBattle(S.bw); S.bw = null; actions.gameCreate(); },
     gameCreate() {

@@ -36,6 +36,7 @@
       const dense = R() < 0.5; const horiz = R() < 0.5; const w = horiz ? 6 : 4, h = horiz ? 4 : 6;
       const p = { k: dense ? 'D' : 'L', x: o.x, y: o.y, w, h, obj: o.i };
       if (!inside(p)) { p.x = Math.min(Math.max(p.x, 1 + w / 2), W - 1 - w / 2); p.y = Math.min(Math.max(p.y, 1 + h / 2), H - 1 - h / 2); }
+      p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
       add(p); done.add(o.i);
       if (mirror) { const m = rot(p); m.obj = mirror.i; add(m); done.add(mirror.i); }
     });
@@ -45,7 +46,7 @@
       tries++;
       const s = pick(SIZES); const horiz = R() < 0.5; const w = horiz ? s[1] : s[2], h = horiz ? s[2] : s[1];
       const p = { k: s[0], x: r1(3 + R() * (W - 6)), y: r1(3 + R() * (H - 6)), w, h };
-      p.x = Math.round(p.x); p.y = Math.round(p.y);
+      p.x = Math.round(p.x - w / 2) + w / 2; p.y = Math.round(p.y - h / 2) + h / 2;
       if (!inside(p)) continue;
       const m = rot(p);
       if (gap(p, m) < 3) continue;
@@ -71,10 +72,30 @@
     s += `<polygon points="${poly(d.d)}" fill="#4a86e8" fill-opacity=".30" stroke="#4a86e8" stroke-width=".35"${mk}/>`;
     if (d.circle) s += `<circle cx="${CX}" cy="${CY}" r="${d.circle}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".2" stroke-dasharray=".8 .6"/>`;
     s += `<line x1="${d.line[0][0]}" y1="${d.line[0][1]}" x2="${d.line[1][0]}" y2="${d.line[1][1]}" stroke="#fff" stroke-width=".3" stroke-dasharray="1.6 1.1"/>`;
+    const cotes = opts.cotes !== false;
     lay.pieces.forEach((p) => {
-      const dense = p.k === 'D';
-      s += `<rect x="${r1(p.x - p.w / 2)}" y="${r1(p.y - p.h / 2)}" width="${p.w}" height="${p.h}" rx=".4" fill="${dense ? '#3c9a55' : '#e0c84a'}" fill-opacity=".88" stroke="${dense ? '#173f23' : '#6b5d10'}" stroke-width=".25"/>`;
-      s += `<text x="${p.x}" y="${r1(p.y + 0.9)}" font-size="2.6" font-weight="700" text-anchor="middle" fill="#0b1a10">${p.n}</text>`;
+      const dense = p.k === 'D'; const x0 = r1(p.x - p.w / 2), y0 = r1(p.y - p.h / 2), x1 = r1(p.x + p.w / 2), y1 = r1(p.y + p.h / 2);
+      const col = dense ? '#3c9a55' : '#e0c84a', dk = dense ? '#0f3a1d' : '#6b5d10';
+      s += `<g><rect x="${x0}" y="${y0}" width="${p.w}" height="${p.h}" fill="${col}" fill-opacity="${dense ? .34 : .22}" stroke="${col}" stroke-width=".18" stroke-dasharray="${dense ? '' : '.7 .5'}"/>`;
+      if (dense) {
+        // ruine : murs épais avec ouvertures (déterministes)
+        const g = 1.4 + (p.n % 3) * 0.3, m = 0.55; const wall = (ax, ay, bx, by) => `<line x1="${r1(ax)}" y1="${r1(ay)}" x2="${r1(bx)}" y2="${r1(by)}" stroke="#7fd197" stroke-width=".55" stroke-linecap="square"/>`;
+        const cx = p.x + ((p.n % 2) ? 0.2 : -0.2) * p.w / 2, cy = p.y + ((p.n % 3) - 1) * p.h / 6;
+        s += wall(x0 + m / 2, y0 + m / 2, cx - g, y0 + m / 2) + wall(cx + g, y0 + m / 2, x1 - m / 2, y0 + m / 2) + wall(x0 + m / 2, y1 - m / 2, x1 - m / 2, y1 - m / 2);
+        s += wall(x0 + m / 2, y0 + m / 2, x0 + m / 2, cy - g) + wall(x0 + m / 2, cy + g, x0 + m / 2, y1 - m / 2) + wall(x1 - m / 2, y0 + m / 2, x1 - m / 2, y1 - m / 2);
+        if (p.w >= 8 && p.h >= 5) s += wall(p.x, y0 + m / 2, p.x, y0 + p.h * 0.45);
+      } else {
+        // couvert léger : caisses / barricades le long de la bordure
+        const n = Math.max(3, Math.round((p.w + p.h) / 2.2)); const per = 2 * (p.w + p.h);
+        for (let i = 0; i < n; i++) { let t = (i + 0.5) / n * per, bx, by; if (t < p.w) { bx = x0 + t; by = y0; } else if ((t -= p.w) < p.h) { bx = x1; by = y0 + t; } else if ((t -= p.h) < p.w) { bx = x1 - t; by = y1; } else { t -= p.w; bx = x0; by = y1 - t; } if (i % 4 !== 3) s += `<rect x="${r1(bx - .55)}" y="${r1(by - .55)}" width="1.1" height="1.1" fill="#c9a93a" stroke="${dk}" stroke-width=".12"/>`; }
+      }
+      s += `<circle cx="${r1(x0 + 1.1)}" cy="${r1(y0 + 1.1)}" r="1.05" fill="#0b1a10" fill-opacity=".85" stroke="${col}" stroke-width=".12"/><text x="${r1(x0 + 1.1)}" y="${r1(y0 + 1.75)}" font-size="1.45" font-weight="700" text-anchor="middle" fill="#fff">${p.n}</text>`;
+      s += `<text x="${p.x}" y="${r1(p.obj ? y1 - .6 : p.y + .75)}" font-size="1.7" font-weight="700" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".25" paint-order="stroke">${p.w}×${p.h}</text></g>`;
+      if (cotes) {
+        const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.25" text-anchor="middle" fill="#ffe08a" stroke="#000" stroke-width=".22" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
+        if (x0 > 0.5) s += `<line x1="0" y1="${p.y}" x2="${x0}" y2="${p.y}" stroke="#ffe08a" stroke-width=".12" stroke-dasharray=".4 .3" stroke-opacity=".8"/>` + t(r1(x0 / 2), r1(p.y - .35), r1(x0) + '"');
+        if (y0 > 0.5) s += `<line x1="${p.x}" y1="0" x2="${p.x}" y2="${y0}" stroke="#ffe08a" stroke-width=".12" stroke-dasharray=".4 .3" stroke-opacity=".8"/>` + t(r1(p.x - .35), r1(y0 / 2), r1(y0) + '"', true);
+      }
     });
     lay.objs.forEach((o) => {
       s += `<circle cx="${o.x}" cy="${o.y}" r="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".18" stroke-dasharray=".5 .4"/>`;
