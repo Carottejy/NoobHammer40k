@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.59.4';
+var APP_VERSION = '1.59.5';
 var APP_RELEASES = [
+  { v: '1.59.5', date: '2026-10-25', notes: ['Bataille : en-tête compact des deux joueurs (round, PC, PV /100) avec marquage des PV primaires et secondaires à tout moment (−, +, +5) ; rappels par phase repliés par défaut.']},
   { v: '1.59.4', date: '2026-10-25', notes: ['Calculs : le chargement automatique des listes de la bataille ne se fait que depuis l\'onglet Batailles ; depuis tout autre onglet, Calculs repart sur l\'initialisation normale.']},
   { v: '1.59.3', date: '2026-10-25', notes: ['Bataille : bouton « Revenir en arrière » (annule la dernière action), score /100 de chaque joueur toujours affiché avec le détail primaire/secondaire.','Comptage : cocher une secondaire « Réalisée » propose directement ses PV ; récapitulatif des PV comptés à la validation du tour.']},
   { v: '1.59.2', date: '2026-10-25', notes: ['Stratagèmes : l\'onglet n\'apparaît plus dans la barre du bas, il est maintenant un 4e volet de Règles (Règles / Codex / Matrice / Stratagèmes).']},

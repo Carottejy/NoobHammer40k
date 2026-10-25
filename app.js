@@ -317,12 +317,16 @@
   function viewPlay() {
     const g = gm(); const N = gNames();
     let h = `<h1>NoobHammer40k</h1>${netChip()}`;
+    const cb = (act, d, lab, ex) => `<button class="chip xs" data-act="${act}" ${ex || ''} data-val="${d}">${lab}</button>`;
     const col = (w) => {
-      const act = gwho() === w && g.first && !g.over;
-      const cpv = (w === 'op' && S.enemy && S.enemy.live) ? `<b>${S.enemy.cp == null ? '?' : S.enemy.cp}</b>` : `<button class="chip" data-act="step" data-path="${w === 'me' ? 'cp' : 'gm.cpOpp'}" data-val="-1">−</button><b>${gCp(w)}</b><button class="chip" data-act="step" data-path="${w === 'me' ? 'cp' : 'gm.cpOpp'}" data-val="1">+</button>`;
-      return `<div class="note" style="${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div><div class="counter"><span class="muted">PC</span>${cpv}</div><div style="font-size:1.25rem"><b>${gTot(w)}</b><span class="muted"> / 100 PV</span></div><div class="muted" style="font-size:.8rem">prim. ${gSum(g.vp[w].p) + (g.end.p[w] || 0)} · sec. ${gSum(g.vp[w].s)}${g.end.br[w] ? ' · +10' : ''}</div></div>`;
+      const act = gwho() === w && g.first && !g.over; const live = w === 'op' && S.enemy && S.enemy.live;
+      const cpa = w === 'me' ? 'data-path="cp"' : 'data-path="gm.cpOpp"';
+      const cpv = live ? `<b>${S.enemy.cp == null ? '?' : S.enemy.cp}</b>` : `${cb('step', -1, '−', cpa)}<b>${gCp(w)}</b>${cb('step', 1, '+', cpa)}`;
+      const row = (lab, mid) => `<div class="counter" style="gap:4px;margin-top:3px"><span class="muted" style="min-width:2.4em;font-size:.8rem">${lab}</span>${mid}</div>`;
+      const sc = (k) => { const ex = `data-who="${w}" data-key="${k}"`; return g.first && !g.over ? `${cb('gmAdj', -1, '−', ex)}<b style="font-size:1.05rem">${gSum(g.vp[w][k])}</b>${cb('gmAdj', 1, '+', ex)}${cb('gmAdj', 5, '+5', ex)}` : `<b style="font-size:1.05rem">${gSum(g.vp[w][k])}</b>`; };
+      return `<div class="note" style="padding:6px 8px;margin:0;${act ? 'border:2px solid var(--accent,#c9a227)' : ''}"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem"><b>${act ? '▶ ' : ''}${esc(N[w])}</b></div>${row('PC', cpv)}<div style="margin-top:3px"><b style="font-size:1.3rem">${gTot(w)}</b><span class="muted" style="font-size:.8rem"> /100 PV</span></div>${row('Prim.', sc('p'))}${row('Sec.', sc('s'))}</div>`;
     };
-    h += `<div class="card"><div class="row sp"><h2 style="margin:0">Round ${S.round} / ${GROUNDS}</h2><span class="muted">${g.over ? 'Bataille terminée' : g.first ? 'Tour de ' + esc(N[gwho()]) : ''}</span></div><div class="grid g2" style="margin-top:8px">${col('me')}${col('op')}</div></div>`;
+    h += `<div class="card" style="padding:10px"><div class="row sp"><b>Round ${S.round} / ${GROUNDS}</b><span class="muted" style="font-size:.85rem">${g.over ? 'Bataille terminée' : g.first ? 'Tour de ' + esc(N[gwho()]) : ''}</span></div><div class="grid g2" style="margin-top:6px;gap:6px">${col('me')}${col('op')}</div></div>`;
     const canUndo = (S.gh || []).length && !(S.enemy && S.enemy.live && (S.gh[S.gh.length - 1].round !== S.round || S.gh[S.gh.length - 1].mine !== S.mine));
     const undo = canUndo ? `<button class="btn small ghost" data-act="gmUndo" style="margin:0 0 10px">↩ Revenir en arrière</button>` : '';
     h += undo;
@@ -333,7 +337,7 @@
     if (g.msg) h += `<div class="note">${esc(g.msg)}</div>`;
     if (g.step === 'start') return h + gStart(g, N);
     if (g.step === 'score') return h + gScore(g, N);
-    h += `<div class="card"><h2>Rappels par phase</h2><p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}</div>`;
+    h += `<div class="card"><div class="row sp" data-act="remAll" style="cursor:pointer"><h2 style="margin:0">Rappels par phase</h2><span class="muted">${S.ui.remAll ? '▾' : '▸'}</span></div>${S.ui.remAll ? `<p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}` : ''}</div>`;
     const sec = g.hand[gwho()];
     if (sec.length) h += `<div class="card"><h2>Secondaires actives (${esc(N[gwho()])})</h2>${sec.map((id) => secCardLine(id)).join('')}</div>`;
     h += `<button class="btn" data-act="gmStep" data-val="score">Fin du tour : compter les PV ▶</button>`;
@@ -2889,11 +2893,17 @@
       freshGame();
     },
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
+    gmAdj(v, el) {
+      const g = gm(), w = el.dataset.who, k = el.dataset.key, d = +v, r = S.round - 1;
+      if (d > 0) { const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); g.vp[w][k][r] += Math.min(d, room); g.msg = d > room ? 'Plafond atteint (15 PV par round, 45 au total).' : ''; }
+      else { let n = -d; for (let i = r; i >= 0 && n > 0; i--) { const t = Math.min(n, g.vp[w][k][i]); g.vp[w][k][i] -= t; n -= t; } }
+    },
     gmUndo() {
       const h = S.gh || []; const z = h.pop(); if (!z) return;
       S.gm = JSON.parse(z.gm); S.round = z.round; S.mine = z.mine; S.cp = z.cp; S.gm.tk = S.round + '|' + (S.mine ? 1 : 0);
     },
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
+    remAll() { S.ui.remAll = !S.ui.remAll; },
     phOpen(v) { S.ui.phOpen = S.ui.phOpen === v ? '' : v; },
     gmStep(v) {
       const g = gm();
