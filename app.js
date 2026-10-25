@@ -1952,8 +1952,8 @@
   }
   function viewRules() {
     const R = rulesSrc();
-    if (S.lang === 'en') return `${hd('Rules')}${rulesSeg()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
-    return `${hd('Règles')}${rulesSeg()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    if (S.lang === 'en') return `${hd('Rules')}${rulesSeg()}<div class="card"><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    return `${hd('Règles')}${rulesSeg()}<div class="card"><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
   }
 
   /* ----- Export Tabletop Simulator (tts-export.js) ----- */
