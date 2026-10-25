@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.51.0';
+var APP_VERSION = '1.52.0';
 var APP_RELEASES = [
+  { v: '1.52.0', date: '2026-10-25', notes: ['Batailles : plan de table redessiné en style plan imprimé (fond quadrillé, zones pleines, empreintes hachurées, murs de ruines verts, obstacles orange, icônes d\'objectifs).']},
   { v: '1.51.0', date: '2026-10-25', notes: ['Batailles : décors dessinés avec les empreintes officielles 11e (rectangles, triangle, lignes), cotes les plus courtes affichées, plus de lettres sur les objectifs.']},
   { v: '1.50.0', date: '2026-10-25', notes: ['Batailles : plan de table plus précis (ruines avec murs et ouvertures, couverts légers avec caisses) et cotes directement sur le plan (distance au bord gauche / haut, dimensions), affichables ou masquables.']},
   { v: '1.49.1', date: '2026-10-25', notes: ['Batailles : « Twist » devient « Péripétie ».']},

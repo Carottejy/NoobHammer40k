@@ -60,45 +60,69 @@
     return { objs, pieces };
   }
   const poly = (a) => a.map((p) => p.join(',')).join(' ');
-  /* Dessin SVG. opts : { names:{a,d}, ticks:true, id } */
+  /* Dessin SVG (style « plan imprimé » : fond crème quadrillé, zones pleines, empreintes hachurées, murs verts, obstacles orange). */
   function svg(depId, lay, opts) {
     opts = opts || {}; const d = BD().DEPLOY[depId]; const nm = opts.names || {}; const uid = 'm' + (opts.id || '0');
     const cut = (t) => (t.length > 20 ? t.slice(0, 19) + '…' : t); const A = cut(nm.a || 'Attaquant'), D = cut(nm.d || 'Défenseur');
-    let s = `<svg class="bmap" viewBox="-7 -7 58 74" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Plan de bataille"><defs>`;
+    const RED = '#944a47', BLU = '#3b4d63', INK = '#1d1d1d', WALL = '#3f6b46', OBS = '#d28a2e', PAPER = '#f1ece0';
+    let s = `<svg class="bmap" viewBox="-7 -7 58 74" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Plan de bataille"><defs>`
+      + `<pattern id="${uid}h" width="1.1" height="1.1" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="1.1" height="1.1" fill="#ebe7da"/><line x1="0" y1="0" x2="0" y2="1.1" stroke="#9c9a90" stroke-width=".22"/></pattern>`
+      + `<pattern id="${uid}g" width="1" height="1" patternUnits="userSpaceOnUse"><path d="M1 0H0V1" fill="none" stroke="#000" stroke-opacity=".10" stroke-width=".05"/></pattern>`;
     if (d.circle) s += `<mask id="${uid}"><rect x="0" y="0" width="${W}" height="${H}" fill="#fff"/><circle cx="${CX}" cy="${CY}" r="${d.circle}" fill="#000"/></mask>`;
-    s += `</defs><rect x="0" y="0" width="${W}" height="${H}" fill="#24332a" stroke="#cfd8cf" stroke-width=".3"/>`;
-    for (let x = 6; x < W; x += 6) s += `<line x1="${x}" y1="0" x2="${x}" y2="${H}" stroke="#fff" stroke-opacity=".12" stroke-width=".1"/>`;
-    for (let y = 6; y < H; y += 6) s += `<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="#fff" stroke-opacity=".12" stroke-width=".1"/>`;
+    s += `</defs><rect x="-7" y="-7" width="58" height="74" fill="${PAPER}"/><rect x="0" y="0" width="${W}" height="${H}" fill="${PAPER}"/><rect x="0" y="0" width="${W}" height="${H}" fill="url(#${uid}g)"/>`;
     const mk = d.circle ? ` mask="url(#${uid})"` : '';
-    s += `<polygon points="${poly(d.a)}" fill="#e05050" fill-opacity=".30" stroke="#e05050" stroke-width=".35"${mk}/>`;
-    s += `<polygon points="${poly(d.d)}" fill="#4a86e8" fill-opacity=".30" stroke="#4a86e8" stroke-width=".35"${mk}/>`;
-    if (d.circle) s += `<circle cx="${CX}" cy="${CY}" r="${d.circle}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width=".2" stroke-dasharray=".8 .6"/>`;
-    s += `<line x1="${d.line[0][0]}" y1="${d.line[0][1]}" x2="${d.line[1][0]}" y2="${d.line[1][1]}" stroke="#fff" stroke-width=".3" stroke-dasharray="1.6 1.1"/>`;
+    s += `<polygon points="${poly(d.a)}" fill="${RED}"${mk}/><polygon points="${poly(d.d)}" fill="${BLU}"${mk}/><rect x="0" y="0" width="${W}" height="${H}" fill="url(#${uid}g)" opacity=".9"/>`;
+    if (d.circle) s += `<circle cx="${CX}" cy="${CY}" r="${d.circle}" fill="none" stroke="${INK}" stroke-opacity=".5" stroke-width=".15" stroke-dasharray=".8 .6"/>`;
+    s += `<line x1="${d.line[0][0]}" y1="${d.line[0][1]}" x2="${d.line[1][0]}" y2="${d.line[1][1]}" stroke="${INK}" stroke-opacity=".7" stroke-width=".18" stroke-dasharray="1.2 .9"/>`;
     const cotes = opts.cotes !== false;
+    const wall = (ax, ay, bx, by) => `<line x1="${r1(ax)}" y1="${r1(ay)}" x2="${r1(bx)}" y2="${r1(by)}" stroke="${WALL}" stroke-width=".6" stroke-linecap="square"/>`;
+    const obs = (ax, ay, bx, by) => `<line x1="${r1(ax)}" y1="${r1(ay)}" x2="${r1(bx)}" y2="${r1(by)}" stroke="${OBS}" stroke-width=".5" stroke-linecap="square"/>`;
     lay.pieces.forEach((p) => {
       const dense = p.k === 'D'; const x0 = r1(p.x - p.w / 2), y0 = r1(p.y - p.h / 2), x1 = r1(p.x + p.w / 2), y1 = r1(p.y + p.h / 2);
-      const col = dense ? '#3c9a55' : '#e0c84a', dk = dense ? '#0f3a1d' : '#6b5d10';
-      s += `<g>`;
-      s += p.s === 'T' ? `<polygon points="${(p.c === 0 ? [[x0, y0], [x1, y0], [x0, y1]] : p.c === 1 ? [[x0, y0], [x1, y0], [x1, y1]] : p.c === 2 ? [[x1, y0], [x1, y1], [x0, y1]] : [[x0, y0], [x0, y1], [x1, y1]]).map((q) => q.join(',')).join(' ')}" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width=".3"/>` : `<rect x="${x0}" y="${y0}" width="${p.w}" height="${p.h}" fill="${col}" fill-opacity=".45" stroke="${col}" stroke-width=".3"/>`;
-      s += `<circle cx="${r1(x0 + 1.1)}" cy="${r1(y0 + 1.1)}" r="1.05" fill="#0b1a10" fill-opacity=".85" stroke="${col}" stroke-width=".12"/><text x="${r1(x0 + 1.1)}" y="${r1(y0 + 1.75)}" font-size="1.45" font-weight="700" text-anchor="middle" fill="#fff">${p.n}</text>`;
-      s += `<text x="${p.x}" y="${r1(p.obj ? y1 - .6 : p.y + .75)}" font-size="1.7" font-weight="700" text-anchor="middle" fill="#fff" stroke="#000" stroke-width=".25" paint-order="stroke">${p.w}×${p.h}</text></g>`;
+      let pts;
+      if (p.s === 'T') pts = p.c === 0 ? [[x0, y0], [x1, y0], [x0, y1]] : p.c === 1 ? [[x0, y0], [x1, y0], [x1, y1]] : p.c === 2 ? [[x1, y0], [x1, y1], [x0, y1]] : [[x0, y0], [x0, y1], [x1, y1]];
+      else pts = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]];
+      s += `<g><polygon points="${poly(pts)}" fill="url(#${uid}h)" stroke="${INK}" stroke-width=".28" stroke-linejoin="round"/>`;
+      const e = 1.6; // longueur des équerres
+      if (p.s === 'T') {
+        const q = pts; // sommet à angle droit = celui dont les deux côtés sont horizontaux/verticaux
+        const rc = [[x0, y0], [x1, y0], [x1, y1], [x0, y1]][p.c];
+        const sx = rc[0] === x0 ? 1 : -1, sy = rc[1] === y0 ? 1 : -1;
+        s += wall(rc[0], rc[1], rc[0] + sx * Math.min(p.w * .7, 6), rc[1]) + wall(rc[0], rc[1], rc[0], rc[1] + sy * Math.min(p.h * .7, 6));
+      } else if (dense) {
+        // ruine : deux équerres de murs verts sur coins opposés + un mur partiel, orange sur un coin
+        const f = p.n % 2; const L = Math.min(p.w, p.h) * .8, M = p.w * .45;
+        if (f) s += wall(x0 + .3, y0 + .3, x0 + .3 + Math.min(p.w * .8, 9), y0 + .3) + wall(x0 + .3, y0 + .3, x0 + .3, y0 + .3 + L) + wall(x1 - .3, y1 - .3, x1 - .3 - M, y1 - .3) + wall(x1 - .3, y1 - .3, x1 - .3, y1 - .3 - L * .8) + obs(x1 - .3, y0 + .3, x1 - .3 - e, y0 + .3) + obs(x1 - .3, y0 + .3, x1 - .3, y0 + .3 + e);
+        else s += wall(x1 - .3, y0 + .3, x1 - .3 - Math.min(p.w * .8, 9), y0 + .3) + wall(x1 - .3, y0 + .3, x1 - .3, y0 + .3 + L) + wall(x0 + .3, y1 - .3, x0 + .3 + M, y1 - .3) + wall(x0 + .3, y1 - .3, x0 + .3, y1 - .3 - L * .8) + obs(x0 + .3, y0 + .3, x0 + .3 + e, y0 + .3) + obs(x0 + .3, y0 + .3, x0 + .3, y0 + .3 + e);
+      } else if (Math.min(p.w, p.h) <= 2.6) {
+        // ligne : mur vert avec barre orange (obstacle) au milieu
+        const horiz = p.w >= p.h; if (horiz) s += wall(x0 + .5, p.y, x1 - .5, p.y) + obs(p.x - 1.2, p.y, p.x + 1.2, p.y); else s += wall(p.x, y0 + .5, p.x, y1 - .5) + obs(p.x, p.y - 1.2, p.x, p.y + 1.2);
+      } else {
+        // rectangle moyen : équerres orange (obstacles) sur deux coins opposés
+        const f = p.n % 2; const c1 = f ? [x0, y0, 1, 1] : [x1, y0, -1, 1], c2 = f ? [x1, y1, -1, -1] : [x0, y1, 1, -1];
+        [c1, c2].forEach((c) => { s += obs(c[0] + c[2] * .3, c[1] + c[3] * .3, c[0] + c[2] * (.3 + e), c[1] + c[3] * .3) + obs(c[0] + c[2] * .3, c[1] + c[3] * .3, c[0] + c[2] * .3, c[1] + c[3] * (.3 + e)); });
+      }
+      s += `<text x="${p.x}" y="${r1(p.obj ? y1 - .7 : p.y + .55)}" font-size="1.45" font-weight="700" text-anchor="middle" fill="${INK}" stroke="${PAPER}" stroke-width=".35" paint-order="stroke">${p.w}×${p.h}</text>`;
+      s += `<circle cx="${r1(x0 + 1)}" cy="${r1(y0 + 1)}" r=".85" fill="${INK}"/><text x="${r1(x0 + 1)}" y="${r1(y0 + 1.5)}" font-size="1.2" font-weight="700" text-anchor="middle" fill="#fff">${p.n}</text></g>`;
       if (cotes) {
-        const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.3" text-anchor="middle" fill="#ffe08a" stroke="#000" stroke-width=".22" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
+        const t = (x, y, v, rot) => `<text x="${x}" y="${y}" font-size="1.25" font-weight="700" text-anchor="middle" fill="${INK}" stroke="${PAPER}" stroke-width=".3" paint-order="stroke"${rot ? ` transform="rotate(-90 ${x} ${y})"` : ''}>${v}</text>`;
         const L = x0, Rr = r1(W - x1), T = y0, B = r1(H - y1);
-        if (Math.min(L, Rr) > 0.4) { const left = L <= Rr; const v = left ? L : Rr; s += `<line x1="${left ? 0 : x1}" y1="${p.y}" x2="${left ? x0 : W}" y2="${p.y}" stroke="#ffe08a" stroke-width=".14" stroke-dasharray=".4 .3"/>` + t(r1(left ? x0 / 2 : (x1 + W) / 2), r1(p.y - .35), v + '"'); }
-        if (Math.min(T, B) > 0.4) { const top = T <= B; const v = top ? T : B; s += `<line x1="${p.x}" y1="${top ? 0 : y1}" x2="${p.x}" y2="${top ? y0 : H}" stroke="#ffe08a" stroke-width=".14" stroke-dasharray=".4 .3"/>` + t(r1(p.x - .35), r1(top ? y0 / 2 : (y1 + H) / 2), v + '"', true); }
+        if (Math.min(L, Rr) > 0.4) { const left = L <= Rr; const v = left ? L : Rr; s += `<line x1="${left ? 0 : x1}" y1="${p.y}" x2="${left ? x0 : W}" y2="${p.y}" stroke="#fff" stroke-width=".16" stroke-dasharray=".4 .3"/><line x1="${left ? 0 : x1}" y1="${p.y}" x2="${left ? x0 : W}" y2="${p.y}" stroke="${INK}" stroke-width=".08"/>` + t(r1(left ? x0 / 2 : (x1 + W) / 2), r1(p.y - .35), v + '"'); }
+        if (Math.min(T, B) > 0.4) { const top = T <= B; const v = top ? T : B; s += `<line x1="${p.x}" y1="${top ? 0 : y1}" x2="${p.x}" y2="${top ? y0 : H}" stroke="#fff" stroke-width=".16" stroke-dasharray=".4 .3"/><line x1="${p.x}" y1="${top ? 0 : y1}" x2="${p.x}" y2="${top ? y0 : H}" stroke="${INK}" stroke-width=".08"/>` + t(r1(p.x - .35), r1(top ? y0 / 2 : (y1 + H) / 2), v + '"', true); }
       }
     });
     lay.objs.forEach((o) => {
-      s += `<circle cx="${o.x}" cy="${o.y}" r="3" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width=".18" stroke-dasharray=".5 .4"/>`;
-      s += `<circle cx="${o.x}" cy="${o.y}" r="1.1" fill="#fff" stroke="#000" stroke-width=".25"/><circle cx="${o.x}" cy="${o.y}" r=".45" fill="#000"/>`;
+      const home = o.k === 'A' || o.k === 'D', centre = o.k === 'C';
+      s += `<circle cx="${o.x}" cy="${o.y}" r="3" fill="none" stroke="${INK}" stroke-opacity=".45" stroke-width=".12" stroke-dasharray=".5 .4"/><circle cx="${o.x}" cy="${o.y}" r="1.35" fill="#fff" stroke="${home ? RED : centre ? INK : '#2f7f8a'}" stroke-width=".25"/>`;
+      if (home) s += `<path d="M${o.x - .7} ${o.y + .6}V${o.y - .2}H${o.x - .7}V${o.y - .6}H${o.x - .35}V${o.y - .35}H${o.x - .1}V${o.y - .6}H${o.x + .1}V${o.y - .35}H${o.x + .35}V${o.y - .6}H${o.x + .7}V${o.y + .6}Z" fill="${RED}"/>`;
+      else if (centre) s += `<circle cx="${o.x}" cy="${r1(o.y - .15)}" r=".6" fill="${INK}"/><rect x="${r1(o.x - .3)}" y="${r1(o.y + .2)}" width=".6" height=".45" fill="${INK}"/>`;
+      else s += `<path d="M${o.x - .45} ${o.y + .7}V${o.y - .7}M${o.x - .45} ${o.y - .7}H${o.x + .6}L${o.x + .2} ${o.y - .3}L${o.x + .6} ${o.y + .1}H${o.x - .45}" fill="#2f7f8a" stroke="#2f7f8a" stroke-width=".18"/>`;
     });
-    // repères de la grille (tous les 6")
-    for (let x = 0; x <= W; x += 6) s += `<text x="${x}" y="-1.6" font-size="1.7" text-anchor="middle" fill="#9aa59a">${x}"</text>`;
-    for (let y = 0; y <= H; y += 6) s += `<text x="-1" y="${y + 0.6}" font-size="1.7" text-anchor="end" fill="#9aa59a">${y}"</text>`;
-    // étiquettes des zones (hors du plateau)
-    if (d.side === 'v') s += `<text x="${CX}" y="-3.8" font-size="2.1" font-weight="700" text-anchor="middle" fill="#ffb0b0">${A.toUpperCase()}</text><text x="${CX}" y="${H + 4.4}" font-size="2.1" font-weight="700" text-anchor="middle" fill="#b0ccff">${D.toUpperCase()}</text>`;
-    else s += `<text transform="translate(-5.2 ${CY}) rotate(-90)" font-size="2.1" font-weight="700" text-anchor="middle" fill="#ffb0b0">${A.toUpperCase()}</text><text transform="translate(${W + 5.2} ${CY}) rotate(90)" font-size="2.1" font-weight="700" text-anchor="middle" fill="#b0ccff">${D.toUpperCase()}</text>`;
+    for (let x = 0; x <= W; x += 6) s += `<text x="${x}" y="-1.6" font-size="1.6" text-anchor="middle" fill="#6a665c">${x}"</text>`;
+    for (let y = 0; y <= H; y += 6) s += `<text x="-1" y="${y + 0.6}" font-size="1.6" text-anchor="end" fill="#6a665c">${y}"</text>`;
+    s += `<rect x="0" y="0" width="${W}" height="${H}" fill="none" stroke="${INK}" stroke-width=".5"/>`;
+    if (d.side === 'v') s += `<text x="${CX}" y="-3.8" font-size="2.1" font-weight="800" text-anchor="middle" fill="${RED}">${A.toUpperCase()}</text><text x="${CX}" y="${H + 4.4}" font-size="2.1" font-weight="800" text-anchor="middle" fill="${BLU}">${D.toUpperCase()}</text>`;
+    else s += `<text transform="translate(-5.2 ${CY}) rotate(-90)" font-size="2.1" font-weight="800" text-anchor="middle" fill="${RED}">${A.toUpperCase()}</text><text transform="translate(${W + 5.2} ${CY}) rotate(90)" font-size="2.1" font-weight="800" text-anchor="middle" fill="${BLU}">${D.toUpperCase()}</text>`;
     return s + '</svg>';
   }
   /* Tableau des cotes : centre de chaque décor mesuré depuis le bord gauche et le bord haut, + distances aux autres bords. */
