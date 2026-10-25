@@ -214,8 +214,9 @@
     const rules = (S.armyRules[S.armyId] || []).filter((r) => (r.phases || ['all']).includes(ph.id));
     if (rules.length) h += `<h3>Règles d'armée / détachement</h3>` + rules.map(ruleNote).join('');
     if (a) {
-      const seen = new Set(); const abs = [];
-      a.units.forEach((u) => { if (!alive(u)) return; (u.abilities || []).forEach((r) => { const ph0 = r.phases || ['all']; if (ph0.includes('all') || !ph0.includes(ph.id)) return; const k = u.name + '|' + r.name; if (seen.has(k)) return; seen.add(k); abs.push(Object.assign({}, r, { srcLabel: u.name })); }); });
+      const ruleNames = new Set(rules.map((r) => normT(r.name))); const map = new Map(); const abs = [];
+      a.units.forEach((u) => { if (!alive(u)) return; (u.abilities || []).forEach((r) => { const ph0 = r.phases || ['all']; if (ph0.includes('all') || !ph0.includes(ph.id)) return; const k = normT(r.name); if (ruleNames.has(k)) return; let e = map.get(k); if (!e) { e = { r, units: [] }; map.set(k, e); abs.push(e); } if (!e.units.includes(u.name)) e.units.push(u.name); }); });
+      abs.forEach((e, n) => { abs[n] = Object.assign({}, e.r, { srcLabel: e.units.length > 1 ? 'aptitude commune · ' + e.units.length + ' unités' : e.units[0] }); });
       if (abs.length) h += `<h3>Aptitudes d'unités</h3>` + (abs.length > 5 ? `<details><summary>${abs.length} aptitudes</summary>${abs.map(ruleNote).join('')}</details>` : abs.map(ruleNote).join(''));
     }
     return h || '<p class="muted">Rien de particulier à cette phase.</p>';
