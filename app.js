@@ -123,13 +123,17 @@
   window.addEventListener('popstate', () => { if (S.ui && S.ui.enemyView) { window.__nhEnemyHist = false; S.ui.enemyView = false; render(); } });
 
   /* ---------- Rendu ---------- */
-  /* Les onglets Armées et Creator travaillent sur la bibliothèque, jamais sur la copie de la partie en cours */
+  /* Les écrans Listes (Mes Listes, Creator, Assistant) travaillent sur la bibliothèque, jamais sur la copie de la partie en cours */
   function libSwap() {
     if (!S.inGame) { S.gameArmyId = null; return; }
     const libTab = S.tab === 'army' || S.tab === 'build'; const cur = army();
     if (libTab) { if (cur && cur.gameOf) { S.gameArmyId = cur.id; restoreLib(); } }
     else if (S.gameArmyId) { if (S.armies.some((x) => x.id === S.gameArmyId)) S.armyId = S.gameArmyId; S.gameArmyId = null; }
   }
+  /* Onglets regroupés : « Listes » = Mes listes + Creator + Assistant ; « Règles » = règles générales + Codex */
+  const tabOn = (id) => (id === 'army' ? ['army', 'build', 'assist'].includes(S.tab) : id === 'rules' ? ['rules', 'db'].includes(S.tab) : S.tab === id);
+  const rulesSeg = () => `<div class="seg"><button class="${S.tab === 'rules' ? 'on' : ''}" data-act="tab" data-val="rules">📖 Règles générales</button><button class="${S.tab === 'db' ? 'on' : ''}" data-act="tab" data-val="db">📚 Codex</button></div>`;
+  const backLists = () => '<button class="btn small ghost" data-act="tab" data-val="army" style="margin-bottom:8px">← Mes Listes</button>';
   function render() {
     libSwap();
     if (!['home', 'game', 'army', 'build', 'assist', 'db', 'enemy', 'strats', 'rules', 'info'].includes(S.tab)) S.tab = 'home';
@@ -146,8 +150,8 @@
     if (!army() && S.armies.some((x) => !x.gameOf)) restoreLib();
     if (S.tab === 'enemy') { S.tab = 'game'; if (S.inGame) S.ui.enemyView = true; }
     if (!S.inGame && S.tab === 'strats') S.tab = 'game';
-    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Armées'], ['game', '🎲', 'Parties']].concat([['build', '🛠️', 'Creator'], ['assist', '🧭', 'Assistant'], ['db', '📚', 'Datasheets']]).concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
-    $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${S.tab === id ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
+    const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '🛡️', 'Listes'], ['game', '🎲', 'Parties']].concat(S.inGame ? [['strats', '📜', 'Stratagèmes']] : []).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
+    $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, info: viewInfo }[S.tab]();
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
@@ -172,7 +176,7 @@
       <div class="row sp" style="margin-top:10px"><span class="muted">${S.mine ? 'Ton tour' : 'Tour adverse'} — ${phaseLabel(S.phase)}</span><button class="btn small" data-act="nextPhase">Phase suivante ▶</button></div>
     </div>`;
     if (!a || !a.units.length) {
-      return h + `<div class="card"><h2>Aucune unité</h2><p class="muted">Crée ton armée dans l'onglet « Creator » (ajoute tes unités à la main ou colle ta liste ALN pour pré-créer les unités).</p><button class="btn" data-act="tab" data-val="army">Aller à l'armée</button></div>` + stratPanel(null);
+      return h + `<div class="card"><h2>Aucune unité</h2><p class="muted">Crée ta liste dans l'onglet « Listes » (Creator ; ajoute tes unités à la main ou colle ta liste ALN pour pré-créer les unités).</p><button class="btn" data-act="tab" data-val="army">Aller à l'armée</button></div>` + stratPanel(null);
     }
     const ub = unit(); const u = eff(a, ub);
     const label = (x) => { const e = eff(a, x); return (alive(x) ? '' : '☠ ') + esc(x.name) + (e.leaders.length ? ' (+ ' + e.leaders.map((l) => esc(l.name)).join(', ') + ')' : '') + (alive(x) ? '' : ' — détruite'); };
@@ -866,26 +870,37 @@
     h += `<div class="card"><h2>Détachements</h2>${(a.detachments || []).length ? a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('') : '<p class="muted" style="margin:0">Aucun détachement.</p>'}${a.total ? `<p class="muted" style="margin-bottom:0">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
     const rules = (S.armyRules[a.id] || []).filter((r) => r && r.name);
     h += `<div class="card"><h2>Règles d'armée et de détachement</h2>${rules.length ? rules.map((r) => `<details class="note"><summary><b>${esc(r.name)}</b></summary><div>${esc(r.text || '').replace(/\n/g, '<br>')}</div></details>`).join('') : '<p class="muted" style="margin:0">Aucune règle enregistrée pour cette armée.</p>'}</div>`;
-    h += ttsCard(a);
     h += `<div class="card"><h2>Unités (${a.units.length})</h2>${armyUnitsHtml(a) || '<p class="muted">Aucune unité.</p>'}</div>`;
     return h;
+  }
+  function ttsNote(x) {
+    if (TT.id !== x.id) return '';
+    if (TT.busy) return '<div class="note" style="margin-top:8px">Préparation de l\'export TTS…</div>';
+    if (TT.err) return '<div class="warn" style="margin-top:8px">' + esc(TT.err) + '</div>';
+    if (TT.errs && TT.errs.length) return '<div class="warn" style="margin-top:8px"><b>Export TTS impossible : ' + TT.errs.length + ' problème(s)</b><ul style="margin:6px 0 0 18px;padding:0">' + TT.errs.slice(0, 12).map((e) => '<li>' + (e.unit ? '<b>' + esc(e.unit) + '</b> : ' : '') + esc(e.msg) + '</li>').join('') + (TT.errs.length > 12 ? '<li>… et ' + (TT.errs.length - 12) + ' autre(s)</li>' : '') + '</ul></div>';
+    if (TT.msg) return '<div class="note" style="margin-top:8px">' + esc(TT.msg) + '<br><span class="muted">Placez ce fichier dans Documents\\My Games\\Tabletop Simulator\\Saves\\Saved Objects</span>' + (TT.warns.length ? '<details style="margin-top:6px"><summary class="muted">' + TT.warns.length + ' remarque(s) sur la répartition</summary><ul style="margin:6px 0 0 18px;padding:0">' + TT.warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul></details>' : '') + '</div>';
+    return '';
   }
   function viewArmy() {
     const a = army();
     const lib = libArmies();
-    let h = `<h1>Mes armées</h1><div class="row" style="margin-bottom:10px"><button class="btn grow" data-act="armyNew">🛠️ Nouvelle liste (Creator)</button></div>`;
-    const imp = () => importCard(null);
-    if (!lib.length) return h + '<div class="card"><p class="muted">Aucune armée pour l\'instant : importe-la ci-dessous (PDF, texte ALN, BBCode, JSON) ou crée-la dans Creator.</p></div>' + imp();
+    const ib = (act, val, ic, title, cls) => `<button class="btn small ${cls || 'ghost'}" data-act="${act}" data-val="${val}" title="${title}" aria-label="${title}" style="min-height:30px;padding:4px 8px">${ic}</button>`;
+    let h = `<h1>Mes Listes</h1><div class="card"><h2>Nouvelle liste</h2><div class="row"><button class="btn grow" data-act="armyNew">🛠️ Creator</button><button class="btn grow" data-act="tab" data-val="assist">🧭 Assistant</button><button class="btn grow ${S.ui.showImport ? 'ghost' : ''}" data-act="impToggle">📥 Importer</button></div></div>`;
+    const okRe = /^Armée «|^\d+ unité|^\d+ détachement|^\+ \d+ unité/; const mlines = String(S.ui.importMsg || '').split('\n').filter(Boolean);
+    if (S.ui.showImport) { h += importCard(null); const ok = mlines.filter((l) => okRe.test(l)); if (ok.length) h += `<div class="note" style="white-space:pre-wrap">${esc(ok.join('\n'))}</div>`; }
+    else if (mlines.length) h += `<div class="note" style="white-space:pre-wrap">${esc(mlines.join('\n'))}</div>`;
+    if (!lib.length) return h + '<div class="card"><p class="muted">Aucune liste pour l\'instant : crée-la avec le Creator ou l\'Assistant, ou importe-la (PDF, texte ALN, BBCode, JSON).</p></div>';
     const open = S.ui.openArmy;
     h += lib.map((x) => {
       const on = x.id === S.armyId; const isOpen = x.id === open; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
-      let c = `<div class="card army-card${on ? ' on' : ''}" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="row" style="flex-wrap:nowrap;gap:8px"><button class="btn small ghost" data-act="armyPdf" data-val="${x.id}" title="Exporter en PDF" style="min-height:30px;padding:4px 8px">📄 PDF</button><span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></span></div>`;
-      if (isOpen) c += `<div class="row" style="margin-top:8px">${on ? '' : `<button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button>`}<button class="btn small ghost" data-act="armyEdit" data-val="${x.id}">✏️ Modifier</button><button class="btn small danger" data-act="armyDel" data-val="${x.id}">Supprimer</button></div>`;
+      let c = `<div class="card army-card${on ? ' on' : ''}" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${on ? '✅ ' : ''}${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="row" style="flex-wrap:nowrap;gap:6px">${ib('armyEdit', x.id, '✏️', 'Modifier')}${ib('armyPdf', x.id, '📄', 'Exporter en PDF')}<button class="btn small ghost" data-act="armyTts" data-val="${x.id}" title="Exporter pour Tabletop Simulator" aria-label="Exporter pour Tabletop Simulator" style="min-height:30px;padding:4px 8px;font-weight:700">TTS</button>${ib('armyDel', x.id, '🗑️', 'Supprimer', 'danger')}<span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></span></div>`;
+      c += ttsNote(x);
+      if (isOpen && !on) c += `<div class="row" style="margin-top:8px"><button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button></div>`;
       c += '</div>';
       if (isOpen) c += armyDetail(x);
       return c;
     }).join('');
-    return h + imp();
+    return h;
   }
 
   function unitEditor(a) {
@@ -1124,7 +1139,7 @@
   /* ----- Base Wahapedia ----- */
   const dbs = { fac: '', ch: '', kw: '', q: '', mode: 'units', unit: null, detFac: '', det: null, msg: '', err: '' };
   function viewDb() {
-    let h = '<h1>Base de données</h1>' + langBar();
+    let h = '<h1>Règles</h1>' + rulesSeg() + langBar();
     const ix = Wahap.index();
     if (!ix) {
       if (dbs.err) return h + `<div class="card"><div class="warn">${esc(dbs.err)}</div><button class="btn small" data-act="dbRetry">Réessayer</button></div>`;
@@ -1313,7 +1328,7 @@
   const bBase = (f, e) => (+e.pts > 0 ? +e.pts : bAuto(f, e));
   const bCost = (f, e) => { const en = bEnhs(f).find((x) => x.key === e.enh); return bBase(f, e) + bWg(f, e) + (en ? en.cost : 0); };
   function creatorTabs() {
-    return `<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${B.cm === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div><div style="height:8px"></div>${langBar()}`;
+    return `${backLists()}<h1>Creator</h1><div class="seg">${[['build', '🛠️ Nouvelle liste'], ['edit', '✏️ Modifier une armée']].map(([k, l]) => `<button class="${B.cm === k ? 'on' : ''}" data-act="bCm" data-val="${k}">${l}</button>`).join('')}</div><div style="height:8px"></div>${langBar()}`;
   }
   function viewBuild() {
     const head = creatorTabs();
@@ -1323,7 +1338,7 @@
       let h = head + `<div class="card"><label>Armée à modifier</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune)</option>'}</select>`;
       if (a) h += `<div class="row" style="margin-top:8px">${a.build ? '<button class="btn small" data-act="bReopen">🛠️ Rouvrir dans le constructeur</button>' : ''}<button class="btn small ghost" data-act="renameArmy">Renommer</button><button class="btn small danger" data-act="delArmy">Supprimer</button><button class="btn small" data-act="bDone">💾 Sauvegarder</button></div>${a.build ? '' : '<p class="muted">Cette armée a été importée : tu peux modifier ses unités et ses règles ci-dessous.</p>'}`;
       h += '</div>';
-      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Armées.</p>';
+      if (!a) return h + '<p class="muted">Aucune armée à modifier : construis une liste ici ou importe-en une dans l\'onglet Listes.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
       h += armyBody(a);
       if (!S.editUnit) h += `<div class="card"><button class="btn" data-act="bDone">💾 Sauvegarder</button></div>` + profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
@@ -1812,7 +1827,7 @@
     return l.slice(0, 36).map(([k, n]) => `<button type="button" class="chip${AS.kws[k] > 0 ? ' on' : ''}${AS.kws[k] < 0 ? ' no' : ''}" data-act="asKw" data-val="${esc(k)}">${AS.kws[k] > 0 ? '✓ ' : AS.kws[k] < 0 ? '✗ ' : ''}${esc(k)} <small>${n}</small></button>`).join('') || '<span class="muted">Aucun mot-clé.</span>';
   };
   function viewAssist() {
-    let h = '<h1>Assistant</h1>';
+    let h = backLists() + '<h1>Assistant</h1>';
     const ix = Wahap.index();
     if (!ix) {
       if (!AS.load) { AS.load = true; Wahap.ready().then(() => { AS.load = false; render(); }).catch((e) => { AS.load = false; AS.err = e.message; render(); }); }
@@ -1935,21 +1950,12 @@
   }
   function viewRules() {
     const R = rulesSrc();
-    if (S.lang === 'en') return `<h1>Rules</h1>${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
-    return `<h1>Règles</h1>${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    if (S.lang === 'en') return `<h1>Rules</h1>${rulesSeg()}${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Core rules of 11th edition, summarised in English (${R.reduce((a, c) => a + c.s.length, 0)} sections: concepts, phases, terrain, objectives, Stratagems, actions, advanced rules, core abilities). Not included yet: Muster Armies. This is a paraphrased summary: when in doubt, the official text prevails.</div><input type="search" id="rq" placeholder="Search a rule: cover, charge, Hazardous, coherency…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
+    return `<h1>Règles</h1>${rulesSeg()}${langBar()}<div class="card"><div class="muted" style="margin-bottom:6px">Règles de base de la 11e édition, résumées en français (${R.reduce((a, c) => a + c.s.length, 0)} sections : concepts, phases, décor, objectifs, stratagèmes, actions, règles avancées, aptitudes de base). Non inclus pour l\'instant : constitution d\'armée (Muster Armies). En cas de doute, le texte officiel fait foi.</div><input type="search" id="rq" placeholder="Chercher une règle : couvert, charge, Dangereux, cohésion…" value="${esc(RS.q)}" autocomplete="off"></div><div id="rres">${rulesResults()}</div>`;
   }
 
   /* ----- Export Tabletop Simulator (tts-export.js) ----- */
   var TT = { id: '', busy: false, errs: null, warns: [], json: '', name: '', units: 0, err: '', msg: '' };
-  function ttsCard(a) {
-    const mine = TT.id === a.id;
-    let body = '';
-    if (mine && TT.busy) body = '<p class="muted">Préparation de l\'export…</p>';
-    else if (mine && TT.err) body = '<div class="warn">' + esc(TT.err) + '</div>';
-    else if (mine && TT.errs && TT.errs.length) body = '<div class="warn"><b>Export impossible : ' + TT.errs.length + ' problème(s)</b><ul style="margin:6px 0 0 18px;padding:0">' + TT.errs.slice(0, 12).map((e) => '<li>' + (e.unit ? '<b>' + esc(e.unit) + '</b> : ' : '') + esc(e.msg) + '</li>').join('') + (TT.errs.length > 12 ? '<li>… et ' + (TT.errs.length - 12) + ' autre(s)</li>' : '') + '</ul></div>';
-    else if (mine && TT.json) body = `<div class="note">✅ ${TT.units} unité(s) · ${(TT.json.length / 1024).toFixed(1)} Ko</div>${TT.warns.length ? '<details class="note" style="margin-top:6px"><summary>' + TT.warns.length + ' remarque(s) sur la répartition</summary><ul style="margin:6px 0 0 18px;padding:0">' + TT.warns.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul></details>' : ''}<div class="row" style="margin-top:8px"><button class="btn small" data-act="ttsCopy">📋 Copier</button><button class="btn small ghost" data-act="ttsDl">💾 Télécharger</button></div><p class="muted" style="margin:6px 0 0">Placez ce fichier dans Documents\\My Games\\Tabletop Simulator\\Saves\\Saved Objects</p>${TT.msg ? '<p class="muted" style="margin-bottom:0">' + esc(TT.msg) + '</p>' : ''}`;
-    return `<div class="card"><h2>Tabletop Simulator</h2><p class="muted" style="margin-top:0">Exporte la liste en JSON (caractéristiques, armes, aptitudes et composition de chaque unité) pour la table TTS.</p><button class="btn small" data-act="ttsGen" data-val="${a.id}" ${mine && TT.busy ? 'disabled' : ''}>📦 Exporter pour TTS</button>${body ? '<div style="margin-top:8px">' + body + '</div>' : ''}</div>`;
-  }
   var FB = { kind: 'bug', msg: '', contact: '', busy: false, ok: '', err: '' };
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
@@ -2191,7 +2197,7 @@
     const a = army(); const l = readGames();
     let h = `<h1 style="text-align:center;margin:4px 0 2px">NoobHammer40k</h1><p class="muted" style="text-align:center;margin:0 0 10px">Ton aide-mémoire de table : dés à jeter, bonus, stratagèmes et cibles.</p><div class="hero" style="margin-top:0"><img src="icons/accueil.jpg" alt="Un eldar et un ork face a face autour d une table de jeu de figurines" width="477" height="441"></div><div style="height:12px"></div>`;
     h += `<div class="card">`;
-    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes armées</button></div></div>`;
+    h += `<div class="row"><button class="btn grow" data-act="tab" data-val="game">🎲 Parties${l.length ? ' (' + l.length + ')' : ''}</button><button class="btn ghost grow" data-act="tab" data-val="army">🛡️ Mes Listes</button></div></div>`;
     h += syncCard() + frInvitesCardHome() + friendsCard();
     return h;
   }
@@ -2204,7 +2210,7 @@
       <label style="margin-top:8px">Type de partie</label>${seg('ngMode', ng.mode || '', [['local', '🏠 Locale'], ['online', '🌐 En ligne']])}`;
     if (!ng.mode) return h + '<p class="muted">Locale : vous jouez à la même table. En ligne : chacun sur son appareil, avec un code ou en invitant un ami.</p></div>';
     h += `<label>Ma liste d'armée</label><select data-bind="armyId">${abc(lib, (x) => x.name).map((x) => `<option value="${x.id}" ${x.id === S.armyId ? 'selected' : ''}>${esc(x.name)}</option>`).join('') || '<option value="">(aucune armée)</option>'}</select>
-      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglets Armées ou Creator).</div>'}
+      ${a ? '' : '<div class="warn" style="margin-top:8px">Importe ou crée d\'abord une armée (onglet Listes).</div>'}
       <label style="margin-top:8px">Nom de la partie (facultatif)</label><input type="text" data-bind="ui.ngName" value="${esc(S.ui.ngName || '')}" placeholder="${esc(defaultGameName())}">`;
     if (ng.mode === 'local') {
       h += `<label style="margin-top:8px">Liste de l'adversaire</label>`;
@@ -2340,7 +2346,7 @@
     bDel(k) { B.units = B.units.filter((x) => x.k !== k); B.units.forEach((x) => { if (x.to === k) x.to = ''; }); bsave(); },
     bCopy() { const a = army(); const t = a ? yellowFromArmy(a) : ''; const ta = document.getElementById('ysTxt'); const ok = () => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; }; try { navigator.clipboard.writeText(t).then(() => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; render(); }, () => { if (ta) { ta.select(); document.execCommand('copy'); } ok(); }); } catch (e) { if (ta) { ta.select(); document.execCommand('copy'); } ok(); } },
     bReset() { if (confirm('Vider la liste en cours ?')) { B.units = []; B.dets = []; B.open = null; bsave(); } },
-    bCreate() { const a = bBuildArmy(); Object.assign(B, bdef()); B.msg = `Armée « ${a.name} » enregistrée : ${a.units.length} unité(s), ${a.total.points} pts.`; S.tab = 'build'; bsave(); },
+    bCreate() { const a = bBuildArmy(); Object.assign(B, bdef()); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » enregistrée : ${a.units.length} unité(s), ${a.total.points} pts.`, showImport: false, openArmy: a.id }); bsave(); },
     gameResume() {
       if (S.park) { if (S.park.armyId && S.armies.some((x) => x.id === S.park.armyId)) S.armyId = S.park.armyId; if (S.park.enemy && !S.enemy) S.enemy = S.park.enemy; S.park = null; }
       else { const c = S.armies.find((x) => x.gameOf && (x.gameOf === S.gameId || (!S.gameId && x.gameOf === 'quick'))); if (c) S.armyId = c.id; }
@@ -2451,8 +2457,8 @@
     asCreate(i) { if (!asLoadB(+i)) return; const a = bBuildArmy(); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » créée par l'assistant : ${a.units.length} unité(s), ${a.total.points} pts.` }); },
     bCm(v) { B.msg = ''; B.cm = B.cm === v ? '' : v; S.editUnit = null; bsave(); },
     bNew() { B.editId = ''; B.units = []; B.dets = []; B.warlord = ''; B.name = ''; B.open = null; B.cm = 'build'; bsave(); },
-    bUpdate() { const a = bBuildArmy(B.editId); Object.assign(B, bdef()); B.msg = `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.`; S.tab = 'build'; bsave(); },
-    bDone() { const a = army(); S.editUnit = null; B.cm = ''; B.msg = a ? `Armée « ${a.name} » enregistrée.` : ''; bsave(); },
+    bUpdate() { const a = bBuildArmy(B.editId); Object.assign(B, bdef()); B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: `Armée « ${a.name} » mise à jour : ${a.units.length} unité(s), ${a.total.points} pts.`, showImport: false, openArmy: a.id }); bsave(); },
+    bDone() { const a = army(); S.editUnit = null; B.cm = ''; B.msg = ''; S.tab = 'army'; S.ui = Object.assign({}, S.ui, { importMsg: a ? `Armée « ${a.name} » enregistrée.` : '', showImport: false }); bsave(); },
     bReopen() { const a = army(); if (!a || !a.build) return; const b = JSON.parse(JSON.stringify(a.build)); Object.assign(B, bdef(), b, { cm: 'build', editId: a.id, fold: { set: true, ch: true, det: true, add: true }, open: null, q: '', msg: '' }); bsave(); },
     armyNew() { actions.bNew(); S.tab = 'build'; },
     gameSetList() {
@@ -2509,27 +2515,17 @@
       } catch (e) { alert('JSON invalide.'); }
     },
     fbKind(v) { FB.kind = v === 'idee' ? 'idee' : 'bug'; FB.ok = ''; FB.err = ''; },
-    async ttsGen(id) {
-      const a = S.armies.find((x) => x.id === id); if (!a || !window.TtsExport) return;
+    async armyTts(id) {
+      const a = S.armies.find((x) => x.id === id); if (!a || !window.TtsExport || TT.busy) return;
       TT = { id, busy: true, errs: null, warns: [], json: '', data: null, name: a.name, units: 0, err: '', msg: '' }; render();
       try {
-        const ctx = await TtsExport.prepare(a, Wahap, { lang: Wahap.lang });
-        const r = TtsExport.build(ctx);
-        TT = Object.assign(TT, { busy: false, errs: r.errors, warns: r.warnings, json: r.errors.length ? '' : r.json, data: r.errors.length ? null : r.data, units: r.data.units.length });
-      } catch (e) { TT = Object.assign(TT, { busy: false, err: 'Export impossible : ' + (e && e.message || e) }); }
+        const r = TtsExport.build(await TtsExport.prepare(a, Wahap, { lang: Wahap.lang }));
+        if (r.errors.length) TT = Object.assign(TT, { busy: false, errs: r.errors });
+        else { const so = TtsExport.savedObject(r.data, r.json); download(so.fileName, so.content); TT = Object.assign(TT, { busy: false, warns: r.warnings, json: r.json, data: r.data, units: r.data.units.length, msg: 'Fichier « ' + so.fileName + ' » téléchargé.' }); }
+      } catch (e) { TT = Object.assign(TT, { busy: false, err: 'Export TTS impossible : ' + (e && e.message || e) }); }
       render();
     },
-    ttsCopy() {
-      const t = TT.json; if (!t) return;
-      const done = () => { TT.msg = 'JSON copié dans le presse-papiers.'; render(); };
-      const fallback = () => { const ta = document.createElement('textarea'); ta.value = t; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); done(); } catch (e) { TT.msg = 'Copie impossible : utilise « Télécharger ».'; render(); } ta.remove(); };
-      try { navigator.clipboard.writeText(t).then(done, fallback); } catch (e) { fallback(); }
-    },
-    ttsDl() {
-      if (!TT.json) return;
-      const so = TtsExport.savedObject(TT.data, TT.json);
-      download(so.fileName, so.content); TT.msg = 'Fichier « ' + so.fileName + ' » téléchargé.'; render();
-    },
+    impToggle() { S.ui = Object.assign({}, S.ui, { showImport: !S.ui.showImport, importMsg: S.ui.showImport ? S.ui.importMsg : '' }); },
     async fbSend() {
       FB.ok = ''; FB.err = '';
       const em = document.getElementById('fbMsg'), ec = document.getElementById('fbContact');
