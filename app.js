@@ -190,6 +190,7 @@
   const gSecMode = (w) => ((S.battle && S.battle.sec && S.battle.sec[w]) || {}).m || 'tac';
   const gCp = (w) => (w === 'me' ? S.cp : (S.enemy && S.enemy.live ? (S.enemy.cp == null ? 0 : S.enemy.cp) : (S.gm.cpOpp || 0)));
   const gAddCp = (w, d) => { if (w === 'me') S.cp = Math.max(0, S.cp + d); else if (S.enemy && S.enemy.live) return; else S.gm.cpOpp = Math.max(0, (S.gm.cpOpp || 0) + d); };
+  const gLiveOp = (w) => w === 'op' && !!(S.enemy && S.enemy.live);
   const gSum = (a) => a.reduce((x, y) => x + y, 0);
   const gTot = (w) => { const g = S.gm; return gSum(g.vp[w].p) + gSum(g.vp[w].s) + (g.end.p[w] || 0) + (g.end.br[w] ? 10 : 0); };
   const gScore20 = (w) => { const d = gTot(w) - gTot(gother(w)); return Math.max(0, Math.min(20, 10 + Math.trunc(d / 5))); };
@@ -231,7 +232,7 @@
       h += `<p class="muted">Secondaires fixes : elles restent actives toute la bataille.</p>` + g.hand[w].map((id) => secCardLine(id)).join('');
     } else {
       h += `<p class="muted">Piochez 2 cartes secondaires. Les cartes non réalisées des tours précédents restent actives.</p>`;
-      if (g.hand[w].length) h += g.hand[w].map((id) => `<div class="row sp">${secCardLine(id, g.newIds.includes(id) ? ' <span class="tag">nouvelle</span>' : '')}<span>${g.newIds.includes(id) ? `<button class="chip xs" data-act="gmUndraw" data-val="${id}">✕</button>` : `<button class="chip xs" ${g.rd[w] || gCp(w) < 1 ? 'disabled' : ''} data-act="gmRedraw" data-val="${id}" title="1 PC, une fois par bataille">♻ 1 PC</button>`}</span></div>`).join('');
+      if (g.hand[w].length) h += g.hand[w].map((id) => `<div class="row sp">${secCardLine(id, g.newIds.includes(id) ? ' <span class="tag">nouvelle</span>' : '')}<span>${g.newIds.includes(id) ? `<button class="chip xs" data-act="gmUndraw" data-val="${id}">✕</button>` : `<button class="chip xs" ${g.rd[w] || gCp(w) < 1 || gLiveOp(w) ? 'disabled' : ''} data-act="gmRedraw" data-val="${id}" title="1 PC, une fois par bataille">♻ 1 PC</button>`}</span></div>`).join('');
       else h += '<p class="muted">Aucune carte active.</p>';
       const left = g.allow - g.newIds.length;
       h += `<h3>Cartes piochées ce tour (${g.newIds.length}/${g.allow})</h3>`;
@@ -252,7 +253,7 @@
       const c = smById(id); const v = g.draft.c[w][id]; const ok = v != null;
       h += `<div class="note"><div class="row sp"><b>${esc(c.n)}</b>${chip(ok ? '✓ Réalisée' : 'Réalisée ?', ok, `data-act="gmAch" data-who="${w}" data-val="${id}"`)}</div><div class="muted">${esc(c.t)}</div>`;
       if (ok) h += `<div class="counter" style="margin-top:6px"><span class="muted">PV</span>${gStep('', 'gmCv', w, -1).replace('data-who', 'data-id="' + id + '" data-who')}<b>${v}</b>${gStep('', 'gmCv', w, 1).replace('data-who', 'data-id="' + id + '" data-who')}${gStep('', 'gmCv', w, 5).replace('data-who', 'data-id="' + id + '" data-who')}</div>`;
-      else if (isAct && gSecMode(w) === 'tac') h += `<button class="btn small ghost" style="margin-top:6px" data-act="gmDiscard" data-val="${id}">Défausser (+1 PC)</button>`;
+      else if (isAct && gSecMode(w) === 'tac' && !gLiveOp(w)) h += `<button class="btn small ghost" style="margin-top:6px" data-act="gmDiscard" data-val="${id}">Défausser (+1 PC)</button>`;
       h += '</div>';
     });
     return h + '</div>';
@@ -731,13 +732,31 @@
   const PEER_URL = 'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js';
   const NET_PREFIX = 'noobammer-';
   const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-  const net = { peer: null, conn: null, status: 'off', msg: '', ver: 0, lastTurn: '', lastArmy: '', lastMsg: '', timer: null, push: null, tries: 0, dirty: false };
+  const net = { gver: 0, lastG: '', peer: null, conn: null, status: 'off', msg: '', ver: 0, lastTurn: '', lastArmy: '', lastMsg: '', timer: null, push: null, tries: 0, dirty: false };
   const newCode = () => Array.from({ length: 5 }, () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]).join('');
   const turnStr = () => `${S.round}|${S.phase}|${S.mine ? 1 : 0}`;
   const otherRole = () => (S.net.role === 'h' ? 'g' : 'h');
   const loadPeer = () => (window.Peer ? Promise.resolve() : loadScript(PEER_URL));
   const netErr = (m) => { net.status = 'err'; net.msg = m; render(); };
 
+  /* Bataille en ligne : l'état partagé (tour, mains secondaires, PV, brouillon de comptage) est échangé en termes de rôles (h/g) */
+  const gRole = (w) => (w === 'me' ? S.net.role : otherRole());
+  const gLocal = (r) => (r === S.net.role ? 'me' : 'op');
+  function gmToNet() {
+    if (!S.gm) return null; const g = S.gm; const o = {};
+    const per = (f) => { const r = {}; ['me', 'op'].forEach((w) => { r[gRole(w)] = f(w); }); return r; };
+    o.first = g.first ? gRole(g.first) : null; o.step = g.step; o.newIds = g.newIds; o.allow = g.allow; o.over = g.over; o.msg = g.msg;
+    o.hand = per((w) => g.hand[w]); o.rd = per((w) => g.rd[w]); o.vp = per((w) => g.vp[w]); o.dp = per((w) => g.draft.p[w]); o.dc = per((w) => g.draft.c[w]);
+    o.ep = per((w) => g.end.p[w]); o.eb = per((w) => g.end.br[w]);
+    return JSON.parse(JSON.stringify(o));
+  }
+  function gmFromNet(o) {
+    if (!o) return; if (!S.gm) gm(); const g = S.gm; const un = (m, f) => { Object.keys(m).forEach((r) => f(gLocal(r), m[r])); };
+    g.first = o.first ? gLocal(o.first) : null; g.step = o.step; g.newIds = o.newIds || []; g.allow = o.allow || 2; g.over = !!o.over; g.msg = o.msg || '';
+    un(o.hand, (w, v) => { g.hand[w] = v; }); un(o.rd, (w, v) => { g.rd[w] = v; }); un(o.vp, (w, v) => { g.vp[w] = v; }); un(o.dp, (w, v) => { g.draft.p[w] = v; }); un(o.dc, (w, v) => { g.draft.c[w] = v; });
+    un(o.ep, (w, v) => { g.end.p[w] = v; }); un(o.eb, (w, v) => { g.end.br[w] = v; });
+    g.tk = S.round + '|' + (S.mine ? 1 : 0);
+  }
   function netPush() {
     if (net.status !== 'on' || !net.conn) return;
     clearTimeout(net.push); net.push = setTimeout(() => netSend(false), 250);
@@ -748,6 +767,7 @@
     const a = (S.gameArmyId && S.armies.find((x) => x.id === S.gameArmyId)) || army();
     const aj = JSON.stringify(a ? { name: a.name, faction: a.faction, detachments: a.detachments, total: a.total, units: a.units, rules: S.armyRules[a.id] || [], strats: S.customStrats.filter((s) => s.armyId === a.id) } : null);
     const msg = { t: 'sync', nick: S.net.nick || 'Joueur', cp: S.cp, force: !!force, turn: { v: net.ver, round: S.round, phase: S.phase, active: S.mine ? S.net.role : otherRole() }, used: Object.entries(S.used).flatMap(([k, arr]) => arr.map((x) => ({ k, name: x.name }))) };
+    if (S.net.role) { const gn = gmToNet(); const gs = JSON.stringify(gn); if (gs !== net.lastG) { net.gver++; net.lastG = gs; } msg.gm = gn; msg.gv = net.gver; }
     const sig = JSON.stringify(msg);
     if (!force && sig === net.lastMsg && aj === net.lastArmy) return;
     if (force || aj !== net.lastArmy) { msg.army = aj; net.lastArmy = aj; }
@@ -764,6 +784,7 @@
     if (t && (t.v > net.ver || (msg.force && S.net.role === 'g'))) {
       S.round = t.round; S.phase = t.phase; S.mine = t.active === S.net.role; net.ver = t.v; net.lastTurn = turnStr();
     }
+    if (msg.gm && (msg.gv > net.gver || (msg.force && S.net.role === 'g'))) { gmFromNet(msg.gm); net.gver = msg.gv; net.lastG = JSON.stringify(gmToNet()); }
     syncTarget();
     if (/INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || '')) { net.dirty = true; save(); return; }
     render();
@@ -2828,11 +2849,11 @@
     gmCpAll() { gAddCp('me', 1); gAddCp('op', 1); },
     gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); },
     gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); },
-    gmRedraw(id) { const g = gm(), w = gwho(); if (g.rd[w] || gCp(w) < 1) return; gAddCp(w, -1); g.rd[w] = true; g.hand[w] = g.hand[w].filter((x) => x !== id); g.allow += 1; },
+    gmRedraw(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; if (g.rd[w] || gCp(w) < 1) return; gAddCp(w, -1); g.rd[w] = true; g.hand[w] = g.hand[w].filter((x) => x !== id); g.allow += 1; },
     gmPri(v, el) { const g = gm(), w = el.dataset.who; g.draft.p[w] = Math.max(0, g.draft.p[w] + +v); },
     gmAch(id, el) { const g = gm(), w = el.dataset.who; if (g.draft.c[w][id] != null) delete g.draft.c[w][id]; else g.draft.c[w][id] = 0; },
     gmCv(v, el) { const g = gm(), w = el.dataset.who, id = el.dataset.id; g.draft.c[w][id] = Math.max(0, (g.draft.c[w][id] || 0) + +v); },
-    gmDiscard(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); gAddCp(w, 1); },
+    gmDiscard(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; g.hand[w] = g.hand[w].filter((x) => x !== id); gAddCp(w, 1); },
     gmEnd(v, el) { const g = gm(), w = el.dataset.who; g.end.p[w] = Math.max(0, (g.end.p[w] || 0) + +v); },
     gmBr(w) { const g = gm(); g.end.br[w] = !g.end.br[w]; },
     gmReopen() { const g = gm(); g.over = false; g.step = 'score'; },
