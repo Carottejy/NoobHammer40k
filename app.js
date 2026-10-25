@@ -192,6 +192,11 @@
   const gSecMode = (w) => ((S.battle && S.battle.sec && S.battle.sec[w]) || {}).m || 'tac';
   const gCp = (w) => (w === 'me' ? S.cp : (S.enemy && S.enemy.live ? (S.enemy.cp == null ? 0 : S.enemy.cp) : (S.gm.cpOpp || 0)));
   const gAddCp = (w, d) => { if (w === 'me') S.cp = Math.max(0, S.cp + d); else if (S.enemy && S.enemy.live) return; else S.gm.cpOpp = Math.max(0, (S.gm.cpOpp || 0) + d); };
+  function gApply(w, k, d, cur) {
+    const g = S.gm, r = S.round - 1;
+    if (d > 0) { const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); const a = Math.min(d, room); g.vp[w][k][r] += a; g.msg = a < d ? 'Plafond atteint (15 PV par round, 45 au total).' : ''; return a; }
+    const a = Math.min(-d, cur, g.vp[w][k][r]); g.vp[w][k][r] -= a; return -a;
+  }
   const gLiveOp = (w) => w === 'op' && !!(S.enemy && S.enemy.live);
   const gSum = (a) => a.reduce((x, y) => x + y, 0);
   const gTot = (w) => { const g = S.gm; return gSum(g.vp[w].p) + gSum(g.vp[w].s) + (g.end.p[w] || 0) + (g.end.br[w] ? 10 : 0); };
@@ -277,13 +282,13 @@
     return h + `<button class="btn" style="margin-top:10px" data-act="gmStep" data-val="play">Jouer le tour ▶</button></div>`;
   }
   function gScoreWho(g, w, N, isAct) {
-    let h = `<div class="card"><h2>${esc(N[w])}${isAct ? ' — joueur actif' : ''}</h2>`;
+    let h = `<div class="card"><h2>Marquage — ${esc(N[w])}${isAct ? ' (joueur actif)' : ''}</h2>`;
     const r = S.round - 1;
-    h += `<div class="muted">Primaire (déjà ${g.vp[w].p[r]}/15 ce round, ${gSum(g.vp[w].p)}/45 au total)</div>${pmLines(w)}`;
+    h += `<div class="muted">Primaire : ${g.vp[w].p[r]}/15 ce round · ${gSum(g.vp[w].p)}/45</div>${pmLines(w)}`;
     const pl = gPriLines(g, w, 'end', 'pl', isAct);
     if (pl !== null) h += pl;
     else h += `<div class="counter" style="margin:6px 0"><span class="muted">PV primaires</span>${gStep('', 'gmPri', w, -1)}<b>${g.draft.p[w]}</b>${gStep('', 'gmPri', w, 1)}${gStep('', 'gmPri', w, 5)}</div>`;
-    h += `<div class="muted" style="margin-top:8px">Secondaires (déjà ${g.vp[w].s[r]}/15 ce round, ${gSum(g.vp[w].s)}/45 au total)</div>`;
+    h += `<div class="muted" style="margin-top:8px">Secondaires : ${g.vp[w].s[r]}/15 ce round · ${gSum(g.vp[w].s)}/45</div>`;
     if (!g.hand[w].length) h += '<p class="muted">Aucune carte secondaire active.</p>';
     g.hand[w].forEach((id) => {
       const c = smById(id); const v = g.draft.c[w][id]; const ok = v != null;
@@ -293,14 +298,6 @@
       h += '</div>';
     });
     return h + '</div>';
-  }
-  function gScore(g, N) {
-    const w = gwho(), o = gother(w);
-    let h = `<div class="card"><h2>Fin du tour — comptage des PV</h2><p class="muted">Coche les objectifs réalisés. Plafonds : 15 PV par round et 45 PV au total, en primaire et en secondaire. Les cartes tactiques réalisées sont défaussées ; tu peux aussi défausser des tactiques non réalisées (+1 PC).</p></div>`;
-    h += gScoreWho(g, w, N, true) + gScoreWho(g, o, N, false);
-    const last = S.round >= GROUNDS && S.mine !== (g.first === 'me');
-    h += `<button class="btn" data-act="gmValidate">${last ? 'Valider et terminer la bataille 🏁' : 'Valider le comptage et passer au tour suivant ▶'}</button>`;
-    return h;
   }
   function gEnd(g, N) {
     let h = `<div class="card"><h2>🏁 Fin de la bataille</h2><p class="muted">Ajoute les PV marqués « à la fin de la bataille » (primaire) et les 10 PV Prêt au combat si applicable.</p>`;
@@ -334,11 +331,10 @@
     if (g.over) return h + gEnd(g, N);
     if (g.msg) h += `<div class="note">${esc(g.msg)}</div>`;
     if (g.step === 'start') return h + gStart(g, N);
-    if (g.step === 'score') return h + gScore(g, N);
+    if (g.step === 'score') g.step = 'play';
     h += `<div class="card"><div class="row sp" data-act="remAll" style="cursor:pointer"><h2 style="margin:0">Rappels par phase</h2><span class="muted">${S.ui.remAll ? '▾' : '▸'}</span></div>${S.ui.remAll ? `<p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}` : ''}</div>`;
-    const sec = g.hand[gwho()];
-    if (sec.length) h += `<div class="card"><h2>Secondaires actives (${esc(N[gwho()])})</h2>${sec.map((id) => secCardLine(id)).join('')}</div>`;
-    h += `<button class="btn" data-act="gmStep" data-val="score">Fin du tour : compter les PV ▶</button>`;
+    h += gScoreWho(g, gwho(), N, true) + gScoreWho(g, gother(gwho()), N, false);
+    h += `<button class="btn" data-act="gmValidate">${S.round >= GROUNDS && S.mine !== (g.first === 'me') ? 'Terminer la bataille 🏁' : 'Tour suivant ▶'}</button>`;
     return h;
   }
   function enemyStratPanel() {
@@ -2909,35 +2905,22 @@
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
     remAll() { S.ui.remAll = !S.ui.remAll; },
     phOpen(v) { S.ui.phOpen = S.ui.phOpen === v ? '' : v; },
-    gmStep(v) {
-      const g = gm();
-      if (v === 'play' && g.step === 'start') { const w = gwho(); const n = gSum(Object.values(g.draft.ps[w] || {})); if (n > 0) { const r = S.round - 1; const room = Math.max(0, Math.min(15 - g.vp[w].p[r], 45 - gSum(g.vp[w].p))); g.vp[w].p[r] += Math.min(n, room); g.msg = n > room ? gNames()[w] + ' : primaire plafonné (' + room + '/' + n + ' PV).' : ''; } g.draft.ps = { me: {}, op: {} }; }
-      g.step = v;
-    },
-    gmPl(v, el) { const g = gm(), d = (g.draft[el.dataset.key][el.dataset.who] = g.draft[el.dataset.key][el.dataset.who] || {}), i = el.dataset.id; d[i] = Math.max(0, (d[i] || 0) + +v); },
+    gmStep(v) { gm().step = v; },
+    gmPl(v, el) { const g = gm(), w = el.dataset.who, d = (g.draft[el.dataset.key][w] = g.draft[el.dataset.key][w] || {}), i = el.dataset.id; d[i] = (d[i] || 0) + gApply(w, 'p', +v, d[i] || 0); },
     gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id) || g.gone[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); g.gone[w].push(id); },
     gmRand() { const g = gm(), w = gwho(); while (g.newIds.length < g.allow) { const p = BD.SM.filter((c) => !g.gone[w].includes(c.id)); if (!p.length) break; const c = p[Math.floor(Math.random() * p.length)]; g.hand[w].push(c.id); g.newIds.push(c.id); g.gone[w].push(c.id); } },
     gmUndraw(id) { const g = gm(), w = gwho(); g.hand[w] = g.hand[w].filter((x) => x !== id); g.newIds = g.newIds.filter((x) => x !== id); g.gone[w] = g.gone[w].filter((x) => x !== id); },
     gmRedraw(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; if (g.rd[w] || gCp(w) < 1) return; gAddCp(w, -1); g.rd[w] = true; g.hand[w] = g.hand[w].filter((x) => x !== id); g.allow += 1; },
-    gmPri(v, el) { const g = gm(), w = el.dataset.who; g.draft.p[w] = Math.max(0, g.draft.p[w] + +v); },
-    gmAch(id, el) { const g = gm(), w = el.dataset.who; if (g.draft.c[w][id] != null) delete g.draft.c[w][id]; else { const mm = /(\d+) PV/.exec(smById(id).t || ''); g.draft.c[w][id] = mm ? +mm[1] : 0; } },
-    gmCv(v, el) { const g = gm(), w = el.dataset.who, id = el.dataset.id; g.draft.c[w][id] = Math.max(0, (g.draft.c[w][id] || 0) + +v); },
+    gmPri(v, el) { const g = gm(), w = el.dataset.who; g.draft.p[w] += gApply(w, 'p', +v, g.draft.p[w]); },
+    gmAch(id, el) { const g = gm(), w = el.dataset.who; const cur = g.draft.c[w][id]; if (cur != null) { gApply(w, 's', -cur, cur); delete g.draft.c[w][id]; } else { const mm = /(\d+) PV/.exec(smById(id).t || ''); g.draft.c[w][id] = gApply(w, 's', mm ? +mm[1] : 0, 0); } },
+    gmCv(v, el) { const g = gm(), w = el.dataset.who, id = el.dataset.id, cur = g.draft.c[w][id] || 0; g.draft.c[w][id] = cur + gApply(w, 's', +v, cur); },
     gmDiscard(id) { const g = gm(), w = gwho(); if (gLiveOp(w)) return; g.hand[w] = g.hand[w].filter((x) => x !== id); gAddCp(w, 1); },
     gmEnd(v, el) { const g = gm(), w = el.dataset.who; g.end.p[w] = Math.max(0, (g.end.p[w] || 0) + +v); },
     gmBr(w) { const g = gm(); g.end.br[w] = !g.end.br[w]; },
-    gmReopen() { const g = gm(); g.over = false; g.step = 'score'; },
+    gmReopen() { const g = gm(); g.over = false; g.step = 'play'; },
     gmValidate() {
-      const g = gm(); const r = S.round - 1; const notes = [];
-      ['me', 'op'].forEach((w) => {
-        const N = gNames();
-        const add = (k, v, lab) => { if (v <= 0) return; const room = Math.max(0, Math.min(15 - g.vp[w][k][r], 45 - gSum(g.vp[w][k]))); const ok = Math.min(v, room); g.vp[w][k][r] += ok; if (ok < v) notes.push(`${N[w]} : ${lab} plafonné (${ok}/${v} PV).`); };
-        const p0 = g.vp[w].p[r], s0 = g.vp[w].s[r];
-        add('p', g.draft.p[w] + gSum(Object.values(g.draft.pl[w] || {})), 'primaire');
-        add('s', gSum(Object.values(g.draft.c[w])), 'secondaire');
-        notes.unshift(`${N[w]} : +${g.vp[w].p[r] - p0} prim., +${g.vp[w].s[r] - s0} sec.`);
-        if (gSecMode(w) === 'tac') g.hand[w] = g.hand[w].filter((id) => g.draft.c[w][id] == null);
-      });
-      g.msg = notes.join(' ');
+      const g = gm(); g.msg = '';
+      ['me', 'op'].forEach((w) => { if (gSecMode(w) === 'tac') g.hand[w] = g.hand[w].filter((id) => g.draft.c[w][id] == null); });
       const firstMine = g.first === 'me';
       if (S.mine === firstMine) S.mine = !S.mine;
       else if (S.round >= GROUNDS) { g.over = true; g.step = 'end'; return; }
