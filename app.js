@@ -299,7 +299,7 @@
     if (g.msg) h += `<div class="note">${esc(g.msg)}</div>`;
     if (g.step === 'start') return h + gStart(g, N);
     if (g.step === 'score') return h + gScore(g, N);
-    h += `<div class="card"><h2>Rappels par phase</h2><p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => `<details class="note"><summary><b>${p.label}</b></summary>${phaseBlock(p)}</details>`).join('')}</div>`;
+    h += `<div class="card"><h2>Rappels par phase</h2><p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}</div>`;
     const sec = g.hand[gwho()];
     if (sec.length) h += `<div class="card"><h2>Secondaires actives (${esc(N[gwho()])})</h2>${sec.map((id) => secCardLine(id)).join('')}</div>`;
     h += `<button class="btn" data-act="gmStep" data-val="score">Fin du tour : compter les PV ▶</button>`;
@@ -2852,6 +2852,7 @@
     },
     toggleKw(k) { const a = S.play.target.kw; const i = a.indexOf(k); if (i >= 0) a.splice(i, 1); else a.push(k); },
     gmFirst(v) { const g = gm(); g.first = v; S.mine = v === 'me'; g.tk = ''; g.step = 'start'; gm(); },
+    phOpen(v) { S.ui.phOpen = S.ui.phOpen === v ? '' : v; },
     gmStep(v) { gm().step = v; },
     gmDraw(id) { const g = gm(), w = gwho(); if (g.newIds.length >= g.allow || g.hand[w].includes(id) || g.gone[w].includes(id)) return; g.hand[w].push(id); g.newIds.push(id); g.gone[w].push(id); },
     gmRand() { const g = gm(), w = gwho(); while (g.newIds.length < g.allow) { const p = BD.SM.filter((c) => !g.gone[w].includes(c.id)); if (!p.length) break; const c = p[Math.floor(Math.random() * p.length)]; g.hand[w].push(c.id); g.newIds.push(c.id); g.gone[w].push(c.id); } },
