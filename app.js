@@ -2150,7 +2150,7 @@
   function viewInfo() {
     const rel = (typeof APP_RELEASES !== 'undefined' && APP_RELEASES) || [];
     const last = rel[0];
-    const ver = `<div class="card"><h2>Version ${esc(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?')}</h2>${last ? `<div class="muted">Notes de version · ${esc(last.date || '')}</div><ul class="fxlist">${last.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}${rel.length > 1 ? `<details><summary>Versions précédentes</summary>${rel.slice(1).map((r) => `<h3>${esc(r.v)} · ${esc(r.date || '')}</h3><ul class="fxlist">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}</details>` : ''}</div>`;
+    const ver = `<div class="card"><h2>Version ${esc(typeof APP_VERSION !== 'undefined' ? APP_VERSION : '?')}</h2>${last ? `<div class="muted">Notes de version · ${esc(last.date || '')}</div><ul class="fxlist">${last.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>` : ''}<button class="btn small ghost" style="margin:8px 0" data-act="forceUpdate">🔄 Forcer la mise à jour</button>${rel.length > 1 ? `<details><summary>Versions précédentes</summary>${rel.slice(1).map((r) => `<h3>${esc(r.v)} · ${esc(r.date || '')}</h3><ul class="fxlist">${r.notes.map((n) => `<li>${esc(n)}</li>`).join('')}</ul>`).join('')}</details>` : ''}</div>`;
     if (!FB.counts && !FB.cLoad) { FB.cLoad = true; syReq('/rest/v1/rpc/feedback_counts', { method: 'POST', body: '{}' }).then((r) => { if (r && typeof r.bug === 'number') FB.counts = r; FB.cLoad = false; if (S.tab === 'info') render(); }).catch(() => { setTimeout(() => { FB.cLoad = false; }, 30000); }); }
     return `<h1>Infos</h1>${ver}<div class="card"><h2>Signaler une anomalie / proposer une idée</h2>
         <p class="muted" style="margin-top:0">Un bug, une règle mal calculée, une idée d'amélioration ? Dis-le ici : le message est envoyé au créateur de l'appli. Ne mets aucune information personnelle.</p>
@@ -2881,6 +2881,11 @@
       const r = calcTgtRows(); if (!r || CALC.optBusy) return; CALC.optBusy = true; const map = {}; let n = 0;
       for (const x of r.rows) { CALC.tgtMsg = `Optimisation… ${n}/${r.rows.length}`; if (n % 4 === 0) { render(); await new Promise((res) => setTimeout(res, 0)); } try { const o = calcOptimize1(x.u, r.melee, r.t); if (o) map[x.u.id] = o; } catch (e) { /* ignoré */ } n++; }
       CALC.opt = { sig: r.sig, map }; CALC.optBusy = false; CALC.tgtMsg = ''; render();
+    },
+    forceUpdate() {
+      if (!confirm('Recharger l\'appli en vidant son cache ? Tes données (listes, parties) sont conservées.')) return;
+      const go = () => { const u = new URL(location.href); u.searchParams.set('r', Date.now()); location.replace(u.toString()); };
+      Promise.all([(navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then((r) => Promise.all(r.map((x) => x.unregister()))) : Promise.resolve()), (window.caches ? caches.keys().then((k) => Promise.all(k.map((x) => caches.delete(x)))) : Promise.resolve())]).then(go, go);
     },
     calcSize(v) { CALC.atkSize = v; },
     calcCover() { CALC.cover = !CALC.cover; },
