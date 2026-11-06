@@ -2511,7 +2511,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { tgtFac: '', tgtUnits: [], tgtUnit: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2577,17 +2577,66 @@
     } catch (e) { CALC.msg = 'Impossible de lire ce PDF (' + (e.message || 'erreur') + ').'; }
     render();
   }
+  /* ----- Calculs : mode « Cible » (une cible précise + classement des unités d'un codex) ----- */
+  const calcIx = () => { const ix = Wahap.index(); if (!ix && !CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; }); } return ix; };
+  const facSel = (ix, attr, cur, ph) => `<select ${attr}="1"><option value="">${ph}</option>${abc(ix.factions, (f) => f.name).map((f) => `<option value="${esc(f.id)}" ${cur === f.id ? 'selected' : ''}>${esc(f.name)}</option>`).join('')}</select>`;
+  function calcTgtRows() {
+    const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
+    const t = targetFrom(eff({ units: [tu] }, tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
+    const base = defaults().play; const mods = Object.assign({}, base.mods, { anti: null, sust: 0 });
+    const rows = CALC.atkUnits.map((u) => {
+      const res = (u.weapons || []).filter((w) => (w.range === 'Mêlée') === melee).map((w) => {
+        try { const r = Engine.compute({ mode: melee ? 'melee' : 'ranged', weapon: w, nModels: CALC.atkN, situation: melee ? { charged: false } : Object.assign({}, base.sit), target: t, mods, battleShocked: false }); return { w, e: r.expected }; } catch (e) { return null; }
+      }).filter(Boolean).sort((x, y) => y.e.damage - x.e.damage);
+      return { u, res, best: res.length ? res[0].e.damage : 0 };
+    }).filter((x) => x.res.length).sort((x, y) => y.best - x.best);
+    return { t, tu, rows, melee };
+  }
+  function viewCalcTarget() {
+    const ix = calcIx(); let h = '';
+    h += '<div class="card"><h2>Cible</h2>';
+    if (!ix) h += '<p class="muted">Chargement de la base…</p>';
+    else {
+      h += `<label>Codex de la cible</label>${facSel(ix, 'data-calctf', CALC.tgtFac, '— choisir un codex —')}`;
+      if (CALC.tgtFac && CALC.tgtUnits.length) h += `<label style="margin-top:8px">Unité cible</label><select data-calctu="1"><option value="">— choisir une unité —</option>${CALC.tgtUnits.map((u) => `<option value="${u.id}" ${CALC.tgtUnit === u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`;
+      const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit);
+      if (tu) h += unitStatLine(eff({ units: [tu] }, tu));
+    }
+    if (CALC.tgtMsg) h += `<div class="note" style="margin-top:8px">${esc(CALC.tgtMsg)}</div>`;
+    h += '</div><div class="card"><h2>Unités attaquantes</h2>';
+    if (ix) h += `<label>Codex à classer</label>${facSel(ix, 'data-calcaf', CALC.atkFac, '— choisir un codex —')}`;
+    h += `<div class="chips" style="margin:10px 0">${chip('🎯 Tir', CALC.mode === 'shoot', 'data-act="calcMode" data-val="shoot"')}${chip('⚔️ Corps à corps', CALC.mode === 'fight', 'data-act="calcMode" data-val="fight"')}${CALC.mode === 'fight' ? '' : chip('Cible à couvert', CALC.cover, 'data-act="calcCover"')}</div>`;
+    h += `<div class="counter"><span class="muted">Figurines par arme</span><button class="chip" data-act="calcAtkN" data-val="-1">−</button><b>${CALC.atkN}</b><button class="chip" data-act="calcAtkN" data-val="1">+</button></div></div>`;
+    const r = calcTgtRows();
+    if (!r) return h + '<p class="muted" style="text-align:center">Choisis une unité cible et un codex à classer.</p>';
+    h += `<div class="card"><h2>Classement — ${esc(Wahap.factionName(CALC.atkFac))} contre ${esc(r.tu.name)}</h2><p class="muted">Du plus au moins létal (meilleure arme de chaque unité, ${CALC.atkN} figurine(s) par arme, ${r.melee ? 'corps à corps' : 'tir'}, sans bonus ni stratagème). Touche une unité pour voir toutes ses armes.</p>`;
+    const cap = r.rows.length > 25 && !CALC.rankAll ? 20 : r.rows.length;
+    r.rows.slice(0, cap).forEach((x, i) => {
+      const b = x.res[0].e; const pts = +x.u.pts || 0;
+      h += `<details class="strat"><summary><div class="row sp"><span class="nm">${i === 0 ? '★ ' : ''}${esc(x.u.name)}</span><span class="cp">≈ ${b.damage.toFixed(1)} PV</span></div><div class="muted">${esc(x.res[0].w.name)}${b.kills != null ? ' · ≈ ' + b.kills.toFixed(1) + ' fig. tuée(s)' : ''}${pts ? ' · ' + pts + ' pts · ' + (b.damage / pts * 100).toFixed(1) + ' PV / 100 pts' : ''}</div></summary>`;
+      x.res.forEach((y) => {
+        const e = y.e; h += `<div class="note"><b>${esc(y.w.name)}</b> <span class="muted">${y.w.range === 'Mêlée' ? 'Mêlée' : esc(String(y.w.range)) + '"'} · A${esc(y.w.A)} · ${esc(y.w.skill)} · F${esc(y.w.S)} · PA${esc(y.w.AP)} · D${esc(y.w.D)}${y.w.abilities ? ' · ' + esc(y.w.abilities) : ''}</span>
+          <div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div></div>`;
+      });
+      h += '</details>';
+    });
+    if (cap < r.rows.length) h += `<div class="row" style="margin-top:8px"><button class="btn small ghost grow" data-act="calcRankAll">Afficher les ${r.rows.length - cap} autres unités</button></div>`;
+    else if (r.rows.length > 25) h += '<div class="row" style="margin-top:8px"><button class="btn small ghost grow" data-act="calcRankAll">Réduire la liste</button></div>';
+    return h + '</div>';
+  }
   function viewCalc() {
     const R = calcStash || S; const a = army();
     const libs = R.armies.filter((x) => !x.gameOf);
     const chipsOf = (items, cur, act) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => chip(esc(l), cur === v, `data-act="${act}" data-val="${esc(v)}"`)).join('')}</div>`;
     let h = hd('Calculs');
+    h += `<div class="seg" style="margin:0 0 10px"><button class="${CALC.src === 'game' ? 'on' : ''}" data-act="calcSrc" data-val="game">⚔️ Bataille</button><button class="${CALC.src === 'manual' ? 'on' : ''}" data-act="calcSrc" data-val="manual">✋ Manuel</button><button class="${CALC.src === 'target' ? 'on' : ''}" data-act="calcSrc" data-val="target">🎯 Cible</button></div>`;
+    if (CALC.src === 'target') return h + viewCalcTarget();
     const ready = !!(a && CALC.enemy);
     const sum = `${a ? esc(a.name) : '<i>aucune liste</i>'} <span class="muted">contre</span> ${CALC.enemy ? esc(CALC.enemy.name) : '<i>aucune liste adverse</i>'}`;
     h += `<div class="card"><div class="row sp" data-act="calcToggle" style="cursor:pointer"><b>${sum}</b><span class="muted">${CALC.open ? '▾' : '▸'}</span></div>`;
     if (CALC.open) {
-      h += `<div class="seg" style="margin-top:10px"><button class="${CALC.src === 'game' ? 'on' : ''}" data-act="calcSrc" data-val="game">⚔️ Bataille</button><button class="${CALC.src === 'manual' ? 'on' : ''}" data-act="calcSrc" data-val="manual">✋ Manuel</button></div>`;
       if (CALC.src === 'game') {
+        h += '<div style="height:6px"></div>';
         const games = readGames(); const items = (R.inGame && R.armyId ? [['cur', '⚔️ Bataille en cours' + (R.gameName ? ' — ' + R.gameName : '')]] : []).concat(games.map((g) => [g.id, g.name || 'Bataille']));
         h += items.length ? `<label>Bataille</label>${chipsOf(items, CALC.gameSel, 'calcGame')}` : '<p class="muted">Aucune bataille enregistrée. Utilise « Manuel » ou crée une bataille.</p>';
       } else {
@@ -2746,6 +2795,21 @@
       CALC.defUnit = v; const u = calcUnitFrom(d); CALC.opLib = '';
       calcSetEnemy({ id: uid(), name: Wahap.factionName(CALC.defFac) + ' — ' + u.name, detachments: [], units: [u], rules: [], strats: [] }); CALC.open = !CALC.armyId;
     },
+    async calcTgtFac(v) {
+      CALC.tgtFac = v; CALC.tgtUnits = []; CALC.tgtUnit = ''; CALC.tgtMsg = ''; if (!v) { render(); return; }
+      CALC.tgtMsg = 'Chargement…'; render();
+      try { const f = await Wahap.faction(v); CALC.tgtUnits = f.units.filter((x) => x.fac === v).sort((a, b) => (Wahap.norm(a.name) < Wahap.norm(b.name) ? -1 : 1)).map(calcUnitFrom); CALC.tgtMsg = CALC.tgtUnits.length ? '' : 'Aucune unité dans ce codex.'; } catch (e) { CALC.tgtMsg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
+      render();
+    },
+    calcTgtUnit(v) { CALC.tgtUnit = v; },
+    async calcAtkFac(v) {
+      CALC.atkFac = v; CALC.atkUnits = []; CALC.tgtMsg = ''; if (!v) { render(); return; }
+      CALC.tgtMsg = 'Chargement…'; render();
+      try { const f = await Wahap.faction(v); CALC.atkUnits = f.units.filter((x) => x.fac === v).map(calcUnitFrom); CALC.tgtMsg = ''; } catch (e) { CALC.tgtMsg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
+      render();
+    },
+    calcAtkN(v) { CALC.atkN = Math.max(1, CALC.atkN + +v); },
+    calcCover() { CALC.cover = !CALC.cover; },
     calcRankAll() { CALC.rankAll = !CALC.rankAll; },
     calcSrc(v) { CALC.src = v; CALC.msg = ''; },
     calcToggle() { CALC.open = !CALC.open; },
@@ -3084,7 +3148,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => { if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
+  document.addEventListener('change', (e) => { const dd = e.target.dataset || {}; if (dd.calctf) { actions.calcTgtFac(e.target.value); return; } if (dd.calcaf) { actions.calcAtkFac(e.target.value); return; } if (dd.calctu) { actions.calcTgtUnit(e.target.value); render(); return; } if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
   function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
