@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.60.6';
+var APP_VERSION = '1.60.7';
 var APP_RELEASES = [
+  { v: '1.60.7', date: '2026-11-06', notes: ['Batailles : l\'armée d\'une partie est toujours celle de sa propre copie ; importer ou créer une liste ne peut plus la remplacer (les parties déjà touchées retrouvent leur armée).']},
   { v: '1.60.6', date: '2026-11-06', notes: ['Import PDF ALN : les caractéristiques (M, E, SV, PV, CD, CO) sont lues même quand les colonnes du PDF sont serrées et fusionnées (liste Chevaliers Impériaux).']},
   { v: '1.60.5', date: '2026-10-25', notes: ['Inviter un ami ouvre directement une nouvelle bataille en ligne, à la sélection des listes, avec l\'ami déjà choisi.']},
   { v: '1.60.4', date: '2026-10-25', notes: ['Listes : plus de surlignage de la liste « active ».']},

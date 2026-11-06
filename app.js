@@ -935,7 +935,7 @@
   const GKEY = 'noobammer.games.v1';
   const readGames = () => { try { return JSON.parse(localStorage.getItem(GKEY) || '[]'); } catch (e) { return []; } };
   const writeGames = (l) => { try { localStorage.setItem(GKEY, JSON.stringify(l)); return true; } catch (e) { alert('Sauvegarde impossible (stockage plein ou bloqué). Utilise « Exporter » pour garder un fichier.'); return false; } };
-  const snapshot = () => { const c = JSON.parse(JSON.stringify(S)); c.ui = {}; c.tab = 'game'; if (S.gameArmyId) c.armyId = S.gameArmyId; delete c.gameArmyId; delete c.park; delete c.libId; { const ids = new Set(c.armies.filter((x) => x.gameOf).map((x) => x.id)); c.armies = c.armies.filter((x) => ids.has(x.id)); Object.keys(c.armyRules).forEach((k) => { if (!ids.has(k)) delete c.armyRules[k]; }); c.customStrats = c.customStrats.filter((s) => s.armyId && ids.has(s.armyId)); } delete c.inGame; delete c.gameId; delete c.gameName; delete c.net; if (c.enemy && c.enemy.live) { c.enemy.live = false; } return c; };
+  const snapshot = () => { const c = JSON.parse(JSON.stringify(S)); c.ui = {}; c.tab = 'game'; if (S.gameArmyId) c.armyId = S.gameArmyId; { const ga = S.armies.find((x) => x.gameOf && x.gameOf === (S.gameId || 'quick')); if (ga) c.armyId = ga.id; } delete c.gameArmyId; delete c.park; delete c.libId; { const ids = new Set(c.armies.filter((x) => x.gameOf).map((x) => x.id)); c.armies = c.armies.filter((x) => ids.has(x.id)); Object.keys(c.armyRules).forEach((k) => { if (!ids.has(k)) delete c.armyRules[k]; }); c.customStrats = c.customStrats.filter((s) => s.armyId && ids.has(s.armyId)); } delete c.inGame; delete c.gameId; delete c.gameName; delete c.net; if (c.enemy && c.enemy.live) { c.enemy.live = false; } return c; };
   let gameTimer = null;
   function scheduleGameSave() {
     if (!S.gameId || !S.autoGame || !S.inGame) return;
@@ -2878,6 +2878,7 @@
       const old = S; flushGameSave();
       S = normalize(g.state);
       { /* bibliothèque conservée ; l'armée de la partie lui est propre */
+        { const mine0 = S.armies.find((x) => x.gameOf === g.id); if (mine0) S.armyId = mine0.id; }
         const gAr = S.armies.find((x) => x.id === S.armyId);
         if (gAr && !gAr.gameOf) { const keepId = gAr.id; const c = JSON.parse(JSON.stringify(gAr)); c.id = uid(); c.gameOf = g.id; c.fromId = keepId; S.armyRules[c.id] = S.armyRules[keepId] || []; S.customStrats.filter((s) => s.armyId === keepId).forEach((s) => S.customStrats.push(Object.assign({}, s, { id: 'c_' + uid(), armyId: c.id }))); S.armyId = c.id; S.armies.push(c); }
         const have = new Set(S.armies.map((x) => x.id)); const mine = S.armies.filter((x) => x.gameOf === g.id);
