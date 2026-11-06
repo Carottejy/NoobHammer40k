@@ -154,11 +154,18 @@ const AlnPdf = (() => {
         continue;
       }
       if (mode === 'stats' || mode === 'weapons' || mode === 'labels') {
-        if (r.cells.length >= 5 && r.cells.filter((c) => colKey(c.s)).length >= 5) { statHead = r.cells.map((c) => colKey(c.s)); continue; }
-        const looksStat = statHead && r.cells.length >= 5 && /^\d+"?$/.test(r.cells[0].s) && /^\d+\+?(?:\s*\/\s*\d\+\+?)?$/.test((r.cells[2] || {}).s || '') && mode !== 'labels';
+        /* PDF aux colonnes serrées : les cellules peuvent être fusionnées (« CD CO », « 11 3+/4++ 28 ») -> on redécoupe par mots */
+        let sr = r;
+        if (r.cells.length < 6) {
+          const tk = r.cells.flatMap((c) => c.s.split(/\s+/).filter(Boolean));
+          if (tk.length >= 5 && tk.filter((t) => colKey(t)).length >= 5) sr = { cells: tk.map((t) => ({ s: t, x: 0 })) };
+          else if (statHead) { const t2 = tk.filter((t) => !/^\(.*\)$/.test(t)); if (t2.length >= 5 && t2.length <= 7 && /^\d+"?$/.test(t2[0]) && /^\d+\+?(?:\s*\/\s*\d\+\+?)?$/.test(t2[2])) sr = { cells: t2.map((t) => ({ s: t, x: 0 })) }; }
+        }
+        if (sr.cells.length >= 5 && sr.cells.filter((c) => colKey(c.s)).length >= 5) { statHead = sr.cells.map((c) => colKey(c.s)); continue; }
+        const looksStat = statHead && sr.cells.length >= 5 && /^\d+"?$/.test(sr.cells[0].s) && /^\d+\+?(?:\s*\/\s*\d\+\+?)?$/.test((sr.cells[2] || {}).s || '') && mode !== 'labels';
         if (looksStat) {
-          const o = {}; r.cells.forEach((c, i) => { if (statHead[i]) o[statHead[i]] = c.s; });
-          const extra = r.cells.length > statHead.length ? r.cells.slice(statHead.length).map((c) => c.s).join(' ') : '';
+          const o = {}; sr.cells.forEach((c, i) => { if (statHead[i]) o[statHead[i]] = c.s; });
+          const extra = sr.cells.length > statHead.length ? sr.cells.slice(statHead.length).map((c) => c.s).join(' ') : '';
           const svm = String(o.sv || '').match(/(\d)\+(?:\s*\/\s*(\d)\+\+?)?/);
           const prof = { name: extra, M: o.M || '', T: o.T || '', W: o.W || '', Ld: o.Ld || '', OC: o.OC || '', sv: svm ? svm[1] + '+' : o.sv || '', inv: svm && svm[2] ? svm[2] : '' };
           u.profiles.push(prof);
