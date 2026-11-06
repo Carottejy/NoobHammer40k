@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.61.0';
+var APP_VERSION = '1.61.1';
 var APP_RELEASES = [
+  { v: '1.61.1', date: '2026-11-07', notes: ['Calculs › Cible : dégâts de l\'unité entière (effectif min/max, équipement de base), aptitudes de l\'unité, et bouton « Chercher la meilleure combinaison » (détachements, stratagèmes, améliorations, doctrines de combat).']},
   { v: '1.61.0', date: '2026-11-07', notes: ['Calculs : nouveau mode « 🎯 Cible » — choisis une unité précise dans un codex, puis un codex attaquant : classement des unités par létalité (meilleure arme, détail de toutes les armes). Les onglets Bataille / Manuel / Cible restent toujours visibles.']},
   { v: '1.60.7', date: '2026-11-06', notes: ['Batailles : l\'armée d\'une partie est toujours celle de sa propre copie ; importer ou créer une liste ne peut plus la remplacer (les parties déjà touchées retrouvent leur armée).']},
   { v: '1.60.6', date: '2026-11-06', notes: ['Import PDF ALN : les caractéristiques (M, E, SV, PV, CD, CO) sont lues même quand les colonnes du PDF sont serrées et fusionnées (liste Chevaliers Impériaux).']},
