@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.61.5';
+var APP_VERSION = '1.61.6';
 var APP_RELEASES = [
+  { v: '1.61.6', date: '2026-11-07', notes: ['Cible : bouton « À mi-portée » (activé par défaut, comme les bonus Fusion / Tir rapide) pour retrouver exactement les résultats du mode Manuel.'] },
   { v: '1.61.5', date: '2026-11-07', notes: ['Règles › Détachements : les détachements d\'abordage (sans point de détachement) sont indiqués comme tels au lieu d\'un « pt(s) » vide.'] },
   { v: '1.61.4', date: '2026-11-07', notes: ['Cible : un stratagème n\'est retenu que si son texte (QUAND / CIBLE) vise bien l\'unité (ex. « La pitié est une faiblesse » : Dreadnought uniquement).', 'Cible : choix du chapitre pour les Space Marines, pour ne montrer que les unités et détachements éligibles.'] },
   { v: '1.61.3', date: '2026-11-07', notes: ['Cible : seules les combinaisons autorisées sont testées (détachement, stratagème et amélioration compatibles avec le chapitre et les mots-clés de l\'unité)', 'Cible : les options d\'armement remplacent les armes de base dans la meilleure configuration (plus de cumul base + options), configuration retenue affichée'] },

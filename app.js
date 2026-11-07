@@ -2593,7 +2593,7 @@
     const act = raw.filter((x) => { const ev = Effects.evalItem(x.it, ctx); return ev.applicable && (x.ideal || ev.manual.length === 0); }).map((x) => x.it);
     const fxm = Effects.aggregate(act);
     const mods = Object.assign({}, defaults().play.mods, { hit: fxm.hit || 0, wound: fxm.wound || 0, strength: fxm.strength || 0, extraA: fxm.extraA || 0, apImp: fxm.apImp || 0, dmg: fxm.dmg || 0, dmgRed: fxm.dmgRed || 0, rrHit: fxm.rrHit || 'none', rrWound: fxm.rrWound || 'none', lethal: !!fxm.lethal, dev: !!fxm.dev, sust: fxm.sust || 0, anti: null, antis: fxm.antis, setA: fxm.setA, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
-    const sit = melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: true });
+    const sit = melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: CALC.half !== false });
     return Engine.compute({ mode: melee ? 'melee' : 'ranged', weapon: w, nModels: n, situation: sit, target: t, mods, battleShocked: false }).expected;
   }
   /* dégâts attendus de l'unité entière avec la MEILLEURE configuration d'armement :
@@ -2660,7 +2660,7 @@
   function calcCtx(u, melee, t, doctrine) {
     const kw = []; const add = (x) => { const n = normT(x); if (n) kw.push(n); };
     add(Wahap.factionName(CALC.atkFac)); (u.factionKw || []).forEach(add); (u.keywords || []).forEach(add);
-    return { armyKw: kw, doctrines: doctrine ? [normT(doctrine.name)] : [], mode: melee ? 'melee' : 'ranged', unit: u, sit: melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: true }), target: t };
+    return { armyKw: kw, doctrines: doctrine ? [normT(doctrine.name)] : [], mode: melee ? 'melee' : 'ranged', unit: u, sit: melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: CALC.half !== false }), target: t };
   }
   function calcStratOk(s, ukw) {
     const p = splitWTE(Wahap.T(s.text)); const m = String(p.target || '').match(/cette unit[ée]s?\s+(.+?)\s*\.?\s*$/i);
@@ -2697,7 +2697,7 @@
   function calcTgtRows() {
     const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
     const t = targetFrom(eff({ units: [tu] }, tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
-    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
+    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
     const rows = CALC.atkUnits.filter((u) => !CALC.atkCh || !u.chap || u.chap === CALC.atkCh).map((u) => {
       const ctx0 = calcCtx(u, melee, t, null); const { raw } = calcBaseRaw(u); const r = calcUnitTotal(u, melee, t, raw, ctx0); if (!r) return null;
       const o = opt && opt.map[u.id]; return { u, r, o, score: o ? o.best.res.total : r.total };
@@ -2718,7 +2718,7 @@
     h += '</div><div class="card"><h2>Unités attaquantes</h2>';
     if (ix) h += `<label>Codex à classer</label>${facSel(ix, 'data-calcaf', CALC.atkFac, '— choisir un codex —')}`;
     if (ix && CALC.atkFac === 'SM') h += `<label style="margin-top:8px">Chapitre</label><select data-calcch="1"><option value="">— tous les chapitres —</option>${abc(CHAPTERS.SM, (c) => c[1]).map((c) => `<option value="${esc(c[0])}" ${CALC.atkCh === c[0] ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select>`;
-    h += `<div class="chips" style="margin:10px 0">${chip('🎯 Tir', CALC.mode === 'shoot', 'data-act="calcMode" data-val="shoot"')}${chip('⚔️ Corps à corps', CALC.mode === 'fight', 'data-act="calcMode" data-val="fight"')}${CALC.mode === 'fight' ? '' : chip('Cible à couvert', CALC.cover, 'data-act="calcCover"')}</div>`;
+    h += `<div class="chips" style="margin:10px 0">${chip('🎯 Tir', CALC.mode === 'shoot', 'data-act="calcMode" data-val="shoot"')}${chip('⚔️ Corps à corps', CALC.mode === 'fight', 'data-act="calcMode" data-val="fight"')}${CALC.mode === 'fight' ? '' : chip('Cible à couvert', CALC.cover, 'data-act="calcCover"') + chip('À mi-portée', CALC.half !== false, 'data-act="calcHalf"')}</div>`;
     h += `<label>Effectif des unités</label><div class="chips" style="margin:0 0 6px">${chip('Minimum', CALC.atkSize === 'min', 'data-act="calcSize" data-val="min"')}${chip('Maximum', CALC.atkSize !== 'min', 'data-act="calcSize" data-val="max"')}</div></div>`;
     const r = calcTgtRows();
     if (!r) return h + '<p class="muted" style="text-align:center">Choisis une unité cible et un codex à classer.</p>';
@@ -2937,6 +2937,7 @@
     },
     calcSize(v) { CALC.atkSize = v; },
     calcCover() { CALC.cover = !CALC.cover; },
+    calcHalf() { CALC.half = CALC.half === false; CALC.opt = null; },
     calcRankAll() { CALC.rankAll = !CALC.rankAll; },
     calcSrc(v) { CALC.src = v; CALC.msg = ''; },
     calcToggle() { CALC.open = !CALC.open; },
