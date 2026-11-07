@@ -2511,7 +2511,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { atkDets: [], atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { atkDets: [], atkCh: '', atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2662,6 +2662,10 @@
     add(Wahap.factionName(CALC.atkFac)); (u.factionKw || []).forEach(add); (u.keywords || []).forEach(add);
     return { armyKw: kw, doctrines: doctrine ? [normT(doctrine.name)] : [], mode: melee ? 'melee' : 'ranged', unit: u, sit: melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: true }), target: t };
   }
+  function calcStratOk(s, ukw) {
+    const p = splitWTE(Wahap.T(s.text)); const m = String(p.target || '').match(/cette unit[ée]s?\s+(.+?)\s*\.?\s*$/i);
+    return Kw.ok(p.when, ukw, 'strat') && (!m || Kw.ok('une unité ' + m[1].replace(/\(.*?\)/g, '') + ' amie', ukw, 'strat')) && Kw.ok(p.target, ukw, 'strat');
+  }
   function calcOptimize1(u, melee, t) {
     const { raw: braw, doctrines } = calcBaseRaw(u); const isChar = calcIsChar(u);
     const cand = [{ doc: null }].concat(doctrines.map((d) => ({ doc: d })));
@@ -2671,14 +2675,14 @@
     let bestDoc = null, bd = run(null, []); if (!bd) return null; const plain = bd;
     doctrines.forEach((d) => { const r = run(d, []); if (r && r.total > bd.total) { bd = r; bestDoc = d; } });
     let best = { res: bd, doc: bestDoc, det: null, strat: null, enh: null };
-    const uch = u.chap || '';
+    const uch = u.chap || CALC.atkCh || '';
     (CALC.atkDets || []).forEach((d) => {
       const dc = chOfDet(d); if (dc && uch && dc !== uch) return; /* détachement d'un autre chapitre : interdit */
       const ukw = Object.assign({}, u, { chapter: uch || dc });
       const dr = []; (d.abilities || []).forEach((ab) => ptx(ab.text || '').forEach((it) => dr.push({ it, ideal: true })));
       let cur = run(bestDoc, dr); if (!cur) return; let pick = { res: cur, strat: null, enh: null };
       const ph = melee ? /Fight|Any/i : /Shoot|Any/i;
-      (d.strats || []).filter((s) => /Your|Either/i.test(s.turn || '') && ph.test(s.phase || '') && Kw.ok(splitWTE(Wahap.T(s.text)).target, ukw, 'strat')).forEach((s) => {
+      (d.strats || []).filter((s) => /Your|Either/i.test(s.turn || '') && ph.test(s.phase || '') && calcStratOk(s, ukw)).forEach((s) => {
         const items = calcStratItems(s, melee).map((it) => ({ it, ideal: true })); if (!items.length) return;
         const r = run(bestDoc, dr.concat(items)); if (r && r.total > pick.res.total + 1e-9) pick = { res: r, strat: s, enh: null, sItems: items };
       });
@@ -2693,8 +2697,8 @@
   function calcTgtRows() {
     const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
     const t = targetFrom(eff({ units: [tu] }, tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
-    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
-    const rows = CALC.atkUnits.map((u) => {
+    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
+    const rows = CALC.atkUnits.filter((u) => !CALC.atkCh || !u.chap || u.chap === CALC.atkCh).map((u) => {
       const ctx0 = calcCtx(u, melee, t, null); const { raw } = calcBaseRaw(u); const r = calcUnitTotal(u, melee, t, raw, ctx0); if (!r) return null;
       const o = opt && opt.map[u.id]; return { u, r, o, score: o ? o.best.res.total : r.total };
     }).filter(Boolean).sort((x, y) => y.score - x.score);
@@ -2713,6 +2717,7 @@
     if (CALC.tgtMsg) h += `<div class="note" style="margin-top:8px">${esc(CALC.tgtMsg)}</div>`;
     h += '</div><div class="card"><h2>Unités attaquantes</h2>';
     if (ix) h += `<label>Codex à classer</label>${facSel(ix, 'data-calcaf', CALC.atkFac, '— choisir un codex —')}`;
+    if (ix && CALC.atkFac === 'SM') h += `<label style="margin-top:8px">Chapitre</label><select data-calcch="1"><option value="">— tous les chapitres —</option>${abc(CHAPTERS.SM, (c) => c[1]).map((c) => `<option value="${esc(c[0])}" ${CALC.atkCh === c[0] ? 'selected' : ''}>${esc(c[1])}</option>`).join('')}</select>`;
     h += `<div class="chips" style="margin:10px 0">${chip('🎯 Tir', CALC.mode === 'shoot', 'data-act="calcMode" data-val="shoot"')}${chip('⚔️ Corps à corps', CALC.mode === 'fight', 'data-act="calcMode" data-val="fight"')}${CALC.mode === 'fight' ? '' : chip('Cible à couvert', CALC.cover, 'data-act="calcCover"')}</div>`;
     h += `<label>Effectif des unités</label><div class="chips" style="margin:0 0 6px">${chip('Minimum', CALC.atkSize === 'min', 'data-act="calcSize" data-val="min"')}${chip('Maximum', CALC.atkSize !== 'min', 'data-act="calcSize" data-val="max"')}</div></div>`;
     const r = calcTgtRows();
@@ -2914,7 +2919,7 @@
     },
     calcTgtUnit(v) { CALC.tgtUnit = v; },
     async calcAtkFac(v) {
-      CALC.atkFac = v; CALC.atkUnits = []; CALC.tgtMsg = ''; if (!v) { render(); return; }
+      CALC.atkFac = v; CALC.atkCh = ''; CALC.atkUnits = []; CALC.tgtMsg = ''; if (!v) { render(); return; }
       CALC.tgtMsg = 'Chargement…'; render();
       try { const f = await Wahap.faction(v); CALC.atkUnits = f.units.filter((x) => x.fac === v).map(calcUnitFrom); CALC.atkDets = f.detachments || []; CALC.opt = null; CALC.tgtMsg = ''; } catch (e) { CALC.tgtMsg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
       render();
@@ -3270,7 +3275,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => { const dd = e.target.dataset || {}; if (dd.calctf) { actions.calcTgtFac(e.target.value); return; } if (dd.calcaf) { actions.calcAtkFac(e.target.value); return; } if (dd.calctu) { actions.calcTgtUnit(e.target.value); render(); return; } if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
+  document.addEventListener('change', (e) => { const dd = e.target.dataset || {}; if (dd.calctf) { actions.calcTgtFac(e.target.value); return; } if (dd.calcch !== undefined) { CALC.atkCh = e.target.value; CALC.opt = null; render(); return; } if (dd.calcaf) { actions.calcAtkFac(e.target.value); return; } if (dd.calctu) { actions.calcTgtUnit(e.target.value); render(); return; } if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
   function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }

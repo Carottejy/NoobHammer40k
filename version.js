@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.61.3';
+var APP_VERSION = '1.61.4';
 var APP_RELEASES = [
+  { v: '1.61.4', date: '2026-11-07', notes: ['Cible : un stratagème n\'est retenu que si son texte (QUAND / CIBLE) vise bien l\'unité (ex. « La pitié est une faiblesse » : Dreadnought uniquement).', 'Cible : choix du chapitre pour les Space Marines, pour ne montrer que les unités et détachements éligibles.'] },
   { v: '1.61.3', date: '2026-11-07', notes: ['Cible : seules les combinaisons autorisées sont testées (détachement, stratagème et amélioration compatibles avec le chapitre et les mots-clés de l\'unité)', 'Cible : les options d\'armement remplacent les armes de base dans la meilleure configuration (plus de cumul base + options), configuration retenue affichée'] },
   { v: '1.61.2', date: '2026-11-07', notes: ['Infos : bouton « Forcer la mise à jour » (vide le cache de l\'appli, garde tes données).']},
   { v: '1.61.1', date: '2026-11-07', notes: ['Calculs › Cible : dégâts de l\'unité entière (effectif min/max, équipement de base), aptitudes de l\'unité, et bouton « Chercher la meilleure combinaison » (détachements, stratagèmes, améliorations, doctrines de combat).']},
