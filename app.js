@@ -2544,7 +2544,7 @@
   }
   function calcUnitFrom(d) {
     const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0];
-    if (t) { u.models = String(t[0]); u.pts = t[1]; } u.sizes = (d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1]) || []; return u;
+    u.wr = d.wr || []; u.wo = d.wo || []; u.chap = chOfUnit(d, d.fac); if (t) { u.models = String(t[0]); u.pts = t[1]; } u.sizes = (d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1]) || []; return u;
   }
   function calcDefPicker() {
     const ix = Wahap.index(); if (!ix && !CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; }); }
@@ -2596,18 +2596,57 @@
     const sit = melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: true });
     return Engine.compute({ mode: melee ? 'melee' : 'ranged', weapon: w, nModels: n, situation: sit, target: t, mods, battleShocked: false }).expected;
   }
-  /* dégâts attendus de l'unité entière (équipement de base ; armes optionnelles listées à part) */
+  /* dégâts attendus de l'unité entière avec la MEILLEURE configuration d'armement :
+     les options (règles `wr` des fiches) remplacent les armes de base, elles ne s'y ajoutent pas */
   function calcUnitTotal(u, melee, t, raw, ctx0) {
-    const size = calcSize(u).n; let fams = calcFamilies(u, melee); if (!fams.length) return null;
-    let base = fams.filter((f) => f.base); if (!base.length) base = fams;
+    const n = calcSize(u).n, ws = u.weapons || [], hasB = ws.some((w) => w.b);
+    const key = (w) => wbn(w.e || w.name), inMode = (w) => (w.range === 'Mêlée') === melee;
+    const fams = new Map();
+    ws.forEach((w) => { const k = key(w); if (!fams.has(k)) fams.set(k, { k, name: String(w.name).split(' - ')[0], ws: [], cnt: 0, base: false }); const f = fams.get(k); f.ws.push(w); if (!hasB || w.b) { f.base = true; f.cnt = n; } });
+    if (![...fams.values()].some((f) => f.ws.some(inMode))) return null;
+    const isPist = (f) => !melee && f.ws.some((w) => /combat rapproch|pistol/i.test(w.abilities || ''));
+    const hasMain = [...fams.values()].some((f) => f.cnt > 0 && !isPist(f) && f.ws.some(inMode));
+    const memo = {};
+    const val1 = (k) => {
+      if (k in memo) return memo[k]; const f = fams.get(k); let b = 0;
+      if (f && !(hasMain && isPist(f))) f.ws.filter(inMode).forEach((w) => { try { const e = calcOne(w, melee, 1, t, raw, ctx0); if (e.damage > b) b = e.damage; } catch (x) {} });
+      return (memo[k] = b);
+    };
+    const cnt = (k) => (fams.get(k) ? fams.get(k).cnt : 0);
+    /* unités à plusieurs types de figurines (ex. Kill Team) : au plus une arme principale par figurine */
+    if (n >= 3) {
+      const mains = [...fams.values()].filter((f) => f.cnt > 0 && !isPist(f) && f.ws.some(inMode));
+      if (mains.reduce((x, f) => x + f.cnt, 0) > n) { let left = n; mains.sort((x, y) => val1(y.k) - val1(x.k)).forEach((f) => { f.cnt = Math.min(f.cnt, left); left -= f.cnt; }); }
+    }
+    const cfg = [];
+    (u.wr || []).forEach((r) => {
+      if (r.k === 't' || !r.alts) return;
+      const cap = wrCap(r, n); if (cap <= 0) return;
+      if (r.req && !(cnt(r.req) > 0)) return;
+      if (r.forb && fams.get(r.forb) && fams.get(r.forb).base) return;
+      const srcs = r.k === 'r' ? (r.src || []) : []; let room = cap;
+      srcs.forEach((sv) => { room = Math.min(room, cnt(sv)); }); if (room <= 0) return;
+      const srcVal = srcs.reduce((x, sv) => x + val1(sv), 0);
+      const alts = r.alts.map((alt) => ({ alt, gain: alt.reduce((x, it) => x + (it.w ? val1(it.w) * (it.q || 1) : 0), 0) - srcVal })).filter((x) => x.gain > 1e-9).sort((x, y) => y.gain - x.gain);
+      alts.forEach((x) => {
+        if (room <= 0) return; const take = r.nd ? Math.min(1, room) : room;
+        srcs.forEach((sv) => { fams.get(sv).cnt -= take; });
+        x.alt.forEach((it) => { if (it.w && fams.get(it.w)) fams.get(it.w).cnt += take * (it.q || 1); });
+        room -= take;
+        cfg.push((take > 1 ? take + ' × ' : '') + x.alt.map((it) => (it.q > 1 ? it.q + ' × ' : '') + (Wahap.lang === 'en' ? it.e : it.n)).join(' + ') + (srcs.length ? ' (remplace ' + (r.sf || srcs).join(' + ') + ')' : ' (en plus)'));
+      });
+    });
     const lines = [];
-    const evalFam = (f, n, isBase) => { let best = null; f.ws.forEach((w) => { let e; try { e = calcOne(w, melee, n, t, raw, ctx0); } catch (x) { return; } if (!best || e.damage > best.e.damage) best = { w, e }; }); return best ? { fam: f.name, n, base: isBase, w: best.w, e: best.e } : null; };
-    base.forEach((f) => { const l = evalFam(f, f.base ? size : 1, true); if (l) lines.push(l); });
+    fams.forEach((f) => {
+      if (f.cnt <= 0) return; let best = null;
+      f.ws.filter(inMode).forEach((w) => { let e; try { e = calcOne(w, melee, f.cnt, t, raw, ctx0); } catch (x) { return; } if (!best || e.damage > best.e.damage) best = { w, e }; });
+      if (best) lines.push({ fam: f.name, n: f.cnt, base: f.base, w: best.w, e: best.e });
+    });
+    if (!lines.length) return null;
     const isPistol = (l) => /combat rapproch|pistol/i.test(l.w.abilities || '') && !melee;
     const main = lines.filter((l) => !isPistol(l)); const used = main.length ? main : lines;
-    fams.filter((f) => !base.includes(f)).forEach((f) => { const l = evalFam(f, 1, false); if (l) lines.push(l); });
     const total = used.reduce((x, l) => x + l.e.damage, 0); const kills = used.reduce((x, l) => x + (l.e.kills || 0), 0);
-    return { total, kills, lines, used };
+    return { total, kills, lines: used, used, cfg };
   }
   const calcStratItems = (s, melee) => {
     const tx = String(s.text || ''); const m = tx.split(/EFFET\s*:/i); const eff = (m[1] || tx).trim(); const cond = (m[0] || '').replace(/^[\s\S]*?QUAND\s*:/i, '');
@@ -2632,15 +2671,18 @@
     let bestDoc = null, bd = run(null, []); if (!bd) return null; const plain = bd;
     doctrines.forEach((d) => { const r = run(d, []); if (r && r.total > bd.total) { bd = r; bestDoc = d; } });
     let best = { res: bd, doc: bestDoc, det: null, strat: null, enh: null };
+    const uch = u.chap || '';
     (CALC.atkDets || []).forEach((d) => {
+      const dc = chOfDet(d); if (dc && uch && dc !== uch) return; /* détachement d'un autre chapitre : interdit */
+      const ukw = Object.assign({}, u, { chapter: uch || dc });
       const dr = []; (d.abilities || []).forEach((ab) => ptx(ab.text || '').forEach((it) => dr.push({ it, ideal: true })));
       let cur = run(bestDoc, dr); if (!cur) return; let pick = { res: cur, strat: null, enh: null };
       const ph = melee ? /Fight|Any/i : /Shoot|Any/i;
-      (d.strats || []).filter((s) => /Your|Either/i.test(s.turn || '') && ph.test(s.phase || '')).forEach((s) => {
+      (d.strats || []).filter((s) => /Your|Either/i.test(s.turn || '') && ph.test(s.phase || '') && Kw.ok(splitWTE(Wahap.T(s.text)).target, ukw, 'strat')).forEach((s) => {
         const items = calcStratItems(s, melee).map((it) => ({ it, ideal: true })); if (!items.length) return;
         const r = run(bestDoc, dr.concat(items)); if (r && r.total > pick.res.total + 1e-9) pick = { res: r, strat: s, enh: null, sItems: items };
       });
-      if (isChar) (d.enh || []).forEach((en) => {
+      if (isChar) (d.enh || []).filter((en) => Kw.ok(T0(en.text), ukw, 'enh')).forEach((en) => {
         const items = ptx(en.text || '').map((it) => ({ it, ideal: true })); if (!items.length) return;
         const r = run(bestDoc, dr.concat(pick.sItems || [], items)); if (r && r.total > pick.res.total + 1e-9) pick = Object.assign({}, pick, { res: r, enh: en });
       });
@@ -2675,13 +2717,14 @@
     h += `<label>Effectif des unités</label><div class="chips" style="margin:0 0 6px">${chip('Minimum', CALC.atkSize === 'min', 'data-act="calcSize" data-val="min"')}${chip('Maximum', CALC.atkSize !== 'min', 'data-act="calcSize" data-val="max"')}</div></div>`;
     const r = calcTgtRows();
     if (!r) return h + '<p class="muted" style="text-align:center">Choisis une unité cible et un codex à classer.</p>';
-    h += `<div class="card"><h2>Classement — ${esc(Wahap.factionName(CALC.atkFac))} contre ${esc(r.tu.name)}</h2><p class="muted">Dégâts attendus de l'unité entière (effectif choisi, équipement de base, aptitudes de l'unité), ${r.melee ? 'corps à corps après charge' : 'tir à l\'arrêt, à mi-portée'}. Armes optionnelles listées en détail.</p>`;
+    h += `<div class="card"><h2>Classement — ${esc(Wahap.factionName(CALC.atkFac))} contre ${esc(r.tu.name)}</h2><p class="muted">Dégâts attendus de l'unité entière (effectif choisi, meilleure configuration d'armement, aptitudes de l'unité), ${r.melee ? 'corps à corps après charge' : 'tir à l\'arrêt, à mi-portée'}.</p>`;
     h += `<button class="btn ${r.opt ? 'ghost' : ''}" style="width:100%" data-act="calcOptimize" ${CALC.optBusy ? 'disabled' : ''}>${CALC.optBusy ? esc(CALC.tgtMsg || 'Optimisation…') : r.opt ? '🔄 Relancer l\'optimisation' : '⚙️ Chercher la meilleure combinaison'}</button><p class="muted" style="margin:6px 0 0">${r.opt ? 'Classement optimisé : pour chaque unité, meilleurs détachement, stratagème (1), amélioration (personnages) et doctrine, conditions supposées remplies.' : 'Optimiser teste tous les détachements du codex (règles, stratagèmes, améliorations) et les doctrines de combat.'}</p>`;
     const cap = r.rows.length > 25 && !CALC.rankAll ? 20 : r.rows.length;
     r.rows.slice(0, cap).forEach((x, i) => {
       const sz = calcSize(x.u); const res = x.o ? x.o.best.res : x.r; const pts = sz.pts;
       const combo = x.o ? [x.o.best.det ? 'Détachement : ' + x.o.best.det.name : 'sans détachement', x.o.best.doc ? x.o.best.doc.name : '', x.o.best.strat ? 'Stratagème : ' + x.o.best.strat.name + ' (' + x.o.best.strat.cp + ' PC)' : '', x.o.best.enh ? 'Amélioration : ' + x.o.best.enh.name : ''].filter(Boolean) : [];
       h += `<details class="strat"><summary><div class="row sp"><span class="nm">${i === 0 ? '★ ' : ''}${esc(x.u.name)} <span class="muted">× ${sz.n}</span></span><span class="cp">≈ ${res.total.toFixed(1)} PV</span></div><div class="muted">≈ ${Math.min(res.kills, r.tm).toFixed(1)} fig. tuée(s) sur ${r.tm}${pts ? ' · ' + pts + ' pts · ' + (res.total / pts * 100).toFixed(1) + ' PV / 100 pts' : ''}${x.o ? ' · sans optimisation ≈ ' + x.r.total.toFixed(1) : ''}</div>${combo.length ? `<div style="margin-top:4px"><b>Meilleure combinaison</b> : ${combo.map(esc).join(' · ')}</div>` : ''}</summary>`;
+      if (res.cfg && res.cfg.length) h += `<div class="note"><b>Configuration retenue</b><br>${res.cfg.map(esc).join('<br>')}</div>`;
       res.lines.forEach((y) => {
         const e = y.e; h += `<div class="note"><b>${esc(y.w.name)}</b> <span class="muted">× ${y.n}${y.base ? '' : ' (option)'} · ${y.w.range === 'Mêlée' ? 'Mêlée' : esc(String(y.w.range))} · A${esc(y.w.A)} · ${esc(y.w.skill)} · F${esc(y.w.S)} · PA${esc(y.w.AP)} · D${esc(y.w.D)}${y.w.abilities ? ' · ' + esc(y.w.abilities) : ''}</span>
           <div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div></div>`;

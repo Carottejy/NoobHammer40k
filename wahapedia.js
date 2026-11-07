@@ -85,7 +85,7 @@ const Wahap = (() => {
       const u = {
         id: uid(), name: T(d.name), models: '', pts: 0, ptsNote: '', section: d.role || '', tag: '',
         M: num(m.M), T: m.T || '', sv: m.Sv || '', inv: m.inv || '', W: m.W || '', Ld: m.Ld || '', OC: m.OC || '', fnp: '',
-        weapons: (d.weapons || []).map((w) => ({ name: T(w.name), range: w.range === 'Mêlée' ? 'Mêlée' : num(w.range), A: String(w.A), skill: w.skill || '', S: String(w.S), AP: String(w.AP), D: String(w.D), abilities: w.ab || '', type: w.type, g: w.g, b: w.b })),
+        weapons: (d.weapons || []).map((w) => ({ name: T(w.name), range: w.range === 'Mêlée' ? 'Mêlée' : num(w.range), A: String(w.A), skill: w.skill || '', S: String(w.S), AP: String(w.AP), D: String(w.D), abilities: w.ab || '', type: w.type, g: w.g, b: w.b, e: w.e })),
         abilities: (d.abilities || []).filter((a) => a.name).map((a) => ({ name: T(a.name) + (a.param ? ' ' + a.param : ''), text: T(a.text), phases: (typeof AlnPdf !== 'undefined' ? AlnPdf.phasesFromText(T(a.text) || T(a.name), T(a.name)) : ['all']), en: isEn(a.text) || isEn(a.name) })),
         keywords: (d.kw || []).map((k) => api.kwT(k)), factionKw: (d.fkw || []).map((k) => api.kwT(k)), equipment: T(d.loadout).replace(/\n/g, ' '), subModels: [], enhancement: '', options: [], hasProfile: true, wahapId: d.id
       };

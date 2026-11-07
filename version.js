@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.61.2';
+var APP_VERSION = '1.61.3';
 var APP_RELEASES = [
+  { v: '1.61.3', date: '2026-11-07', notes: ['Cible : seules les combinaisons autorisées sont testées (détachement, stratagème et amélioration compatibles avec le chapitre et les mots-clés de l\'unité)', 'Cible : les options d\'armement remplacent les armes de base dans la meilleure configuration (plus de cumul base + options), configuration retenue affichée'] },
   { v: '1.61.2', date: '2026-11-07', notes: ['Infos : bouton « Forcer la mise à jour » (vide le cache de l\'appli, garde tes données).']},
   { v: '1.61.1', date: '2026-11-07', notes: ['Calculs › Cible : dégâts de l\'unité entière (effectif min/max, équipement de base), aptitudes de l\'unité, et bouton « Chercher la meilleure combinaison » (détachements, stratagèmes, améliorations, doctrines de combat).']},
   { v: '1.61.0', date: '2026-11-07', notes: ['Calculs : nouveau mode « 🎯 Cible » — choisis une unité précise dans un codex, puis un codex attaquant : classement des unités par létalité (meilleure arme, détail de toutes les armes). Les onglets Bataille / Manuel / Cible restent toujours visibles.']},
