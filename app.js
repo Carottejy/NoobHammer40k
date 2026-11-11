@@ -106,7 +106,23 @@
     let fnp = parseInt(b.fnp, 10) || 0;
     (ee.abilities || []).forEach((x) => { const m = normT(x.name).match(/insensible a la douleur\s*(\d)/); if (m && (!fnp || +m[1] < fnp)) fnp = +m[1]; });
     const stealth = (ee.abilities || []).some((x) => /^furtivite/.test(normT(x.name)));
-    return { T: parseInt(b.T, 10) || 0, sv: b.sv || '', inv: parseInt(b.inv, 10) || 0, fnp, stealth, W: single ? curHp(b) : (parseInt(b.W, 10) || 1), models: Math.max(1, ee.nowModels), kw: [...new Set(kw)] };
+    const t = { T: parseInt(b.T, 10) || 0, sv: b.sv || '', inv: parseInt(b.inv, 10) || 0, fnp, stealth, W: single ? curHp(b) : (parseInt(b.W, 10) || 1), models: Math.max(1, ee.nowModels), kw: [...new Set(kw)] };
+    if (ee.leaders.length) {
+      /* aptitudes des meneurs/appuis accordant une protection à toute l'unité */
+      let gInv = 0, gFnp = 0;
+      ee.leaders.forEach((l) => (l.abilities || []).forEach((x) => {
+        if (isStructural(x.name)) return; const tx = normT(x.text || ''); if (!/\bunite\b/.test(tx)) return;
+        let m = tx.match(/insensible a la douleur\s*(\d)\s*\+/); if (m && (!gFnp || +m[1] < gFnp) && /(?:figurines? de (?:cette|l') ?unite|cette unite|unite)[^.]{0,140}insensible|insensible[^.]{0,100}unite/.test(tx)) gFnp = +m[1];
+        m = tx.match(/sauvegarde invulnerable (?:de )?(\d)\s*\+/); if (m && (!gInv || +m[1] < gInv) && /(?:cette unite|figurines? de (?:cette|l') ?unite|unite)[^.]{0,140}invulnerable|invulnerable[^.]{0,100}unite/.test(tx)) gInv = +m[1];
+      }));
+      const better = (a, b2) => (a && (!b2 || a < b2) ? a : b2);
+      const own = (x) => { let f = parseInt(x.fnp, 10) || 0; (x.abilities || []).forEach((a) => { const m = normT(a.name).match(/insensible a la douleur\s*(\d)/); if (m && (!f || +m[1] < f)) f = +m[1]; }); return f; };
+      const grp = (x, sing) => ({ name: x.name, models: curModels(x), W: sing ? curHp(x) : (parseInt(x.W, 10) || 1), sv: x.sv || '', inv: better(gInv, parseInt(x.inv, 10) || 0), fnp: better(gFnp, own(x)) });
+      const isSup = (l) => l.isSupp || roleOf(l) === 'support';
+      t.groups = [grp(b, maxModels(b) === 1)].concat(ee.leaders.filter(isSup).map((l) => grp(l, maxModels(l) === 1)), ee.leaders.filter((l) => !isSup(l)).map((l) => grp(l, maxModels(l) === 1)));
+      t.fnp = better(gFnp, t.fnp); t.inv = better(gInv, t.inv);
+    }
+    return t;
   }
   function syncTarget() {
     const id = S.play.targetUnitId; if (!id) return;
@@ -2591,7 +2607,7 @@
   }
   function calcOne(w, melee, n, t, raw, ctx0) {
     const ctx = Object.assign({}, ctx0, { ab: Engine.parseAbilities(w.abilities), wname: w.name, wS: +w.S || 0, tT: +t.T || 0 });
-    const act = raw.filter((x) => { const ev = Effects.evalItem(x.it, ctx); return ev.applicable && (x.ideal || ev.manual.length === 0); }).map((x) => x.it);
+    const act = (t.defRaw && t.defRaw.length ? raw.concat(t.defRaw) : raw).filter((x) => { const ev = Effects.evalItem(x.it, x.def ? Object.assign({}, ctx, { asTarget: true }) : ctx); return ev.applicable && (x.ideal || ev.manual.length === 0); }).map((x) => x.it);
     const fxm = Effects.aggregate(act);
     const mods = Object.assign({}, defaults().play.mods, { hit: fxm.hit || 0, wound: fxm.wound || 0, strength: fxm.strength || 0, extraA: fxm.extraA || 0, apImp: fxm.apImp || 0, dmg: fxm.dmg || 0, dmgRed: fxm.dmgRed || 0, rrHit: fxm.rrHit || 'none', rrWound: fxm.rrWound || 'none', lethal: !!fxm.lethal, dev: !!fxm.dev, sust: fxm.sust || 0, anti: null, antis: fxm.antis, setA: fxm.setA, addAbil: fxm.addAbil, removeAbil: fxm.removeAbil, addAbilTok: fxm.addAbilTok, noCover: !!fxm.noCover, forceCover: !!fxm.forceCover, rrDmg: !!fxm.rrDmg });
     const sit = melee ? { charged: true } : Object.assign({}, defaults().play.sit, { moved: 'stationary', halfRange: CALC.half !== false });
@@ -2717,7 +2733,7 @@
   }
   function calcTgtRows() {
     const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
-    const t = targetFrom(calcTgtEff(tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
+    const tee = calcTgtEff(tu); const t = targetFrom(tee); t.defRaw = []; (tee.abilities || []).forEach((ab) => { if (!isStructural(ab.name)) ptx(ab.text || '').forEach((it) => { if (it.side === 'def') t.defRaw.push({ it, ideal: false, def: true }); }); }); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
     const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half, CALC.tgtLeader, CALC.tgtSupport].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
     const rows = CALC.atkUnits.filter((u) => !CALC.atkCh || !u.chap || u.chap === CALC.atkCh).map((u) => {
       const ctx0 = calcCtx(u, melee, t, null); const { raw } = calcBaseRaw(u); const r = calcUnitTotal(u, melee, t, raw, ctx0); if (!r) return null;

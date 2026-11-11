@@ -252,7 +252,7 @@ const Engine = (() => {
       main: finalSv > 6 ? 'Aucune sauvegarde possible' : `${finalSv}+${useInv ? ' (invulnérable)' : ''}`,
       sub: 'Un 1 non modifié échoue toujours.', mods: [], details: svDetails,
     });
-    const unsaved = normalWounds * (1 - savProb);
+    let unsaved = normalWounds * (1 - savProb);
 
     /* — 5. Dégâts — */
     const dBase = parseDice(w.D);
@@ -276,11 +276,27 @@ const Engine = (() => {
     res.steps.push({ id: 'damage', title: 'Dégâts', main: dText, sub: fnp ? `Ignorer la douleur ${fnp}+` : '', mods: [], details: dmgSteps });
 
     /* — Espérance — */
-    const woundsDealt = (unsaved + critWounds) * (1 - pFnp);
-    const dmgTotal = (unsaved * effD + critWounds * dAvg) * (1 - pFnp);
+    let woundsDealt = (unsaved + critWounds) * (1 - pFnp);
+    let dmgTotal = (unsaved * effD + critWounds * dAvg) * (1 - pFnp);
+    let killsTot = W ? dmgTotal / W : null;
+    /* Allocation par groupe (unité d'escorte, puis appui, puis meneur) : chaque groupe a ses propres sauvegardes, PV et ignorer la douleur */
+    let grp = null;
+    if (Array.isArray(t.groups) && t.groups.length > 1) {
+      const totW = normalWounds + critWounds; const a = totW > 0 ? normalWounds / totW : 1; let rem = totW; grp = []; let un = 0, pvs = 0, ks = 0;
+      t.groups.forEach((g) => {
+        const sv0 = parseSkill(g.sv) || (+g.sv || 7); const inv0 = +g.inv || 0; const mS = sv0 + ap; const uInv = inv0 > 0 && inv0 < mS; const fS = uInv ? inv0 : mS; const ps = pSave(fS);
+        const f = +g.fnp || 0, pf = f ? (7 - f) / 6 : 0; const Wg = +g.W || 1, mg = Math.max(1, +g.models || 1);
+        const dN = Math.min(dAvg, Wg), dM = Math.min(dAvg, Wg);
+        const rate = (a * (1 - ps) * dN + (1 - a) * dM) * (1 - pf); const cap = mg * Wg; const need = rate > 0 ? cap / rate : Infinity;
+        const x = Math.min(rem, need); rem -= x; const xn = x * a, xm = x * (1 - a); const un1 = xn * (1 - ps); const raw = (un1 + xm) * Math.min(dAvg, Wg); const pv = raw * (1 - pf);
+        grp.push({ g, mg, Wg, x, xn, xm, ps, fS, uInv, f, pf, un1, raw, pv, kill: pv / Wg, full: need <= x + 1e-9 });
+        un += un1 + xm; pvs += pv; ks += pv / Wg;
+      });
+      grp.left = rem; unsaved = un - critWounds; dmgTotal = pvs; killsTot = ks; woundsDealt = un * 1;
+    }
     res.expected = {
       attacks: N, hits: totalHits, wounds: normalWounds + critWounds, unsaved: unsaved + critWounds,
-      damage: dmgTotal, kills: W ? dmgTotal / W : null, mortal: critWounds, woundsDealt,
+      damage: dmgTotal, kills: killsTot, mortal: critWounds, woundsDealt,
     };
 
     const f1 = (x) => (Math.round(x * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
@@ -296,13 +312,29 @@ const Engine = (() => {
     bd.push(['Blessures obtenues aux dés', f1(woundsFromRolled)]);
     if (dev) bd.push(['… dont critiques → blessures mortelles (Dévastatrices, sans sauvegarde)', f1(critWounds)]);
     bd.push(['Blessures normales à sauvegarder', f1(normalWounds)]);
-    bd.push(['Sauvegardées par l\'adversaire', '−' + f1(normalWounds * savProb)]);
-    bd.push(['Non sauvegardées', f1(unsaved)]);
-    if (dev) bd.push(['Blessures mortelles + non sauvegardées', f1(unsaved + critWounds)]);
-    bd.push(['Dégâts par blessure', f1(dAvg) + (W && dAvg > W ? ` (plafonné à ${W} sur les blessures normales)` : '')]);
-    bd.push(['Dégâts avant Ignorer la douleur', f1(rawDmg)]);
-    if (fnp) bd.push([`Ignorer la douleur ${fnp}+ (ignore ${Math.round(pFnp * 100)} %)`, '−' + f1(rawDmg * pFnp)]);
-    bd.push(['PV perdus (espérance)', f1(dmgTotal)]);
+    if (grp) {
+      bd.push(['Allocation des blessures : unité, puis appui, puis meneur', '']);
+      grp.forEach((r) => {
+        bd.push([`${r.g.name} — ${r.mg} fig. · E${T || '?'} · PV ${r.Wg}`, '']);
+        bd.push(['Blessures allouées' + (dev ? ' (normales / mortelles)' : ''), dev ? `${f1(r.x)} (${f1(r.xn)} / ${f1(r.xm)})` : f1(r.x)]);
+        bd.push([`Sauvegarde ${r.fS > 6 ? 'impossible' : r.fS + '+'}${r.uInv ? ' (invulnérable)' : ''}`, '−' + f1(r.xn * r.ps) + ' sauvegardées']);
+        bd.push(['Non sauvegardées' + (dev ? ' + mortelles' : ''), f1(r.un1 + r.xm)]);
+        bd.push(['Dégâts par blessure (plafonné aux PV)', f1(Math.min(dAvg, r.Wg))]);
+        bd.push(['Dégâts avant Ignorer la douleur', f1(r.raw)]);
+        if (r.f) bd.push([`Ignorer la douleur ${r.f}+ (ignore ${Math.round(r.pf * 100)} %)`, '−' + f1(r.raw * r.pf)]);
+        bd.push(['PV perdus / figurines tuées', `${f1(r.pv)} / ${f1(r.kill)}` + (r.full ? ' (groupe détruit)' : '')]);
+      });
+      if (grp.left > 0.005) bd.push(['Blessures en excès (toute la cible détruite)', f1(grp.left)]);
+      bd.push(['PV perdus au total (espérance)', f1(dmgTotal)]);
+    } else {
+      bd.push(['Sauvegardées par l\'adversaire', '−' + f1(normalWounds * savProb)]);
+      bd.push(['Non sauvegardées', f1(unsaved)]);
+      if (dev) bd.push(['Blessures mortelles + non sauvegardées', f1(unsaved + critWounds)]);
+      bd.push(['Dégâts par blessure', f1(dAvg) + (W && dAvg > W ? ` (plafonné à ${W} sur les blessures normales)` : '')]);
+      bd.push(['Dégâts avant Ignorer la douleur', f1(rawDmg)]);
+      if (fnp) bd.push([`Ignorer la douleur ${fnp}+ (ignore ${Math.round(pFnp * 100)} %)`, '−' + f1(rawDmg * pFnp)]);
+      bd.push(['PV perdus (espérance)', f1(dmgTotal)]);
+    }
     res.expected.detail = bd;
 
     /* — Notes de capacités — */
