@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.62.1';
+var APP_VERSION = '1.62.2';
 var APP_RELEASES = [
+  { v: '1.62.2', date: '2026-11-11', notes: ['Cible : l\'unité cible peut être composée d\'une escouade + un meneur + un appui (listes issues des unités que l\'escouade peut rejoindre) ; effectif, mots-clés et aptitudes fusionnés.'] },
   { v: '1.62.1', date: '2026-11-11', notes: ['Cible : quand un stratagème, une règle ou une amélioration propose un choix (« X ou Y »), seul l\'effet le plus efficace est retenu, au lieu de cumuler les deux.'] },
   { v: '1.62.0', date: '2026-11-11', notes: ['Calculs : bouton « Détail complet du calcul » (touches normales/critiques, soutenues, fatales, dévastatrices, sauvegardes, ignorer la douleur…).','Dégâts des armes affichés « D: » (ex. D:D3+2).','Batailles : objectifs, missions, règles et marquages réduits à leur titre, détail au clic.'] },
   { v: '1.61.7', date: '2026-11-07', notes: ['Cible : plus d\'affichage des PV / 100 pts.'] },

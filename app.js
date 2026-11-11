@@ -2512,7 +2512,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { atkDets: [], atkCh: '', atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { atkDets: [], atkCh: '', atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', tgtLeader: '', tgtSupport: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2545,7 +2545,7 @@
   }
   function calcUnitFrom(d) {
     const u = Wahap.toApp(d, uid); const t = d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1] && d.pc.t[0][1][0];
-    u.wr = d.wr || []; u.wo = d.wo || []; u.chap = chOfUnit(d, d.fac); if (t) { u.models = String(t[0]); u.pts = t[1]; } u.sizes = (d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1]) || []; return u;
+    u.wid = d.id; u.leadsIds = d.leads || []; u.isSupp = !!d.support; u.wr = d.wr || []; u.wo = d.wo || []; u.chap = chOfUnit(d, d.fac); if (t) { u.models = String(t[0]); u.pts = t[1]; } u.sizes = (d.pc && d.pc.t && d.pc.t[0] && d.pc.t[0][1]) || []; return u;
   }
   function calcDefPicker() {
     const ix = Wahap.index(); if (!ix && !CALC.loading) { CALC.loading = true; Wahap.ready().then(() => { CALC.loading = false; render(); }).catch(() => { CALC.loading = false; }); }
@@ -2707,10 +2707,18 @@
     });
     return { plain, best };
   }
+  /* unité cible effective : escouade + meneur + appui choisis */
+  function calcTgtEff(tu) {
+    const att = [['tgtLeader', 'leader'], ['tgtSupport', 'support']].map(([k]) => CALC.tgtUnits.find((x) => x.id === CALC[k])).filter(Boolean).map((l) => Object.assign({}, l, { attachedTo: tu.id, models: '1', cur: null }));
+    return eff({ units: [tu].concat(att) }, tu);
+  }
+  function calcTgtOptions(tu, role) {
+    return CALC.tgtUnits.filter((l) => l.id !== tu.id && l.leadsIds.includes(tu.wid) && (l.isSupp ? 'support' : 'leader') === role);
+  }
   function calcTgtRows() {
     const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
-    const t = targetFrom(eff({ units: [tu] }, tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
-    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
+    const t = targetFrom(calcTgtEff(tu)); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
+    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half, CALC.tgtLeader, CALC.tgtSupport].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
     const rows = CALC.atkUnits.filter((u) => !CALC.atkCh || !u.chap || u.chap === CALC.atkCh).map((u) => {
       const ctx0 = calcCtx(u, melee, t, null); const { raw } = calcBaseRaw(u); const r = calcUnitTotal(u, melee, t, raw, ctx0); if (!r) return null;
       const o = opt && opt.map[u.id]; return { u, r, o, score: o ? o.best.res.total : r.total };
@@ -2724,6 +2732,7 @@
     else {
       h += `<label>Codex de la cible</label>${facSel(ix, 'data-calctf', CALC.tgtFac, '— choisir un codex —')}`;
       if (CALC.tgtFac && CALC.tgtUnits.length) h += `<label style="margin-top:8px">Unité cible</label><select data-calctu="1"><option value="">— choisir une unité —</option>${CALC.tgtUnits.map((u) => `<option value="${u.id}" ${CALC.tgtUnit === u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`;
+      { const tu0 = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (tu0) [['leader', 'Meneur', 'tgtLeader'], ['support', 'Appui', 'tgtSupport']].forEach(([role, lab, k]) => { const os = calcTgtOptions(tu0, role); if (os.length) h += `<label style="margin-top:8px">${lab} rattaché (optionnel)</label><select data-calcatt="1" data-key="${role}"><option value="">— aucun —</option>${os.map((u) => `<option value="${u.id}" ${CALC[k] === u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`; }); }
       const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit);
       if (tu) h += unitStatLine(eff({ units: [tu] }, tu));
     }
@@ -2735,7 +2744,7 @@
     h += `<label>Effectif des unités</label><div class="chips" style="margin:0 0 6px">${chip('Minimum', CALC.atkSize === 'min', 'data-act="calcSize" data-val="min"')}${chip('Maximum', CALC.atkSize !== 'min', 'data-act="calcSize" data-val="max"')}</div></div>`;
     const r = calcTgtRows();
     if (!r) return h + '<p class="muted" style="text-align:center">Choisis une unité cible et un codex à classer.</p>';
-    h += `<div class="card"><h2>Classement — ${esc(Wahap.factionName(CALC.atkFac))} contre ${esc(r.tu.name)}</h2><p class="muted">Dégâts attendus de l'unité entière (effectif choisi, meilleure configuration d'armement, aptitudes de l'unité), ${r.melee ? 'corps à corps après charge' : 'tir à l\'arrêt, à mi-portée'}.</p>`;
+    h += `<div class="card"><h2>Classement — ${esc(Wahap.factionName(CALC.atkFac))} contre ${esc(r.tu.name)}${[CALC.tgtLeader, CALC.tgtSupport].map((id) => CALC.tgtUnits.find((x) => x.id === id)).filter(Boolean).map((x) => ' + ' + esc(x.name)).join('')}</h2><p class="muted">Dégâts attendus de l'unité entière (effectif choisi, meilleure configuration d'armement, aptitudes de l'unité), ${r.melee ? 'corps à corps après charge' : 'tir à l\'arrêt, à mi-portée'}.</p>`;
     h += `<button class="btn ${r.opt ? 'ghost' : ''}" style="width:100%" data-act="calcOptimize" ${CALC.optBusy ? 'disabled' : ''}>${CALC.optBusy ? esc(CALC.tgtMsg || 'Optimisation…') : r.opt ? '🔄 Relancer l\'optimisation' : '⚙️ Chercher la meilleure combinaison'}</button><p class="muted" style="margin:6px 0 0">${r.opt ? 'Classement optimisé : pour chaque unité, meilleurs détachement, stratagème (1), amélioration (personnages) et doctrine, conditions supposées remplies.' : 'Optimiser teste tous les détachements du codex (règles, stratagèmes, améliorations) et les doctrines de combat.'}</p>`;
     const cap = r.rows.length > 25 && !CALC.rankAll ? 20 : r.rows.length;
     r.rows.slice(0, cap).forEach((x, i) => {
@@ -2930,7 +2939,8 @@
       try { const f = await Wahap.faction(v); CALC.tgtUnits = f.units.filter((x) => x.fac === v).sort((a, b) => (Wahap.norm(a.name) < Wahap.norm(b.name) ? -1 : 1)).map(calcUnitFrom); CALC.tgtMsg = CALC.tgtUnits.length ? '' : 'Aucune unité dans ce codex.'; } catch (e) { CALC.tgtMsg = 'Chargement impossible (' + (e.message || 'erreur') + ').'; }
       render();
     },
-    calcTgtUnit(v) { CALC.tgtUnit = v; },
+    calcTgtUnit(v) { CALC.tgtUnit = v; CALC.tgtLeader = ''; CALC.tgtSupport = ''; CALC.opt = null; },
+    calcTgtAtt(v, d) { CALC[d.key === 'support' ? 'tgtSupport' : 'tgtLeader'] = v; CALC.opt = null; },
     async calcAtkFac(v) {
       CALC.atkFac = v; CALC.atkCh = ''; CALC.atkUnits = []; CALC.tgtMsg = ''; if (!v) { render(); return; }
       CALC.tgtMsg = 'Chargement…'; render();
@@ -3289,7 +3299,7 @@
   document.addEventListener('input', (e) => { if (e.target.id === 'fbMsg') { FB.msg = e.target.value; return; } if (e.target.id === 'fbContact') { FB.contact = e.target.value; return; } if (e.target.id === 'rq') { RS.q = e.target.value; const r = document.getElementById('rres'); if (r) r.innerHTML = rulesResults(); } if (e.target.id === 'dbq') { dbs.q = e.target.value; const r = document.getElementById('dbres'); if (r) r.innerHTML = dbResults(); } if (e.target.id === 'asq') { AS.q = e.target.value; const f = AS.fac ? Wahap.cached(AS.fac) : null; const r = document.getElementById('askw'); if (r && f) r.innerHTML = asKwChips(f); } if (e.target.id === 'bq') { B.q = e.target.value; const r = document.getElementById('bres'); const f = bfac(); if (r && f) r.innerHTML = bResults(f); } });
   document.addEventListener('toggle', (e) => { const d = e.target; if (d && d.dataset && d.dataset.rid) RS.open[d.dataset.rid] = d.open; }, true);
   document.addEventListener('change', (e) => { if (e.target.id === 'fbContact') FB.contact = e.target.value; if (e.target.id === 'fbMsg') FB.msg = e.target.value; });
-  document.addEventListener('change', (e) => { const dd = e.target.dataset || {}; if (dd.calctf) { actions.calcTgtFac(e.target.value); return; } if (dd.calcch !== undefined) { CALC.atkCh = e.target.value; CALC.opt = null; render(); return; } if (dd.calcaf) { actions.calcAtkFac(e.target.value); return; } if (dd.calctu) { actions.calcTgtUnit(e.target.value); render(); return; } if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
+  document.addEventListener('change', (e) => { const dd = e.target.dataset || {}; if (dd.calctf) { actions.calcTgtFac(e.target.value); return; } if (dd.calcatt !== undefined) { actions.calcTgtAtt(e.target.value, dd); render(); return; } if (dd.calcch !== undefined) { CALC.atkCh = e.target.value; CALC.opt = null; render(); return; } if (dd.calcaf) { actions.calcAtkFac(e.target.value); return; } if (dd.calctu) { actions.calcTgtUnit(e.target.value); render(); return; } if (e.target.dataset && e.target.dataset.calcfac) { actions.calcDef(e.target.value); return; } inCalc(() => onChange(e)); });
   function onChange(e) {
     if (e.target.dataset && e.target.dataset.dbfac) { if (dbs.mode === 'det') { dbs.detFac = e.target.value; dbs.det = null; } else { dbs.fac = e.target.value; dbs.unit = null; } dbs.ch = ''; dbs.kw = ''; render(); return; }
     if (e.target.dataset && e.target.dataset.dbch !== undefined) { dbs.ch = e.target.value; dbs.det = null; dbs.unit = null; render(); return; }
