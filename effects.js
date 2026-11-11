@@ -351,8 +351,9 @@ const Effects = (() => {
   }
 
   /* Texte complet -> items (gère « Ou : », les choix de capacité et les doctrines) */
+  let altSeq = 0;
   function optionItems(prefix, toks, remainder, opts) {
-    const items = [];
+    const items = []; const setId = ++altSeq;
     let rem = String(remainder || '').replace(/^[\s.;,]+/, '').trim();
     /* « Vous pouvez à la place choisir les capacités [A] et [B] » : combinaison proposée en plus */
     let combo = [];
@@ -360,7 +361,7 @@ const Effects = (() => {
     if (ci >= 0) { combo = [...rem.slice(ci).matchAll(/\[([^\]]+)\]/g)].map((x) => x[1].trim()); rem = rem.slice(0, ci).trim(); }
     const build = (label, tk) => {
       const txt = rem && /choisies?\b/i.test(rem) ? rem.replace(/choisies?\b/i, tk) : 'Les attaques de cette unité ont ' + tk + '.';
-      parseSegment((prefix || '') + ' ' + txt, Object.assign({}, opts, { alt: true })).forEach((it) => { it.conds = [...it.conds, { t: 'manual', label: 'Option choisie : ' + label }]; items.push(it); });
+      parseSegment((prefix || '') + ' ' + txt, Object.assign({}, opts, { alt: true })).forEach((it) => { it.conds = [...it.conds, { t: 'manual', label: 'Option choisie : ' + label }]; it.altSet = setId; it.altGroup = label; items.push(it); });
     };
     toks.forEach((tk) => build(tk, '[' + tk + ']'));
     if (combo.length > 1) build(combo.join(' + '), combo.map((x) => '[' + x + ']').join(' et '));
@@ -373,10 +374,11 @@ const Effects = (() => {
     const c2 = T.match(/^([\s\S]*?)choisissez\s+(?:la capacit\S+\s+|une capacit\S+\s+)?((?:\[[^\]]+\]\s*(?:,|;|ou)\s*)+\[[^\]]+\])([\s\S]*)$/i);
     if (c2) return optionItems(c2[1], [...c2[2].matchAll(/\[([^\]]+)\]/g)].map((x) => x[1].trim()), c2[3], opts);
     const alts = T.replace(/(PC)(Ou\s*:)/g, '$1 $2').split(/\s+Ou\s*:\s*/i);
-    const items = [];
+    const items = []; const setId = ++altSeq;
     let scope = null;
     alts.forEach((seg, i) => {
       const its = parseSegment(seg, Object.assign({}, opts, { alt: alts.length > 1, scope: scope || opts.scope }));
+      if (alts.length > 1) its.forEach((it) => { it.altSet = setId; it.altGroup = i; });
       if (i === 0 && its[0]) scope = its[0].scope === 'both' ? null : its[0].scope;
       items.push(...its);
     });

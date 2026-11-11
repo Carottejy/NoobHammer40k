@@ -2667,11 +2667,23 @@
     const p = splitWTE(Wahap.T(s.text)); const m = String(p.target || '').match(/cette unit[ée]s?\s+(.+?)\s*\.?\s*$/i);
     return Kw.ok(p.when, ukw, 'strat') && (!m || Kw.ok('une unité ' + m[1].replace(/\(.*?\)/g, '') + ' amie', ukw, 'strat')) && Kw.ok(p.target, ukw, 'strat');
   }
+  function calcVariants(items) {
+    const sets = {}, fixed = [];
+    items.forEach((x) => { const k = x.it.altSet; if (k == null) fixed.push(x); else { const g = (sets[k] = sets[k] || {}); (g[x.it.altGroup] = g[x.it.altGroup] || []).push(x); } });
+    let out = [fixed];
+    Object.keys(sets).forEach((k) => { const gs = Object.keys(sets[k]).map((g) => sets[k][g]); const nx = []; out.forEach((o) => gs.forEach((g) => nx.push(o.concat(g)))); out = nx.slice(0, 12); });
+    return out;
+  }
   function calcOptimize1(u, melee, t) {
     const { raw: braw, doctrines } = calcBaseRaw(u); const isChar = calcIsChar(u);
     const cand = [{ doc: null }].concat(doctrines.map((d) => ({ doc: d })));
     const mk = (doc, extra) => braw.concat(doc ? ptx(doc.text).map((it) => ({ it, ideal: true })) : []).concat(extra);
-    const run = (doc, extra) => calcUnitTotal(u, melee, t, mk(doc, extra), calcCtx(u, melee, t, doc));
+    /* choix « X ou Y » : on ne retient que l'alternative la plus efficace (une seule par groupe) */
+    const run = (doc, extra) => {
+      let bestR = null; const ctx = calcCtx(u, melee, t, doc);
+      calcVariants(mk(doc, extra)).forEach((v) => { const r = calcUnitTotal(u, melee, t, v, ctx); if (r && (!bestR || r.total > bestR.total)) bestR = r; });
+      return bestR;
+    };
     /* doctrine : la meilleure seule */
     let bestDoc = null, bd = run(null, []); if (!bd) return null; const plain = bd;
     doctrines.forEach((d) => { const r = run(d, []); if (r && r.total > bd.total) { bd = r; bestDoc = d; } });
