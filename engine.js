@@ -283,6 +283,28 @@ const Engine = (() => {
       damage: dmgTotal, kills: W ? dmgTotal / W : null, mortal: critWounds, woundsDealt,
     };
 
+    const f1 = (x) => (Math.round(x * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
+    const rawDmg = unsaved * effD + critWounds * dAvg;
+    const bd = [];
+    bd.push(['Attaques', f1(N)]);
+    bd.push(['Touches normales (hors critiques)', f1(Math.max(0, hitsBase - crits))]);
+    bd.push(['Touches critiques (6 non modifiés)', f1(crits)]);
+    if (sustDice) bd.push([`Touches supplémentaires (Touches soutenues ${sustDice.text})`, '+' + f1(extraHits)]);
+    bd.push(['Touches totales', f1(totalHits)]);
+    if (lethal) bd.push(['Blessures automatiques (Coups fatals)', f1(autoWounds)]);
+    bd.push(['Touches à blesser (jet de blessure)', f1(rolledHits)]);
+    bd.push(['Blessures obtenues aux dés', f1(woundsFromRolled)]);
+    if (dev) bd.push(['… dont critiques → blessures mortelles (Dévastatrices, sans sauvegarde)', f1(critWounds)]);
+    bd.push(['Blessures normales à sauvegarder', f1(normalWounds)]);
+    bd.push(['Sauvegardées par l\'adversaire', '−' + f1(normalWounds * savProb)]);
+    bd.push(['Non sauvegardées', f1(unsaved)]);
+    if (dev) bd.push(['Blessures mortelles + non sauvegardées', f1(unsaved + critWounds)]);
+    bd.push(['Dégâts par blessure', f1(dAvg) + (W && dAvg > W ? ` (plafonné à ${W} sur les blessures normales)` : '')]);
+    bd.push(['Dégâts avant Ignorer la douleur', f1(rawDmg)]);
+    if (fnp) bd.push([`Ignorer la douleur ${fnp}+ (ignore ${Math.round(pFnp * 100)} %)`, '−' + f1(rawDmg * pFnp)]);
+    bd.push(['PV perdus (espérance)', f1(dmgTotal)]);
+    res.expected.detail = bd;
+
     /* — Notes de capacités — */
     if (ab.blast) addNote('Déflagration : le calcul automatique ajoute 1 attaque par tranche de 5 figurines ciblées (règle de la 10e). Vérifie la valeur exacte de la règle 11e.');
     if (ab.hazardous) addNote('Dangereux : après avoir tiré/combattu, teste une arme Dangereux (1 sur D6 = blessures mortelles pour toi).');

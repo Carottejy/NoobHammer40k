@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.61.7';
+var APP_VERSION = '1.62.0';
 var APP_RELEASES = [
+  { v: '1.62.0', date: '2026-11-11', notes: ['Calculs : bouton « Détail complet du calcul » (touches normales/critiques, soutenues, fatales, dévastatrices, sauvegardes, ignorer la douleur…).','Dégâts des armes affichés « D: » (ex. D:D3+2).','Batailles : objectifs, missions, règles et marquages réduits à leur titre, détail au clic.'] },
   { v: '1.61.7', date: '2026-11-07', notes: ['Cible : plus d\'affichage des PV / 100 pts.'] },
   { v: '1.61.6', date: '2026-11-07', notes: ['Cible : bouton « À mi-portée » (activé par défaut, comme les bonus Fusion / Tir rapide) pour retrouver exactement les résultats du mode Manuel.'] },
   { v: '1.61.5', date: '2026-11-07', notes: ['Règles › Détachements : les détachements d\'abordage (sans point de détachement) sont indiqués comme tels au lieu d\'un « pt(s) » vide.'] },

@@ -260,9 +260,9 @@
     });
     if (!rows.length) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
     return rows.map((x) => {
-      if (!x.on) return `<div class="note" style="opacity:.55"><div class="muted"><b>${esc(x.when)}</b> — ${x.why}</div><div>${esc(x.text)}</div></div>`;
+      if (!x.on) return `<div class="note" style="opacity:.55"><div class="muted"><b>${esc(x.when)}</b> — ${x.why}</div><details><summary class="muted">détail</summary>${esc(x.text)}</details></div>`;
       const v = (g.draft[key][w] || {})[x.i] || 0; const b = (d, lab) => `<button class="chip" data-act="gmPl" data-key="${key}" data-who="${w}" data-id="${x.i}" data-val="${d}">${lab}</button>`;
-      return `<div class="note"><div class="muted"><b>${esc(x.when)}</b></div><div>${esc(x.text)}</div><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`;
+      return `<div class="note"><details><summary class="muted"><b>${esc(x.when)}</b></summary>${esc(x.text)}</details><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`;
     }).join('');
   }
   function pmLines(who) {
@@ -360,7 +360,7 @@
     if (defend) return ph.includes('def');
     return ph.includes(phase);
   }
-  const ruleNote = (r) => { const nm = `<b>${esc(r.name)}</b>${r.srcLabel || r.from ? ' <span class="muted">(' + esc(r.srcLabel || r.from) + ')</span>' : ''}`; return r.text && r.text.length > 140 ? `<details class="note"><summary>${nm}</summary>${esc(r.text)}</details>` : `<div class="note">${nm}${r.text ? ' — ' + esc(r.text) : ''}</div>`; };
+  const ruleNote = (r) => { const nm = `<b>${esc(r.name)}</b>${r.srcLabel || r.from ? ' <span class="muted">(' + esc(r.srcLabel || r.from) + ')</span>' : ''}`; return r.text ? `<details class="note"><summary>${nm}</summary>${esc(r.text)}</details>` : `<div class="note">${nm}${r.text ? ' — ' + esc(r.text) : ''}</div>`; };
   function remindersCard(u, defend) {
     const rules = (S.armyRules[S.armyId] || []).filter((r) => abilityMatches(r, S.phase, defend));
     const ruleNames = new Set(rules.map((r) => normT(r.name)));
@@ -388,7 +388,7 @@
     if (S.play.nModelsUnit !== u.id) { S.play.nModelsUnit = u.id; S.play.nModels = Math.max(1, curModels(u.base)); }
     const w = u.weapons[S.play.weaponIdx];
     h += `<label>Arme</label><select data-bind="play.weaponIdx" data-type="number">${abc(weapons, (x) => x.w.name).map((x) => `<option value="${x.i}" ${x.i === S.play.weaponIdx ? 'selected' : ''}>${esc(x.w.name)}${x.w.from ? ' — ' + esc(x.w.from) : ''}${x.w.abilities ? ' [' + esc(x.w.abilities) + ']' : ''}</option>`).join('')}</select>`;
-    h += `<div class="grid g2" style="margin-top:8px">${num('Figurines qui utilisent cette arme', 'play.nModels', 'min="1"')}<div><label>Profil</label><div class="muted">A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}</div></div></div>`;
+    h += `<div class="grid g2" style="margin-top:8px">${num('Figurines qui utilisent cette arme', 'play.nModels', 'min="1"')}<div><label>Profil</label><div class="muted">A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D:${esc(w.D)}</div></div></div>`;
     const rel = calc ? calcRelevant(u, w, melee) : null; const R = (k) => !calc || rel[k];
     if (!calc || Object.keys(rel).some((k) => rel[k] && (melee ? k === 'charged' : k !== 'charged'))) h += `<h3>Situation</h3>`;
     if (!melee) {
@@ -472,7 +472,7 @@
       h += '</div>';
     });
     const e = r.expected;
-    h += `<h3>Espérance (moyenne)</h3><div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div>`;
+    h += `<h3>Espérance (moyenne)</h3><div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div>${bdHtml(e)}`;
     if (e.kills != null) h += `<p class="muted">≈ ${e.kills.toFixed(1)} figurine(s) tuée(s) (${p.target.W} PV chacune). Estimation moyenne, sans débordement de dégâts.</p>`;
     const lines = active.map((x) => `<li><b>${esc(x.src.title)}</b>${x.src.sub && x.src.group !== 'strat' ? ' <span class="muted">(' + esc(x.src.sub) + ')</span>' : ''} — ${esc(Effects.summarize(x.e.it.mods).join(', '))}</li>`);
     srcs.filter((s) => s.group === 'strat' && s.used && !s.entries.some((e) => e.ev.applicable)).forEach((s) => lines.push(`<li><b>${esc(s.title)}</b> — effet à appliquer à la main : ${esc(s.strat.effect || '')}</li>`));
@@ -723,7 +723,8 @@
       <details style="margin-top:10px"><summary>Ou coller son export texte / BBCode</summary><textarea id="enemyText" placeholder="Orks : Liste adverse&#10;Boyz (10) : 90 pts"></textarea><button class="btn small" style="margin-top:8px" data-act="importEnemyList">Importer la liste</button></details>
       ${m ? `<div class="note" style="margin-top:8px;white-space:pre-wrap">${esc(m)}</div>` : ''}</div>`;
   }
-  const wLine = (w) => `${esc(w.name)}${w.abilities ? ' [' + esc(w.abilities) + ']' : ''} — ${esc(w.range || '')} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}`;
+  const bdHtml = (e) => (e && e.detail ? `<details class="bd"><summary>Détail complet du calcul</summary><table class="bdt">${e.detail.map((r) => `<tr><td>${esc(r[0])}</td><td>${esc(r[1])}</td></tr>`).join('')}</table></details>` : '');
+  const wLine = (w) => `${esc(w.name)}${w.abilities ? ' [' + esc(w.abilities) + ']' : ''} — ${esc(w.range || '')} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D:${esc(w.D)}`;
   function viewEnemy() {
     const e = S.enemy;
     let h = '<h1>Armée adverse</h1>';
@@ -1374,7 +1375,7 @@
     return pager + (r.slice(dbs.page * PG, dbs.page * PG + PG).map((u) => `<div class="unit-item"><div><b>${esc(uname(u))}</b>${Wahap.lang !== 'en' && Wahap.isEn(u.n) ? ' <span class="tag">EN</span>' : ''}<div class="muted">${ptsRow(u)}${esc(Wahap.factionName(u.f))} · ${esc(u.r)}</div></div><button class="btn small" data-act="dbOpen" data-val="${u.id}">Ouvrir</button></div>`).join('') || '<p class="muted">Aucun résultat.</p>') + pager;
   }
   const statLine = (m) => (Wahap.lang === 'en' ? `M${esc(m.M)} · T${esc(m.T)} · Sv ${esc(m.Sv)}${m.inv ? '/' + esc(m.inv) + '++' : ''} · W${esc(m.W)} · Ld ${esc(m.Ld)} · OC${esc(m.OC)}` : `M${esc(m.M)} · E${esc(m.T)} · Sv ${esc(m.Sv)}${m.inv ? '/' + esc(m.inv) + '++' : ''} · PV ${esc(m.W)} · CD ${esc(m.Ld)} · CO ${esc(m.OC)}`);
-  const weapLine = (w) => (Wahap.lang === 'en' ? `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · S${esc(w.S)} · AP${esc(w.AP)} · D${esc(w.D)}` : `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}`);
+  const weapLine = (w) => (Wahap.lang === 'en' ? `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · S${esc(w.S)} · AP${esc(w.AP)} · D:${esc(w.D)}` : `${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D:${esc(w.D)}`);
   function dbUnitView(d0) {
     const d = dsp(d0);
     const ix = Wahap.index(); const nameOf = (id) => { const e = ix.units.find((x) => x.id === id); return e ? uname(e) : id; };
@@ -1641,7 +1642,7 @@
           }
           h += '</div>';
         });
-      } else if ((d.weapons || []).length) h += `<label style="margin-top:8px">Armes (décoche pour retirer)</label>${d.weapons.map((w, j) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-bw="${j}" ${(e.woff || []).includes(j) ? '' : 'checked'}> ${wt(w.name)} <span class="muted">${esc(w.range)} · A${esc(w.A)} F${esc(w.S)} PA${esc(w.AP)} D${esc(w.D)}${w.ab ? ' · ' + esc(w.ab) : ''}</span></label>`).join('')}`;
+      } else if ((d.weapons || []).length) h += `<label style="margin-top:8px">Armes (décoche pour retirer)</label>${d.weapons.map((w, j) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-bw="${j}" ${(e.woff || []).includes(j) ? '' : 'checked'}> ${wt(w.name)} <span class="muted">${esc(w.range)} · A${esc(w.A)} F${esc(w.S)} PA${esc(w.AP)} D:${esc(w.D)}${w.ab ? ' · ' + esc(w.ab) : ''}</span></label>`).join('')}`;
       const abs = (d.abilities || []).map((a, j) => [a, j]).filter((x) => x[0].name);
       if (abs.length) h += `<label style="margin-top:8px">Aptitudes</label>${abs.map(([a, j]) => `<label class="chk"><input type="checkbox" data-bu="${e.k}" data-ba="${j}" ${(e.aoff || []).includes(j) ? '' : 'checked'}> ${wt(a.name)}${a.param ? ' ' + esc(a.param) : ''}</label>`).join('')}`;
       if (d.loadout) h += `<div class="muted" style="margin-top:6px">${wt(d.loadout)}</div>`;
@@ -1967,7 +1968,7 @@
     const antiInf = rw.slice(0, 3).some((w) => (aDice(w.A) >= 3 && aDice(w.D) <= 1.5) || /explosion|torrent/.test(nz(w.ab || '')));
     const t = aMet(d, n), rN = t.r / mx.r, mN = t.m / mx.m, dN = t.d / mx.d;
     const lead = e.c.grp === 'Chefs' || e.c.grp === 'Appuis'; const host = e.to ? picks.find((x) => x.k === e.to) : null;
-    const wdesc = (w) => `${T0(w.name)} (${/^\d/.test(w.range || '') ? w.range + ', ' : ''}A${w.A} F${w.S} PA${w.AP} D${w.D})`;
+    const wdesc = (w) => `${T0(w.name)} (${/^\d/.test(w.range || '') ? w.range + ', ' : ''}A${w.A} F${w.S} PA${w.AP} D:${w.D})`;
     let key = 'poly', role = 'Polyvalent';
     if (lead) { key = 'lead'; role = e.c.d.support ? 'Appui' : e.c.epic ? 'Héros épique' : 'Chef'; }
     else if (e.c.ligne) { key = 'obj'; role = 'Tenir les objectifs'; }
@@ -2050,7 +2051,7 @@
     if (AS.res.length) h += `<div class="row" style="margin:0 0 8px"><button class="btn small ghost" data-act="asExpand">${AS.expand ? '▴ Replier les explications' : '▾ Déplier les explications'}</button></div>`;
     AS.res.forEach((p, i) => {
       const L = 'ABC'[i]; const fc = AS.fac ? Wahap.cached(AS.fac) : null; const dOf = (id) => fc && fc.units.find((x) => x.id === id);
-      const wrow = (w, key) => `<li>${key ? '★ ' : ''}<b>${wt(w.name)}</b>${w.ab ? ' <span class="muted">[' + esc(w.ab) + ']</span>' : ''} — ${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D${esc(w.D)}</li>`;
+      const wrow = (w, key) => `<li>${key ? '★ ' : ''}<b>${wt(w.name)}</b>${w.ab ? ' <span class="muted">[' + esc(w.ab) + ']</span>' : ''} — ${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} · PA${esc(w.AP)} · D:${esc(w.D)}</li>`;
       const det = fc && p.detId ? fc.detachments.find((x) => x.id === p.detId) : null;
       const tot = p.units.reduce((s, u) => s + u.pts, 0) || 1;
       const row = (u, ind) => `<details class="unit-item" style="${ind ? 'margin-left:18px' : ''}" ${AS.expand ? 'open' : ''}><summary style="color:inherit"><span>${ind ? '↳ ' : ''}${u.warlord ? '👑 ' : ''}<b>${esc(u.name)}</b> <span class="muted">(${u.n}) · ${u.pts + u.enhCost} pts</span></span> <span class="tag">${esc(u.role)}</span></summary>
@@ -2409,10 +2410,10 @@
   const bwNote = '<p class="muted" style="margin:6px 0 0">Résumé en français : en cas de doute, le texte officiel de la carte fait foi.</p>';
   function pmCard(id, who) {
     const m = BD.PM[id];
-    return `<div class="card"><div class="muted">${esc(who)}</div><h2 style="margin:2px 0 6px">${esc(m.n)} <span class="muted" style="font-weight:400;font-size:.8rem">(${esc(m.e)})</span></h2>${m.a ? `<div class="note">${esc(m.a)}</div>` : ''}${m.s.map(([t, x]) => `<div class="bwr"><b>${esc(t)}</b><div>${esc(x)}</div></div>`).join('')}${m.act ? `<div class="note"><b>Action : ${esc(m.act.n)}</b><br>${esc(m.act.t)}</div>` : ''}</div>`;
+    return `<div class="card"><div class="muted">${esc(who)}</div><h2 style="margin:2px 0 6px">${esc(m.n)} <span class="muted" style="font-weight:400;font-size:.8rem">(${esc(m.e)})</span></h2>${m.a ? `<details class="note"><summary><b>Règle de la mission</b></summary>${esc(m.a)}</details>` : ''}${m.s.map(([t, x]) => `<details class="bwr"><summary><b>${esc(t)}</b></summary><div>${esc(x)}</div></details>`).join('')}${m.act ? `<details class="note"><summary><b>Action : ${esc(m.act.n)}</b></summary>${esc(m.act.t)}</details>` : ''}</div>`;
   }
   function smCard(c, mode) {
-    return `<div class="bwr"><b>${esc(c.n)}</b> <span class="muted">(${esc(c.e)})</span><div>${esc(c.t)}</div></div>`;
+    return `<details class="bwr"><summary><b>${esc(c.n)}</b> <span class="muted">(${esc(c.e)})</span></summary><div>${esc(c.t)}</div></details>`;
   }
   const bwChips = (act, cur, items, extra) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => `<button type="button" class="chip${cur === v ? ' on' : ''}" data-act="${act}" data-val="${esc(v)}"${extra || ''}>${l}</button>`).join('')}</div>`;
   const bwMapHtml = (w, big) => {
@@ -2731,8 +2732,8 @@
       h += `<details class="strat"><summary><div class="row sp"><span class="nm">${i === 0 ? '★ ' : ''}${esc(x.u.name)} <span class="muted">× ${sz.n}</span></span><span class="cp">≈ ${res.total.toFixed(1)} PV</span></div><div class="muted">≈ ${Math.min(res.kills, r.tm).toFixed(1)} fig. tuée(s) sur ${r.tm}${pts ? ' · ' + pts + ' pts' : ''}${x.o ? ' · sans optimisation ≈ ' + x.r.total.toFixed(1) : ''}</div>${combo.length ? `<div style="margin-top:4px"><b>Meilleure combinaison</b> : ${combo.map(esc).join(' · ')}</div>` : ''}</summary>`;
       if (res.cfg && res.cfg.length) h += `<div class="note"><b>Configuration retenue</b><br>${res.cfg.map(esc).join('<br>')}</div>`;
       res.lines.forEach((y) => {
-        const e = y.e; h += `<div class="note"><b>${esc(y.w.name)}</b> <span class="muted">× ${y.n}${y.base ? '' : ' (option)'} · ${y.w.range === 'Mêlée' ? 'Mêlée' : esc(String(y.w.range))} · A${esc(y.w.A)} · ${esc(y.w.skill)} · F${esc(y.w.S)} · PA${esc(y.w.AP)} · D${esc(y.w.D)}${y.w.abilities ? ' · ' + esc(y.w.abilities) : ''}</span>
-          <div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div></div>`;
+        const e = y.e; h += `<div class="note"><b>${esc(y.w.name)}</b> <span class="muted">× ${y.n}${y.base ? '' : ' (option)'} · ${y.w.range === 'Mêlée' ? 'Mêlée' : esc(String(y.w.range))} · A${esc(y.w.A)} · ${esc(y.w.skill)} · F${esc(y.w.S)} · PA${esc(y.w.AP)} · D:${esc(y.w.D)}${y.w.abilities ? ' · ' + esc(y.w.abilities) : ''}</span>
+          <div class="exp"><div><b>${e.hits.toFixed(1)}</b><span>touches</span></div><div><b>${e.wounds.toFixed(1)}</b><span>blessures</span></div><div><b>${e.unsaved.toFixed(1)}</b><span>non sauvées</span></div><div><b>${e.damage.toFixed(1)}</b><span>PV perdus</span></div></div>${bdHtml(e)}</div>`;
       });
       h += '</details>';
     });

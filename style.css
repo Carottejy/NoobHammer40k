@@ -135,3 +135,6 @@ select option:disabled, select option.dead { color: #9a927f; }
 
 .bwtab.mx td { cursor: pointer; white-space: normal; min-width: 70px; font-size: .75rem; } .bwtab.mx th { white-space: normal; font-size: .72rem; } .bwtab.mx td.on { background: var(--accent); color: #000; } .bwtab.mx td.same { font-style: italic; }
 .bwtab.mx { table-layout: fixed; width: 100%; } .bwtab.mx td, .bwtab.mx th { min-width: 0; padding: 4px 3px; font-size: .62rem; word-break: break-word; hyphens: auto; } .bwtab.mx th:first-child { width: 17%; }
+
+.bd { margin-top:8px } .bd summary { cursor:pointer; color:var(--accent,#d4a843); font-weight:600; padding:6px 0 }
+.bdt { width:100%; border-collapse:collapse; font-size:.9rem } .bdt td { padding:4px 2px; border-bottom:1px solid rgba(255,255,255,.08); vertical-align:top } .bdt td:last-child { text-align:right; font-weight:700; white-space:nowrap; padding-left:8px }
