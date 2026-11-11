@@ -283,20 +283,32 @@ const Engine = (() => {
     let grp = null;
     if (Array.isArray(t.groups) && t.groups.length > 1) {
       const totW = normalWounds + critWounds; const a = totW > 0 ? normalWounds / totW : 1; let rem = totW; grp = []; let un = 0, pvs = 0, ks = 0;
-      t.groups.forEach((g) => {
+      const pre = t.pre || [];
+      const info = t.groups.map((g, gi) => {
         const sv0 = parseSkill(g.sv) || (+g.sv || 7); const inv0 = +g.inv || 0; const mS = sv0 + ap; const uInv = inv0 > 0 && inv0 < mS; const fS = uInv ? inv0 : mS; const ps = pSave(fS);
         const f = +g.fnp || 0, pf = f ? (7 - f) / 6 : 0; const Wg = +g.W || 1, mg = Math.max(1, +g.models || 1);
-        const dN = Math.min(dAvg, Wg), dM = Math.min(dAvg, Wg);
-        const rate = (a * (1 - ps) * dN + (1 - a) * dM) * (1 - pf); const cap = mg * Wg; const need = rate > 0 ? cap / rate : Infinity;
-        const x = Math.min(rem, need); rem -= x; const xn = x * a, xm = x * (1 - a); const un1 = xn * (1 - ps); const raw = (un1 + xm) * Math.min(dAvg, Wg); const pv = raw * (1 - pf);
-        grp.push({ g, mg, Wg, x, xn, xm, ps, fS, uInv, f, pf, un1, raw, pv, kill: pv / Wg, full: need <= x + 1e-9 });
-        un += un1 + xm; pvs += pv; ks += pv / Wg;
+        const dN = Math.min(dAvg, Wg); const rate = (a * (1 - ps) * dN + (1 - a) * dN) * (1 - pf);
+        return { g, gi, uInv, fS, ps, f, pf, Wg, mg, rate, left: Math.max(0, mg * Wg - (pre[gi] || 0)), x: 0, pre: pre[gi] || 0 };
+      });
+      /* Précision : les blessures issues de touches critiques peuvent être allouées au personnage rattaché (meneur) */
+      let precW = 0; const ld = info.filter((r) => r.g.leader)[0];
+      if (ab.precision && ld) {
+        precW = Math.min(totW, crits * (lethal ? 1 : pW));
+        const x = ld.rate > 0 ? Math.min(precW, ld.left / ld.rate) : precW; ld.x += x; ld.left -= x * ld.rate; rem -= x; ld.prec = x;
+      }
+      info.forEach((r) => {
+        const need = r.rate > 0 ? r.left / r.rate : Infinity; const x = Math.min(rem, need); rem -= x; r.x += x; r.left -= x * r.rate;
+      });
+      info.forEach((r) => {
+        const xn = r.x * a, xm = r.x * (1 - a); const un1 = xn * (1 - r.ps); const dn = Math.min(dAvg, r.Wg); const rawD = (un1 + xm) * dn; const pv = rawD * (1 - r.pf);
+        grp.push({ g: r.g, mg: r.mg, Wg: r.Wg, x: r.x, xn, xm, ps: r.ps, fS: r.fS, uInv: r.uInv, f: r.f, pf: r.pf, un1, raw: rawD, pv, kill: pv / r.Wg, full: r.left <= 1e-9, prec: r.prec || 0, pre: r.pre });
+        un += un1 + xm; pvs += pv; ks += pv / r.Wg;
       });
       grp.left = rem; unsaved = un - critWounds; dmgTotal = pvs; killsTot = ks; woundsDealt = un * 1;
     }
     res.expected = {
       attacks: N, hits: totalHits, wounds: normalWounds + critWounds, unsaved: unsaved + critWounds,
-      damage: dmgTotal, kills: killsTot, mortal: critWounds, woundsDealt,
+      damage: dmgTotal, kills: killsTot, mortal: critWounds, woundsDealt, groupPv: grp ? grp.map((r) => r.pv) : null,
     };
 
     const f1 = (x) => (Math.round(x * 100) / 100).toFixed(2).replace(/\.?0+$/, '');
@@ -316,7 +328,9 @@ const Engine = (() => {
       bd.push(['Allocation des blessures : unité, puis appui, puis meneur', '']);
       grp.forEach((r) => {
         bd.push([`${r.g.name} — ${r.mg} fig. · E${T || '?'} · PV ${r.Wg}`, '']);
+        if (r.pre > 0.005) bd.push(['Déjà perdus avant cette arme (PV)', f1(r.pre)]);
         bd.push(['Blessures allouées' + (dev ? ' (normales / mortelles)' : ''), dev ? `${f1(r.x)} (${f1(r.xn)} / ${f1(r.xm)})` : f1(r.x)]);
+        if (r.prec > 0.005) bd.push(['… dont allouées par Précision (touches critiques)', f1(r.prec)]);
         bd.push([`Sauvegarde ${r.fS > 6 ? 'impossible' : r.fS + '+'}${r.uInv ? ' (invulnérable)' : ''}`, '−' + f1(r.xn * r.ps) + ' sauvegardées']);
         bd.push(['Non sauvegardées' + (dev ? ' + mortelles' : ''), f1(r.un1 + r.xm)]);
         bd.push(['Dégâts par blessure (plafonné aux PV)', f1(Math.min(dAvg, r.Wg))]);

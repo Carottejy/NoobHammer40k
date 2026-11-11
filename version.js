@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.63.0';
+var APP_VERSION = '1.64.0';
 var APP_RELEASES = [
+  { v: '1.64.0', date: '2026-11-11', notes: ['Cible : objectif « Tuer le meneur » : allocation séquentielle des armes (les plus efficaces contre l\'escorte d\'abord) et Précision vers le meneur ; le classement et la meilleure combinaison maximisent les PV infligés au meneur.','Cible composée : les armes d\'une même unité partagent désormais les PV de l\'escorte/appui/meneur (plus de double comptage entre armes).'] },
   { v: '1.63.0', date: '2026-11-11', notes: ['Cible attachée (escorte + appui + meneur) : allocation des blessures dans l\'ordre unité → appui → meneur, chaque groupe avec ses propres sauvegardes, invulnérable, ignorer la douleur et PV ; détail complet affiché par groupe.','Les aptitudes défensives des meneurs/appuis (invulnérable, ignorer la douleur, malus à toucher/blesser, réduction de dégâts) sont prises en compte.'] },
   { v: '1.62.2', date: '2026-11-11', notes: ['Cible : l\'unité cible peut être composée d\'une escouade + un meneur + un appui (listes issues des unités que l\'escouade peut rejoindre) ; effectif, mots-clés et aptitudes fusionnés.'] },
   { v: '1.62.1', date: '2026-11-11', notes: ['Cible : quand un stratagème, une règle ou une amélioration propose un choix (« X ou Y »), seul l\'effet le plus efficace est retenu, au lieu de cumuler les deux.'] },

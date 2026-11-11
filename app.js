@@ -119,7 +119,7 @@
       const own = (x) => { let f = parseInt(x.fnp, 10) || 0; (x.abilities || []).forEach((a) => { const m = normT(a.name).match(/insensible a la douleur\s*(\d)/); if (m && (!f || +m[1] < f)) f = +m[1]; }); return f; };
       const grp = (x, sing) => ({ name: x.name, models: curModels(x), W: sing ? curHp(x) : (parseInt(x.W, 10) || 1), sv: x.sv || '', inv: better(gInv, parseInt(x.inv, 10) || 0), fnp: better(gFnp, own(x)) });
       const isSup = (l) => l.isSupp || roleOf(l) === 'support';
-      t.groups = [grp(b, maxModels(b) === 1)].concat(ee.leaders.filter(isSup).map((l) => grp(l, maxModels(l) === 1)), ee.leaders.filter((l) => !isSup(l)).map((l) => grp(l, maxModels(l) === 1)));
+      t.groups = [grp(b, maxModels(b) === 1)].concat(ee.leaders.filter(isSup).map((l) => grp(l, maxModels(l) === 1)), ee.leaders.filter((l) => !isSup(l)).map((l) => Object.assign(grp(l, maxModels(l) === 1), { leader: true })));
       t.fnp = better(gFnp, t.fnp); t.inv = better(gInv, t.inv);
     }
     return t;
@@ -2528,7 +2528,7 @@
   }
 
   /* ----- Onglet Calculs : module de calcul indépendant (listes d'une bataille ou choisies à la main) ----- */
-  const CALC = { atkDets: [], atkCh: '', atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', tgtLeader: '', tgtSupport: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
+  const CALC = { obj: 'pv', atkDets: [], atkCh: '', atkSize: 'max', opt: null, optBusy: false, tgtFac: '', tgtUnits: [], tgtUnit: '', tgtLeader: '', tgtSupport: '', atkFac: '', atkUnits: [], atkN: 1, cover: false, tgtMsg: '', rankAll: false, src: 'manual', opSrc: 'app', defTab: 'base', defFac: '', defUnit: '', defUnits: [], defBasics: null, loading: false, myLib: '', opLib: '', gameSel: '', mode: 'shoot', play: null, used: {}, bs: {}, extra: [], rules: {}, strats: [], enemy: null, armyId: null, open: true, msg: '' };
   function calcFresh() { CALC.play = JSON.parse(JSON.stringify(defaults().play)); CALC.used = {}; CALC.bs = {}; }
   function calcInForce() {
     if (calcStash) return; if (!CALC.play) calcFresh();
@@ -2653,17 +2653,31 @@
         cfg.push((take > 1 ? take + ' × ' : '') + x.alt.map((it) => (it.q > 1 ? it.q + ' × ' : '') + (Wahap.lang === 'en' ? it.e : it.n)).join(' + ') + (srcs.length ? ' (remplace ' + (r.sf || srcs).join(' + ') + ')' : ' (en plus)'));
       });
     });
-    const lines = [];
+    const lines = []; const G = t.groups, li = G ? G.findIndex((g) => g.leader) : -1; const leaderObj = CALC.obj === 'leader' && li >= 0;
+    const objOf = (e) => (leaderObj && e.groupPv ? e.groupPv[li] : e.damage);
     fams.forEach((f) => {
       if (f.cnt <= 0) return; let best = null;
-      f.ws.filter(inMode).forEach((w) => { let e; try { e = calcOne(w, melee, f.cnt, t, raw, ctx0); } catch (x) { return; } if (!best || e.damage > best.e.damage) best = { w, e }; });
+      f.ws.filter(inMode).forEach((w) => { let e; try { e = calcOne(w, melee, f.cnt, t, raw, ctx0); } catch (x) { return; } if (!best || objOf(e) > objOf(best.e)) best = { w, e }; });
       if (best) lines.push({ fam: f.name, n: f.cnt, base: f.base, w: best.w, e: best.e });
     });
     if (!lines.length) return null;
     const isPistol = (l) => /combat rapproch|pistol/i.test(l.w.abilities || '') && !melee;
-    const main = lines.filter((l) => !isPistol(l)); const used = main.length ? main : lines;
+    const main = lines.filter((l) => !isPistol(l)); let used = main.length ? main : lines;
+    let leaderPv = 0, groupPv = null;
+    if (G && G.length > 1) {
+      /* allocation séquentielle : les armes les plus efficaces contre l'escorte tirent d'abord, celles qui valent le plus contre le meneur ensuite */
+      if (leaderObj && used.length > 1) {
+        const solo = (gs) => (l) => { try { return calcOne(l.w, melee, l.n, Object.assign({}, t, { groups: null, W: gs.W, sv: gs.sv, inv: gs.inv, fnp: gs.fnp }), raw, ctx0).damage; } catch (x) { return 0; } };
+        const sc = used.map((l) => ({ l, k: (solo(G[li])(l) + 1e-6) / (solo(G[0])(l) + 1e-6) * (/precision/i.test(l.w.abilities || '') ? 1.5 : 1) }));
+        used = sc.sort((x, y) => x.k - y.k).map((x) => x.l);
+      }
+      const pre = G.map(() => 0); let tot = 0, kl = 0;
+      used = used.map((l) => { const e = calcOne(l.w, melee, l.n, Object.assign({}, t, { pre: pre.slice() }), raw, ctx0); (e.groupPv || []).forEach((v, i) => { pre[i] += v; }); tot += e.damage; kl += e.kills || 0; return Object.assign({}, l, { e }); });
+      leaderPv = li >= 0 ? pre[li] : 0; groupPv = pre;
+      return { total: tot, kills: kl, lines: used, used, cfg, leaderPv, groupPv, score: leaderObj ? leaderPv : tot };
+    }
     const total = used.reduce((x, l) => x + l.e.damage, 0); const kills = used.reduce((x, l) => x + (l.e.kills || 0), 0);
-    return { total, kills, lines: used, used, cfg };
+    return { total, kills, lines: used, used, cfg, score: total };
   }
   const calcStratItems = (s, melee) => {
     const tx = String(s.text || ''); const m = tx.split(/EFFET\s*:/i); const eff = (m[1] || tx).trim(); const cond = (m[0] || '').replace(/^[\s\S]*?QUAND\s*:/i, '');
@@ -2697,12 +2711,12 @@
     /* choix « X ou Y » : on ne retient que l'alternative la plus efficace (une seule par groupe) */
     const run = (doc, extra) => {
       let bestR = null; const ctx = calcCtx(u, melee, t, doc);
-      calcVariants(mk(doc, extra)).forEach((v) => { const r = calcUnitTotal(u, melee, t, v, ctx); if (r && (!bestR || r.total > bestR.total)) bestR = r; });
+      calcVariants(mk(doc, extra)).forEach((v) => { const r = calcUnitTotal(u, melee, t, v, ctx); if (r && (!bestR || r.score > bestR.score)) bestR = r; });
       return bestR;
     };
     /* doctrine : la meilleure seule */
     let bestDoc = null, bd = run(null, []); if (!bd) return null; const plain = bd;
-    doctrines.forEach((d) => { const r = run(d, []); if (r && r.total > bd.total) { bd = r; bestDoc = d; } });
+    doctrines.forEach((d) => { const r = run(d, []); if (r && r.score > bd.score) { bd = r; bestDoc = d; } });
     let best = { res: bd, doc: bestDoc, det: null, strat: null, enh: null };
     const uch = u.chap || CALC.atkCh || '';
     (CALC.atkDets || []).forEach((d) => {
@@ -2713,13 +2727,13 @@
       const ph = melee ? /Fight|Any/i : /Shoot|Any/i;
       (d.strats || []).filter((s) => /Your|Either/i.test(s.turn || '') && ph.test(s.phase || '') && calcStratOk(s, ukw)).forEach((s) => {
         const items = calcStratItems(s, melee).map((it) => ({ it, ideal: true })); if (!items.length) return;
-        const r = run(bestDoc, dr.concat(items)); if (r && r.total > pick.res.total + 1e-9) pick = { res: r, strat: s, enh: null, sItems: items };
+        const r = run(bestDoc, dr.concat(items)); if (r && r.score > pick.res.score + 1e-9) pick = { res: r, strat: s, enh: null, sItems: items };
       });
       if (isChar) (d.enh || []).filter((en) => Kw.ok(T0(en.text), ukw, 'enh')).forEach((en) => {
         const items = ptx(en.text || '').map((it) => ({ it, ideal: true })); if (!items.length) return;
-        const r = run(bestDoc, dr.concat(pick.sItems || [], items)); if (r && r.total > pick.res.total + 1e-9) pick = Object.assign({}, pick, { res: r, enh: en });
+        const r = run(bestDoc, dr.concat(pick.sItems || [], items)); if (r && r.score > pick.res.score + 1e-9) pick = Object.assign({}, pick, { res: r, enh: en });
       });
-      if (pick.res.total > best.res.total + 1e-9) best = { res: pick.res, doc: bestDoc, det: d, strat: pick.strat, enh: pick.enh };
+      if (pick.res.score > best.res.score + 1e-9) best = { res: pick.res, doc: bestDoc, det: d, strat: pick.strat, enh: pick.enh };
     });
     return { plain, best };
   }
@@ -2734,10 +2748,10 @@
   function calcTgtRows() {
     const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (!tu || !CALC.atkUnits.length) return null;
     const tee = calcTgtEff(tu); const t = targetFrom(tee); t.defRaw = []; (tee.abilities || []).forEach((ab) => { if (!isStructural(ab.name)) ptx(ab.text || '').forEach((it) => { if (it.side === 'def') t.defRaw.push({ it, ideal: false, def: true }); }); }); const melee = CALC.mode === 'fight'; t.inCover = !melee && CALC.cover; t.stealth = false;
-    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half, CALC.tgtLeader, CALC.tgtSupport].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
+    const sig = [CALC.tgtUnit, CALC.atkFac, CALC.mode, CALC.cover, CALC.atkSize, CALC.atkCh, CALC.half, CALC.tgtLeader, CALC.tgtSupport, CALC.obj].join('|'); const opt = CALC.opt && CALC.opt.sig === sig ? CALC.opt : null;
     const rows = CALC.atkUnits.filter((u) => !CALC.atkCh || !u.chap || u.chap === CALC.atkCh).map((u) => {
       const ctx0 = calcCtx(u, melee, t, null); const { raw } = calcBaseRaw(u); const r = calcUnitTotal(u, melee, t, raw, ctx0); if (!r) return null;
-      const o = opt && opt.map[u.id]; return { u, r, o, score: o ? o.best.res.total : r.total };
+      const o = opt && opt.map[u.id]; return { u, r, o, score: o ? o.best.res.score : r.score };
     }).filter(Boolean).sort((x, y) => y.score - x.score);
     return { t, tu, rows, melee, opt, sig, tm: Math.max(1, parseInt(tu.models, 10) || 1) };
   }
@@ -2749,6 +2763,7 @@
       h += `<label>Codex de la cible</label>${facSel(ix, 'data-calctf', CALC.tgtFac, '— choisir un codex —')}`;
       if (CALC.tgtFac && CALC.tgtUnits.length) h += `<label style="margin-top:8px">Unité cible</label><select data-calctu="1"><option value="">— choisir une unité —</option>${CALC.tgtUnits.map((u) => `<option value="${u.id}" ${CALC.tgtUnit === u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`;
       { const tu0 = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit); if (tu0) [['leader', 'Meneur', 'tgtLeader'], ['support', 'Appui', 'tgtSupport']].forEach(([role, lab, k]) => { const os = calcTgtOptions(tu0, role); if (os.length) h += `<label style="margin-top:8px">${lab} rattaché (optionnel)</label><select data-calcatt="1" data-key="${role}"><option value="">— aucun —</option>${os.map((u) => `<option value="${u.id}" ${CALC[k] === u.id ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`; }); }
+      if (CALC.tgtLeader) h += `<label style="margin-top:8px">Objectif du classement</label><div class="chips" style="margin:6px 0 4px">${chip('Détruire toute la cible', CALC.obj !== 'leader', 'data-act="calcObj" data-val="pv"')}${chip('Tuer le meneur', CALC.obj === 'leader', 'data-act="calcObj" data-val="leader"')}</div>${CALC.obj === 'leader' ? '<p class="muted" style="margin:0">Les armes les plus efficaces contre l\'escorte tirent en premier ; Précision alloue ses touches critiques au meneur.</p>' : ''}`;
       const tu = CALC.tgtUnits.find((x) => x.id === CALC.tgtUnit);
       if (tu) h += unitStatLine(eff({ units: [tu] }, tu));
     }
@@ -2766,7 +2781,7 @@
     r.rows.slice(0, cap).forEach((x, i) => {
       const sz = calcSize(x.u); const res = x.o ? x.o.best.res : x.r; const pts = sz.pts;
       const combo = x.o ? [x.o.best.det ? 'Détachement : ' + x.o.best.det.name : 'sans détachement', x.o.best.doc ? x.o.best.doc.name : '', x.o.best.strat ? 'Stratagème : ' + x.o.best.strat.name + ' (' + x.o.best.strat.cp + ' PC)' : '', x.o.best.enh ? 'Amélioration : ' + x.o.best.enh.name : ''].filter(Boolean) : [];
-      h += `<details class="strat"><summary><div class="row sp"><span class="nm">${i === 0 ? '★ ' : ''}${esc(x.u.name)} <span class="muted">× ${sz.n}</span></span><span class="cp">≈ ${res.total.toFixed(1)} PV</span></div><div class="muted">≈ ${Math.min(res.kills, r.tm).toFixed(1)} fig. tuée(s) sur ${r.tm}${pts ? ' · ' + pts + ' pts' : ''}${x.o ? ' · sans optimisation ≈ ' + x.r.total.toFixed(1) : ''}</div>${combo.length ? `<div style="margin-top:4px"><b>Meilleure combinaison</b> : ${combo.map(esc).join(' · ')}</div>` : ''}</summary>`;
+      h += `<details class="strat"><summary><div class="row sp"><span class="nm">${i === 0 ? '★ ' : ''}${esc(x.u.name)} <span class="muted">× ${sz.n}</span></span><span class="cp">${r.t.groups && CALC.obj === 'leader' && res.groupPv ? 'Meneur ≈ ' + res.leaderPv.toFixed(1) + ' / ' + r.t.groups.find((g) => g.leader).W + ' PV' : '≈ ' + res.total.toFixed(1) + ' PV'}</span></div><div class="muted">≈ ${Math.min(res.kills, r.tm).toFixed(1)} fig. tuée(s) sur ${r.tm}${pts ? ' · ' + pts + ' pts' : ''}${r.t.groups && CALC.obj === 'leader' ? ' · total ≈ ' + res.total.toFixed(1) + ' PV' : ''}${x.o ? ' · sans optimisation ≈ ' + (r.t.groups && CALC.obj === 'leader' ? x.r.leaderPv : x.r.total).toFixed(1) : ''}</div>${combo.length ? `<div style="margin-top:4px"><b>Meilleure combinaison</b> : ${combo.map(esc).join(' · ')}</div>` : ''}</summary>`;
       if (res.cfg && res.cfg.length) h += `<div class="note"><b>Configuration retenue</b><br>${res.cfg.map(esc).join('<br>')}</div>`;
       res.lines.forEach((y) => {
         const e = y.e; h += `<div class="note"><b>${esc(y.w.name)}</b> <span class="muted">× ${y.n}${y.base ? '' : ' (option)'} · ${y.w.range === 'Mêlée' ? 'Mêlée' : esc(String(y.w.range))} · A${esc(y.w.A)} · ${esc(y.w.skill)} · F${esc(y.w.S)} · PA${esc(y.w.AP)} · D:${esc(y.w.D)}${y.w.abilities ? ' · ' + esc(y.w.abilities) : ''}</span>
@@ -2956,6 +2971,7 @@
       render();
     },
     calcTgtUnit(v) { CALC.tgtUnit = v; CALC.tgtLeader = ''; CALC.tgtSupport = ''; CALC.opt = null; },
+    calcObj(v) { CALC.obj = v; CALC.opt = null; },
     calcTgtAtt(v, d) { CALC[d.key === 'support' ? 'tgtSupport' : 'tgtLeader'] = v; CALC.opt = null; },
     async calcAtkFac(v) {
       CALC.atkFac = v; CALC.atkCh = ''; CALC.atkUnits = []; CALC.tgtMsg = ''; if (!v) { render(); return; }
