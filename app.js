@@ -1048,7 +1048,7 @@
     const sline = (s) => `<details class="note"><summary><b>${esc(s.name)}</b> · ${s.cp} PC · ${esc((s.phases || []).map((x) => phaseLabel(x)).join(' / '))}</summary>${s.when ? `<div class="muted"><b>Quand :</b> ${esc(s.when)}</div>` : ''}${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div>${esc(s.effect || s.text || '—')}</div></details>`;
     const out = (a.detachments || []).map((d) => {
       const nm = bwDet(d); const k = Wahap.norm(nm); const fd = BD.NAMEFD[k] || '';
-      const mine = strats.filter((s) => s.detachment && Wahap.norm(Wahap.T(s.detachment)) === k); mine.forEach((s) => used.add(s.id));
+      const full = Wahap.norm(String(d).replace(/\s*\(\d+\s*pts?\)\s*$/i, '')); const mine = strats.filter((s) => s.detachment && [k, full].includes(Wahap.norm(Wahap.T(s.detachment)))); mine.forEach((s) => used.add(s.id));
       const pms = fd ? [...new Set(BD.MATRIX[fd])].map((id) => (BD.PM[id] || {}).n).filter(Boolean).sort() : [];
       const fdHtml = fd ? `<div class="bwr"><b>Mission : ${esc(BD.FD[fd].n)}</b> <span class="muted">(${esc(BD.FD[fd].e)})</span><div class="muted">${esc(BD.FD[fd].d)}</div>${pms.length ? `<div class="muted" style="margin-top:4px"><b>Missions primaires possibles :</b> ${esc(pms.join(' · '))}</div>` : ''}</div>` : '<div class="muted">Mission : non reconnue pour ce détachement.</div>';
       return `<details class="note"><summary><b>${esc(nm)}</b>${fd ? ' · ' + esc(BD.FD[fd].n) : ''}${mine.length ? ' · ' + mine.length + ' strat.' : ''}</summary>${fdHtml}${mine.length ? '<h3>Stratagèmes</h3>' + mine.map(sline).join('') : '<p class="muted">Aucun stratagème enregistré pour ce détachement.</p>'}</details>`;
@@ -2432,7 +2432,7 @@
   const BD = window.BattleData, BM = window.BattleMap;
   let pendingBattle = null;
   const bwOn = () => !!(S.bw && S.bw.open);
-  const bwDet = (s) => String(s).replace(/\s*\(\d+\s*pts?\)\s*$/i, '');
+  const bwDet = (s) => { const t = String(s).replace(/\s*\(\d+\s*pts?\)\s*$/i, ''); if (!BD.NAMEFD[Wahap.norm(t)]) { const m = t.match(/^.+?\s-\s(.+)$/); if (m && BD.NAMEFD[Wahap.norm(m[1])]) return m[1]; } return t; };
   function bwFds(a) {
     const rows = ((a && a.detachments) || []).map((s) => { const n = bwDet(s); return [n, BD.NAMEFD[Wahap.norm(n)] || '']; });
     return { rows, fds: BD.FD_ORDER.filter((c) => rows.some((r) => r[1] === c)) };

@@ -281,6 +281,8 @@ const AlnPdf = (() => {
         if (isUnitHeader(r) || (r.cells.length === 1 && rows[i + 1] && isUnitHeader(rows[i + 1]))) break;
         let left = '', right = '';
         r.cells.forEach((c) => { if (rx != null && c.x >= rx - 8) right = joinTxt(right, c.s); else left = joinTxt(left, c.s); });
+        /* colonnes serrées : le nom et le début de la règle peuvent arriver fusionnés dans une même cellule */
+        { const dm = /^(.*?\(\s*\d+)\s+(?!points?\b)(\S.*)$/i.exec(left) || /^(.*?)\s+(Disposition\s*:.*)$/i.exec(left); if (dm) { left = dm[1]; right = joinTxt(dm[2], right); } }
         if (left) {
           if (!cur || cur.done) { cur = { name: left, rule: right, done: false }; res.detachments.push(cur); }
           else { cur.name = joinTxt(cur.name, left); cur.rule = joinTxt(cur.rule, right); }

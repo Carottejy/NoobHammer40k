@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.65.2';
+var APP_VERSION = '1.65.3';
 var APP_RELEASES = [
+  { v: '1.65.3', date: '2026-11-15', notes: ['Import PDF ALN : un détachement dont le nom et le début de la règle étaient fusionnés dans le PDF est maintenant lu correctement (ex. « Kauyon (2 pts) »).','Missions : les détachements préfixés par la faction (« T\'au Empire - Kauyon ») sont reconnus.'] },
   { v: '1.65.2', date: '2026-11-15', notes: ['Listes : bouton « Choisir » supprimé ; ouvrir une liste suffit pour la consulter ou la modifier, sans lien avec les batailles.'] },
   { v: '1.65.1', date: '2026-11-15', notes: ['Listes : chaque détachement de la liste est dépliable avec sa mission (Force Disposition, missions primaires possibles) et ses stratagèmes.'] },
   { v: '1.65.0', date: '2026-11-15', notes: ['Batailles : seuls les objectifs réalisables pendant le tour en cours sont affichés (primaires et secondaires, selon que c\'est ton tour ou celui de l\'adversaire) ; les cartes piochées aux tours précédents et non réalisées restent visibles.','Rappels par phase aussi pendant le tour adverse (réactions, aptitudes défensives, stratagèmes de réaction) ; stratagèmes possibles et stratagèmes adverses regroupés dans un encart replié.','10 PV de départ automatiques pour chaque joueur.','Le « Plan de bataille » est remplacé par un encart « Objectifs primaires » (rappel constant des deux missions), disponible dès que la mission est choisie.'] },
