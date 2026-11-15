@@ -1042,10 +1042,24 @@
   }
   const abilitiesToText = (as) => (as || []).map((a) => `${a.name} | ${(a.phases || ['all']).join(',')} | ${a.text || ''}`).join('\n');
 
+  /* Rappel des détachements d'une liste : mission (Force Disposition) et stratagèmes de chacun */
+  function detRecap(a) {
+    const strats = S.customStrats.filter((s) => s.armyId === a.id); const used = new Set();
+    const sline = (s) => `<details class="note"><summary><b>${esc(s.name)}</b> · ${s.cp} PC · ${esc((s.phases || []).map((x) => phaseLabel(x)).join(' / '))}</summary>${s.when ? `<div class="muted"><b>Quand :</b> ${esc(s.when)}</div>` : ''}${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div>${esc(s.effect || s.text || '—')}</div></details>`;
+    const out = (a.detachments || []).map((d) => {
+      const nm = bwDet(d); const k = Wahap.norm(nm); const fd = BD.NAMEFD[k] || '';
+      const mine = strats.filter((s) => s.detachment && Wahap.norm(Wahap.T(s.detachment)) === k); mine.forEach((s) => used.add(s.id));
+      const pms = fd ? [...new Set(BD.MATRIX[fd])].map((id) => (BD.PM[id] || {}).n).filter(Boolean).sort() : [];
+      const fdHtml = fd ? `<div class="bwr"><b>Mission : ${esc(BD.FD[fd].n)}</b> <span class="muted">(${esc(BD.FD[fd].e)})</span><div class="muted">${esc(BD.FD[fd].d)}</div>${pms.length ? `<div class="muted" style="margin-top:4px"><b>Missions primaires possibles :</b> ${esc(pms.join(' · '))}</div>` : ''}</div>` : '<div class="muted">Mission : non reconnue pour ce détachement.</div>';
+      return `<details class="note"><summary><b>${esc(nm)}</b>${fd ? ' · ' + esc(BD.FD[fd].n) : ''}${mine.length ? ' · ' + mine.length + ' strat.' : ''}</summary>${fdHtml}${mine.length ? '<h3>Stratagèmes</h3>' + mine.map(sline).join('') : '<p class="muted">Aucun stratagème enregistré pour ce détachement.</p>'}</details>`;
+    }).join('');
+    const rest = strats.filter((s) => !used.has(s.id));
+    return out + (rest.length ? `<details class="note"><summary><b>Autres stratagèmes</b> · ${rest.length}</summary>${rest.map(sline).join('')}</details>` : '');
+  }
   function armyBody(a) {
     let h = '';
     if (S.editUnit) return unitEditor(a);
-    if (a.detachments && a.detachments.length) h += `<div class="card"><h2>Détachements</h2>${a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('')}${a.total ? `<p class="muted">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
+    if (a.detachments && a.detachments.length) h += `<div class="card"><h2>Détachements</h2>${detRecap(a)}${a.total ? `<p class="muted">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
     h += `<div class="card"><div class="row sp"><h2 style="margin:0">Unités (${a.units.length})</h2><button class="btn small" data-act="addUnit">+ Unité</button></div>
       ${a.units.map((u) => unitRow('mine', a, u)).join('') || '<p class="muted">Aucune unité pour l\'instant.</p>'}
       ${a.units.length ? '<button class="btn small ghost" style="margin-top:8px" data-act="resetModels" data-who="mine">↺ Rétablir tous les effectifs</button>' : ''}</div>`;
@@ -1081,7 +1095,7 @@
   }
   function armyDetail(a) {
     let h = '';
-    h += `<div class="card"><h2>Détachements</h2>${(a.detachments || []).length ? a.detachments.map((d) => `<div class="note">${esc(d)}</div>`).join('') : '<p class="muted" style="margin:0">Aucun détachement.</p>'}${a.total ? `<p class="muted" style="margin-bottom:0">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
+    h += `<div class="card"><h2>Détachements</h2>${(a.detachments || []).length ? detRecap(a) : '<p class="muted" style="margin:0">Aucun détachement.</p>'}${a.total ? `<p class="muted" style="margin-bottom:0">Total : ${a.total.points} pts${a.total.models ? ' · ' + a.total.models + ' figurines' : ''}${a.total.units ? ' · ' + a.total.units + ' unités' : ''}</p>` : ''}</div>`;
     const rules = (S.armyRules[a.id] || []).filter((r) => r && r.name);
     h += `<div class="card"><h2>Règles d'armée et de détachement</h2>${rules.length ? rules.map((r) => `<details class="note"><summary><b>${esc(r.name)}</b></summary><div>${esc(r.text || '').replace(/\n/g, '<br>')}</div></details>`).join('') : '<p class="muted" style="margin:0">Aucune règle enregistrée pour cette armée.</p>'}</div>`;
     h += `<div class="card"><h2>Unités (${a.units.length})</h2>${armyUnitsHtml(a) || '<p class="muted">Aucune unité.</p>'}</div>`;
