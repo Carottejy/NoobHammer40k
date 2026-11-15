@@ -195,7 +195,7 @@
     if (!S.gm) {
       S.gm = { first: null, step: 'start', tk: '', cpOpp: 0, hand: { me: [], op: [] }, gone: { me: [], op: [] }, newIds: [], allow: 2, rd: { me: false, op: false },
         vp: { me: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] }, op: { p: [0, 0, 0, 0, 0], s: [0, 0, 0, 0, 0] } },
-        draft: { p: { me: 0, op: 0 }, c: { me: {}, op: {} }, pl: { me: {}, op: {} }, ps: { me: {}, op: {} } }, end: { p: { me: 0, op: 0 }, br: { me: false, op: false } }, over: false, msg: '' };
+        draft: { p: { me: 0, op: 0 }, c: { me: {}, op: {} }, pl: { me: {}, op: {} }, ps: { me: {}, op: {} } }, end: { p: { me: 0, op: 0 }, br: { me: true, op: true } }, over: false, msg: '' };
       ['me', 'op'].forEach((w) => { const s = S.battle && S.battle.sec && S.battle.sec[w]; if (s && s.m === 'fix') S.gm.hand[w] = (s.f || []).slice(); });
     }
     const g = S.gm; const tk = S.round + '|' + (S.mine ? 1 : 0);
@@ -223,24 +223,30 @@
 
   function phaseBlock(ph) {
     const a = army(); let h = '';
-    const rem = PHASE_REMINDERS[ph.id] || [];
+    const rem = (S.mine ? PHASE_REMINDERS : PHASE_REMINDERS_OPP)[ph.id] || [];
     if (rem.length) h += `<ul style="margin:0 0 8px;padding-left:18px">${rem.map((x) => `<li class="muted">${esc(x)}</li>`).join('')}</ul>`;
     const sTurn = (s) => (s.turns && s.turns[ph.id]) || s.turn;
     const list = allStrats().filter((s) => s.phases.includes(ph.id) && (sTurn(s) === 'either' || (S.mine ? sTurn(s) === 'mine' : sTurn(s) === 'opp')));
     const sline = (s) => `<details class="note"><summary><b>${esc(s.name)}</b> · ${s.cp} PC${s.detachment ? ' · ' + esc(s.detachment) : ''}</summary><div class="muted"><b>Quand :</b> ${esc(s.when || '—')}</div>${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div><b>Effet :</b> ${esc(s.effect || '—')}</div></details>`;
-    if (list.length) h += `<h3>Stratagèmes possibles</h3>` + list.map(sline).join('');
+    if (list.length) h += `<details class="note"><summary><b>Stratagèmes possibles</b> · ${list.length}</summary>${list.map(sline).join('')}</details>`;
     const e = S.enemy;
     const el = e && (e.strats || []).length ? e.strats.filter((s) => (s.phases || []).includes(ph.id) && (sTurn(s) === 'either' || (S.mine ? sTurn(s) === 'opp' : sTurn(s) === 'mine'))) : [];
-    if (el.length) h += `<h3>Stratagèmes de l'adversaire</h3>` + el.map(sline).join('');
-    const rules = (S.armyRules[S.armyId] || []).filter((r) => (r.phases || ['all']).includes(ph.id));
+    if (el.length) h += `<details class="note"><summary><b>Stratagèmes de l'adversaire</b> · ${el.length}</summary>${el.map(sline).join('')}</details>`;
+    const rules = (S.armyRules[S.armyId] || []).filter((r) => (r.phases || ['all']).includes(S.mine ? ph.id : 'def') && (S.mine || !(r.phases || ['all']).includes('all')));
     if (rules.length) h += `<h3>Règles d'armée / détachement</h3>` + rules.map(ruleNote).join('');
     if (a) {
       const ruleNames = new Set(rules.map((r) => normT(r.name))); const map = new Map(); const abs = [];
-      a.units.forEach((u) => { if (!alive(u)) return; (u.abilities || []).forEach((r) => { const ph0 = r.phases || ['all']; if (ph0.includes('all') || !ph0.includes(ph.id)) return; const k = normT(r.name); if (ruleNames.has(k)) return; let e = map.get(k); if (!e) { e = { r, units: [] }; map.set(k, e); abs.push(e); } if (!e.units.includes(u.name)) e.units.push(u.name); }); });
+      a.units.forEach((u) => { if (!alive(u)) return; (u.abilities || []).forEach((r) => { const ph0 = r.phases || ['all']; if (ph0.includes('all') || !ph0.includes(S.mine ? ph.id : 'def')) return; const k = normT(r.name); if (ruleNames.has(k)) return; let e = map.get(k); if (!e) { e = { r, units: [] }; map.set(k, e); abs.push(e); } if (!e.units.includes(u.name)) e.units.push(u.name); }); });
       abs.forEach((e, n) => { abs[n] = Object.assign({}, e.r, { srcLabel: e.units.length > 1 ? 'aptitude commune · ' + e.units.length + ' unités' : e.units[0] }); });
       if (abs.length) h += `<h3>Aptitudes d'unités</h3>` + (abs.length > 5 ? `<details><summary>${abs.length} aptitudes</summary>${abs.map(ruleNote).join('')}</details>` : abs.map(ruleNote).join(''));
     }
     return h || '<p class="muted">Rien de particulier à cette phase.</p>';
+  }
+  /* Quand une carte secondaire peut être marquée : pendant son propre tour, pendant le tour adverse, ou les deux */
+  function secWhen(c) {
+    const t = String(c.t || '').toLowerCase(); const any = /fin d'un tour/.test(t);
+    const own = any || /fin de votre tour|début de votre tour/.test(t); const opp = any || /fin du tour adverse|fin du round 5/.test(t);
+    return own || opp ? { own, opp } : { own: true, opp: true };
   }
   function secCardLine(id, extra) {
     const c = smById(id);
@@ -274,9 +280,9 @@
       if (timing !== 'all' && !(inR && okP)) return;
       const mm = /(\d+) PV/.exec(x[1]); rows.push({ i, when: x[0], text: x[1], u: mm ? +mm[1] : 1, on: inR && okP, why: inf.timing === 'battle' ? 'compté en fin de bataille' : !inR ? 'pas à ce round' : 'tour adverse : non applicable' });
     });
-    if (!rows.length) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
+    if (!rows.some((x) => x.on)) return '<p class="muted">Aucun marquage primaire à ce moment.</p>';
     return rows.map((x) => {
-      if (!x.on) return `<div class="note" style="opacity:.55"><div class="muted"><b>${esc(x.when)}</b> — ${x.why}</div><details><summary class="muted">détail</summary>${esc(x.text)}</details></div>`;
+      if (!x.on) return '';
       const v = (g.draft[key][w] || {})[x.i] || 0; const b = (d, lab) => `<button class="chip" data-act="gmPl" data-key="${key}" data-who="${w}" data-id="${x.i}" data-val="${d}">${lab}</button>`;
       return `<div class="note"><details><summary class="muted"><b>${esc(x.when)}</b></summary>${esc(x.text)}</details><div class="counter" style="margin-top:6px"><span class="muted">PV</span>${b(-x.u, '−' + (x.u > 1 ? x.u : 1))}<b>${v}</b>${b(x.u, '+' + x.u)}${x.u > 1 ? b(1, '+1') : ''}</div></div>`;
     }).join('');
@@ -315,8 +321,11 @@
     if (pl !== null) h += pl;
     else h += `<div class="counter" style="margin:6px 0"><span class="muted">PV primaires</span>${gStep('', 'gmPri', w, -1)}<b>${g.draft.p[w]}</b>${gStep('', 'gmPri', w, 1)}${gStep('', 'gmPri', w, 5)}</div>`;
     h += `<div class="muted" style="margin-top:8px">Secondaires : ${g.vp[w].s[r]}/15 ce round · ${gSum(g.vp[w].s)}/45</div>`;
+    const vis = g.hand[w].filter((id) => g.draft.c[w][id] != null || (isAct ? secWhen(smById(id)).own : secWhen(smById(id)).opp));
     if (!g.hand[w].length) h += '<p class="muted">Aucune carte secondaire active.</p>';
-    g.hand[w].forEach((id) => {
+    else if (!vis.length) h += '<p class="muted">Aucune carte secondaire réalisable pendant ce tour.</p>';
+    if (vis.length < g.hand[w].length && vis.length) h += `<p class="muted" style="font-size:.85rem">${g.hand[w].length - vis.length} carte(s) active(s) non réalisable(s) pendant ce tour (masquée(s)).</p>`;
+    vis.forEach((id) => {
       const c = smById(id); const v = g.draft.c[w][id]; const ok = v != null;
       h += `<div class="note"><div class="row sp"><b>${esc(c.n)}</b>${chip(ok ? '✓ Réalisée' : 'Réalisée ?', ok, `data-act="gmAch" data-who="${w}" data-val="${id}"`)}</div><div class="muted">${esc(c.t)}</div>`;
       if (ok) h += `<div class="counter" style="margin-top:6px"><span class="muted">PV</span>${gStep('', 'gmCv', w, -1).replace('data-who', 'data-id="' + id + '" data-who')}<b>${v}</b>${gStep('', 'gmCv', w, 1).replace('data-who', 'data-id="' + id + '" data-who')}${gStep('', 'gmCv', w, 5).replace('data-who', 'data-id="' + id + '" data-who')}</div>`;
@@ -326,10 +335,10 @@
     return h + '</div>';
   }
   function gEnd(g, N) {
-    let h = `<div class="card"><h2>🏁 Fin de la bataille</h2><p class="muted">Ajoute les PV marqués « à la fin de la bataille » (primaire) et les 10 PV Prêt au combat si applicable.</p>`;
+    let h = `<div class="card"><h2>🏁 Fin de la bataille</h2><p class="muted">Ajoute les PV marqués « à la fin de la bataille » (primaire). Les 10 PV de départ (Prêt au combat) sont déjà comptés ; décoche-les si l'armée n'était pas prête.</p>`;
     ['me', 'op'].forEach((w) => {
       const bl = pmApplicable(w, 'battle', true) || [];
-      h += `<div class="note"><b>${esc(N[w])}</b>${bl.map((x) => `<div class="muted">${esc(x.text)}</div>`).join('')}<div class="counter" style="margin:6px 0"><span class="muted">PV de fin de bataille</span>${gStep('', 'gmEnd', w, -1)}<b>${g.end.p[w]}</b>${gStep('', 'gmEnd', w, 1)}${gStep('', 'gmEnd', w, 5)}</div>${chip('Prêt au combat (+10 PV)', g.end.br[w], `data-act="gmBr" data-val="${w}"`)}</div>`;
+      h += `<div class="note"><b>${esc(N[w])}</b>${bl.map((x) => `<div class="muted">${esc(x.text)}</div>`).join('')}<div class="counter" style="margin:6px 0"><span class="muted">PV de fin de bataille</span>${gStep('', 'gmEnd', w, -1)}<b>${g.end.p[w]}</b>${gStep('', 'gmEnd', w, 1)}${gStep('', 'gmEnd', w, 5)}</div>${chip('10 PV de départ (Prêt au combat)', g.end.br[w], `data-act="gmBr" data-val="${w}"`)}</div>`;
     });
     h += '</div>';
     const rows = ['me', 'op'].map((w) => `<div class="step" style="margin:0;text-align:center"><div class="t">${esc(N[w])}</div><div class="big">${gScore20(w)}/20</div><div class="muted">${gTot(w)} PV<br>primaire ${gSum(g.vp[w].p)} · secondaire ${gSum(g.vp[w].s)}${g.end.p[w] ? ' · fin ' + g.end.p[w] : ''}${g.end.br[w] ? ' · +10' : ''}</div></div>`).join('');
@@ -358,7 +367,7 @@
     if (g.msg) h += `<div class="note">${esc(g.msg)}</div>`;
     if (g.step === 'start') return h + gStart(g, N);
     if (g.step === 'score') g.step = 'play';
-    h += `<div class="card"><div class="row sp" data-act="remAll" style="cursor:pointer"><h2 style="margin:0">Rappels par phase</h2><span class="muted">${S.ui.remAll ? '▾' : '▸'}</span></div>${S.ui.remAll ? `<p class="muted">Stratagèmes et aptitudes possibles — ${esc(N[gwho()])} joue.</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}` : ''}</div>`;
+    h += `<div class="card"><div class="row sp" data-act="remAll" style="cursor:pointer"><h2 style="margin:0">Rappels par phase</h2><span class="muted">${S.ui.remAll ? '▾' : '▸'}</span></div>${S.ui.remAll ? `<p class="muted">${S.mine ? 'Ton tour' : 'Tour adverse'} — ${esc(N[gwho()])} joue. ${S.mine ? 'Stratagèmes et aptitudes utilisables pendant ton tour.' : 'Réactions, stratagèmes et aptitudes défensives utilisables pendant son tour.'}</p>${PHASES.map((p) => { const o = S.ui.phOpen === p.id; return `<details class="note" ${o ? 'open' : ''}><summary data-act="phOpen" data-val="${p.id}"><b>${p.label}</b></summary>${o ? phaseBlock(p) : ''}</details>`; }).join('')}` : ''}</div>`;
     h += gScoreWho(g, gwho(), N, true) + gScoreWho(g, gother(gwho()), N, false);
     h += `<button class="btn" data-act="gmValidate">${S.round >= GROUNDS && S.mine !== (g.first === 'me') ? 'Terminer la bataille 🏁' : 'Tour suivant ▶'}</button>`;
     return h;
@@ -2422,8 +2431,13 @@
   }
   const bwNames = () => ({ me: (army() || {}).name || 'Ma liste', op: S.enemy ? S.enemy.name : 'Adversaire' });
   const bwRoleNames = (w) => { const n = bwNames(); return w.role === 'A' ? { a: n.me, d: n.op } : w.role === 'D' ? { a: n.op, d: n.me } : { a: 'Attaquant', d: 'Défenseur' }; };
-  const bwHead = (w, title) => `<div class="bwh"><button class="bwi" data-act="bwBack" aria-label="Retour">←</button><div class="bwt"><b>${title}</b><span class="muted">Étape ${w.step + 1} sur 7</span></div><button class="bwi" data-act="bwClose" aria-label="Fermer">✕</button></div>`;
+  const bwHead = (w, title) => `<div class="bwh"><button class="bwi" data-act="bwBack" aria-label="Retour">←</button><div class="bwt"><b>${title}</b><span class="muted">Étape ${w.step + 1} sur 7</span></div><button class="bwi" data-act="bwClose" aria-label="Fermer">✕</button></div>` + (w.step >= 3 && w.fdMe && w.fdOpp ? primCard(bwPrim(w), bwNames()) : '');
   const bwNote = '<p class="muted" style="margin:6px 0 0">Résumé en français : en cas de doute, le texte officiel de la carte fait foi.</p>';
+  /* Rappel constant des objectifs primaires des deux joueurs */
+  function primCard(pm, n) {
+    const one = (w) => { const m = BD.PM[pm[w]]; if (!m) return ''; return `<details class="note" style="margin:6px 0"><summary><span class="muted">${esc(n[w])} :</span> <b>${esc(m.n)}</b></summary>${m.a ? `<div class="muted" style="margin:4px 0"><b>Règle :</b> ${esc(m.a)}</div>` : ''}${m.s.map(([t, x]) => `<div style="margin:4px 0"><b>${esc(t)}</b><div class="muted">${esc(x)}</div></div>`).join('')}</details>`; };
+    return `<div class="card" style="margin-bottom:10px"><h2 style="margin:0 0 2px">🎯 Objectifs primaires</h2>${one('me')}${one('op')}</div>`;
+  }
   function pmCard(id, who) {
     const m = BD.PM[id];
     return `<div class="card"><div class="muted">${esc(who)}</div><h2 style="margin:2px 0 6px">${esc(m.n)} <span class="muted" style="font-weight:400;font-size:.8rem">(${esc(m.e)})</span></h2>${m.a ? `<details class="note"><summary><b>Règle de la mission</b></summary>${esc(m.a)}</details>` : ''}${m.s.map(([t, x]) => `<details class="bwr"><summary><b>${esc(t)}</b></summary><div>${esc(x)}</div></details>`).join('')}${m.act ? `<details class="note"><summary><b>Action : ${esc(m.act.n)}</b></summary>${esc(m.act.t)}</details>` : ''}</div>`;
@@ -2831,8 +2845,8 @@
     return h + attackCard(u, true);
   }
   function battleCard() {
-    const b = S.battle; if (!b) return '';
-    return `<details class="card" style="margin-bottom:10px"><summary><b>⚔️ Plan de bataille</b></summary>${bwRecap(b, true)}</details>`;
+    const b = S.battle; if (!b || !b.pm) return '';
+    return primCard(b.pm, b.names || bwNames());
   }
   function ngBody() {
     const ng = S.ui.ng || {}; const a = army(); const lib = libArmies();

@@ -25,6 +25,15 @@ const PHASE_REMINDERS = {
   ],
 };
 
+/* Rappels pendant le tour de l'adversaire (par phase) */
+const PHASE_REMINDERS_OPP = {
+  command: [],
+  move: ['Surveille les arrivées en réserve / Frappe en profondeur adverses.'],
+  shoot: ['Couvert = −1 à la touche de l\'attaquant ; pense à tes capacités défensives (invulnérable, Ignorer la douleur…).'],
+  charge: ['Tir d\'Alerte / Intervention héroïque : réactions possibles quand l\'adversaire déclare une charge.'],
+  fight: ['Pense aux stratagèmes et aptitudes de réaction au Combat.'],
+};
+
 /* Stratagèmes de base (Core). turn: 'mine' | 'opp' | 'either' */
 const CORE_STRATS = [
   { id: 'command_reroll', name: 'Relance de Commandement', cp: 1, phases: ['command', 'move', 'shoot', 'charge', 'fight'], turn: 'either', verify: false,
