@@ -172,6 +172,7 @@
     const tabs = [['home', '🏠', 'Accueil' + (frOn() && (FR.invites.length + FR.incoming.length) ? ' (' + (FR.invites.length + FR.incoming.length) + ')' : '')], ['army', '📋', 'Listes'], ['game', '<img src="icons/bolter.png" alt="" style="display:block;margin:2px auto 0;height:20px;width:auto;image-rendering:pixelated">', 'Batailles'], ['calc', '🎲', 'Calculs']].concat([]).concat([['rules', '📖', 'Règles'], ['info', 'ℹ️', 'Infos']]);
     $tabs.innerHTML = tabs.map(([id, ic, lb]) => `<button class="${tabOn(id) ? 'on' : ''}" data-act="tab" data-val="${id}"><span>${ic}</span>${lb}</button>`).join('');
     if (S.tab === 'calc') { calcInForce(); try { $app.innerHTML = viewCalc(); } finally { calcOutForce(); } } else $app.innerHTML = { home: viewHome, game: viewGame, army: viewArmy, enemy: viewEnemy, strats: viewStrats, build: viewBuild, assist: viewAssist, db: viewDb, rules: viewRules, matrix: viewMatrix, info: viewInfo }[S.tab]();
+    try { linkRules($app); } catch (e) { /* raccourcis facultatifs */ }
     window.scrollTo(0, S.tab === (render.last || S.tab) ? window.scrollY : 0); render.last = S.tab;
     save();
     if (calcWas && S.tab === 'calc') calcInForce();
@@ -3348,6 +3349,65 @@
     const f = actions[k];
     actions[k] = function (v, el) { if (S.gm) { S.gh = (S.gh || []).concat([gSnap()]).slice(-40); } return f.call(this, v, el); };
   });
+
+  /* ----- Raccourcis vers les règles : termes cliquables dans les textes (aptitudes, stratagèmes, missions…) ----- */
+  const RL_TERMS = [
+    ['touches soutenues', '24.02'], ['touche soutenue', '24.02'], ['coups fatals', '24.02'], ['coup fatal', '24.02'], ['touches létales', '24.02'], ['touche létale', '24.02'],
+    ['blessures dévastatrices', '24.01'], ['blessure dévastatrice', '24.01'], ['précision', '24.02'], ['fusion', '24.02'], ['melta', '24.02'], ['torrent', '24.02'], ['jumelée', '24.02'], ['jumelé', '24.02'],
+    ['tir rapide', '24.02'], ['un seul tir', '24.02'], ['ignore le couvert', '24.01'], ['dangereux', '24.01'], ['explosion', '24.01'], ['tir indirect', '10.07'],
+    ['ignore la douleur', '24.03'], ['frappe en profondeur', '24.03'], ['infiltrateurs', '24.03'], ['combat en premier', '24.03'], ['fin mortelle', '24.03'], ['vol stationnaire', '24.03'], ['plateforme de tir', '24.03'],
+    ['éclaireurs', '24.04'], ['furtivité', '24.04'], ['agent solitaire', '24.04'], ['attaques supplémentaires', '24.04'],
+    ['bénéfice du couvert', '13.08'], ['le couvert', '13.08'], ['blessures mortelles', '06.02'], ['blessure mortelle', '06.02'], ['jet de danger', '06.03'], ['jets de danger', '06.03'],
+    ['cohésion', '03.03'], ['jet de commandement', '01.06'], ['jet de choc de bataille', '01.07'], ['réserves stratégiques', '20.01'], ['mouvement d\'insertion', '20.04'], ['insertion', '20.04'],
+    ['débarquement d\'urgence', '18.05'], ['mouvement de charge', '11.04'], ['mouvement de consolidation', '12.08'], ['mouvement d\'élan', '21.02'], ['retraite', '09.07'], ['tir d\'assaut', '10.05'],
+    ['tir en combat rapproché', '10.06'], ['niveau de contrôle', '14.02'], ['objectif sécurisé', '14.03'], ['objectifs sécurisés', '14.03'], ['tir plongeant', '22.05'], ['unité rattachée', '19.01'], ['unités rattachées', '19.01'],
+    ['tir d\'alerte', '15.08'], ['écran de fumée', '15.10'], ['relance de commandement', '15.02'], ['défi épique', '15.03'], ['bravoure insensée', '15.04'], ['impact écrasant', '15.06'], ['insertion rapide', '15.07'],
+    ['intervention héroïque', '15.11'], ['contre-offensive', '15.12'], ['obscurcissant', '13.10'], ['aptitudes d\'aura', '22.01']
+  ];
+  const rlNorm = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’]/g, "'");
+  const RL_MAP = {}; RL_TERMS.forEach(([t, n]) => { RL_MAP[rlNorm(t)] = n; });
+  const RL_RE = new RegExp('(^|[^a-z0-9])(anti-[a-z]+ [0-9]\\+|' + Object.keys(RL_MAP).sort((a, b) => b.length - a.length).map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![a-z0-9])', 'g');
+  const RL_NUM = /\((\d\d\.\d\d(?:\.\d\d)?)\)/g;
+  const RL_SEL = '.note, .fxlist li, .strat, .bwr, .bwt, .bd, .exp, .st, .fx, .muted, .card p, .rsec p, .rsec li, .rfaq, .rpop-box p, .rpop-box li';
+  const RL_SKIP = 'a, button, input, textarea, select, h1, h2, h3, h4, summary, .rlk, .rn, .nm, .chip, .tag, .kw, table';
+  function rlSecOf(n) { const R = rulesSrc(); for (let i = 0; i < R.length; i++) { const s = R[i].s.find((x) => x.n === n); if (s) return { c: R[i], s }; } return null; }
+  function rlWrap(txt, inRules) {
+    const nt = rlNorm(txt); if (nt.length !== txt.length) return null;
+    const hits = [];
+    if (!inRules) { RL_RE.lastIndex = 0; let m; while ((m = RL_RE.exec(nt))) { const st = m.index + m[1].length, en = st + m[2].length; const sec = RL_MAP[m[2]] || (/^anti-/.test(m[2]) ? '24.01' : null); if (sec) hits.push([st, en, sec]); RL_RE.lastIndex = en; } }
+    RL_NUM.lastIndex = 0; let q; while ((q = RL_NUM.exec(txt))) { if (rlSecOf(q[1])) hits.push([q.index + 1, q.index + 1 + q[1].length, q[1]]); }
+    if (!hits.length) return null;
+    hits.sort((a, b) => a[0] - b[0]);
+    const f = document.createDocumentFragment(); let pos = 0;
+    hits.forEach(([s, e, sec]) => { if (s < pos) return; if (s > pos) f.appendChild(document.createTextNode(txt.slice(pos, s))); const a = document.createElement('a'); a.className = 'rlk'; a.href = '#'; a.dataset.rule = sec; a.dataset.term = txt.slice(s, e); a.textContent = txt.slice(s, e); f.appendChild(a); pos = e; });
+    if (pos < txt.length) f.appendChild(document.createTextNode(txt.slice(pos)));
+    return f;
+  }
+  function linkRules(root) {
+    if (!root || !root.querySelectorAll) return;
+    const seen = new Set();
+    root.querySelectorAll(RL_SEL).forEach((box) => {
+      const inRules = !!box.closest('.rsec, .rpop-box');
+      const w = document.createTreeWalker(box, NodeFilter.SHOW_TEXT, null); const nodes = [];
+      for (let n = w.nextNode(); n; n = w.nextNode()) { if (seen.has(n) || n.nodeValue.length < 4) continue; seen.add(n); if (n.parentNode.closest(RL_SKIP)) continue; nodes.push(n); }
+      nodes.forEach((n) => { const f = rlWrap(n.nodeValue, inRules); if (f) n.parentNode.replaceChild(f, n); });
+    });
+  }
+  function rulePop(sec, term) {
+    let o = document.getElementById('rpop'); if (o) o.remove();
+    const f = rlSecOf(sec); if (!f) return;
+    o = document.createElement('div'); o.id = 'rpop'; o.className = 'rpop';
+    const t = term ? [rnorm(term)] : [];
+    o.innerHTML = `<div class="rpop-box"><div class="row sp"><div class="muted" style="font-size:.78rem">${esc(f.c.n)} · ${esc(f.c.t)}</div><button class="btn small ghost" data-rclose="1">✕</button></div><h3 style="margin:6px 0"><span class="rn">${esc(f.s.n)}</span> ${esc(f.s.t)}</h3>${rBody(f.s.p, t)}<div class="row" style="margin-top:10px"><button class="btn small ghost grow" data-rgo="${esc(f.s.n)}">📖 Ouvrir dans Règles</button></div></div>`;
+    o.addEventListener('click', (e) => {
+      const ln = e.target.closest('[data-rule]'); if (ln) { e.preventDefault(); rulePop(ln.dataset.rule, ln.dataset.term); return; }
+      if (e.target === o || e.target.closest('[data-rclose]')) { o.remove(); return; }
+      const g = e.target.closest('[data-rgo]'); if (g) { const n = g.dataset.rgo; o.remove(); RS.q = ''; const cn = f.c.n; RS.open['c' + cn] = true; S.tab = 'rules'; render(); setTimeout(() => { const el = document.getElementById('r' + n.replace(/\./g, '_')); if (el) el.scrollIntoView(); }, 30); }
+    });
+    document.body.appendChild(o); linkRules(o.querySelector('.rpop-box'));
+  }
+  window.NH_linkRules = linkRules;
+  document.addEventListener('click', (e) => { const ln = e.target.closest && e.target.closest('[data-rule]'); if (ln && !ln.closest('#rpop')) { e.preventDefault(); e.stopPropagation(); rulePop(ln.dataset.rule, ln.dataset.term); } }, true);
 
 
   document.addEventListener('click', (e) => {

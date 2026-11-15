@@ -4,7 +4,7 @@
   'use strict';
   const FD = {
     TH: { n: 'Prendre et tenir', e: 'Take and Hold', d: 'Tenir le terrain : contrôle d\'objectifs.' },
-    PF: { n: 'Purger l\'ennemi', e: 'Purge the Foe', d: 'Détruire les unités adverses.' },
+    PF: { n: 'Éliminez l\'Adversaire', e: 'Purge the Foe', d: 'Détruire les unités adverses.' },
     DIS: { n: 'Perturbation', e: 'Disruption', d: 'Piéger, tromper et harceler.' },
     REC: { n: 'Reconnaissance', e: 'Reconnaissance', d: 'Se disperser, sonder et collecter du renseignement.' },
     PA: { n: 'Atouts prioritaires', e: 'Priority Assets', d: 'Sécuriser des cibles de valeur.' }
@@ -137,18 +137,18 @@
     { id: 'no-prisoners', n: 'Pas de quartier', e: 'No Prisoners', t: 'Fin d\'un tour : 2 PV par unité ennemie détruite ce tour (max 5 PV).' },
     { id: 'overwhelming-force', n: 'Force écrasante', e: 'Overwhelming Force', t: 'Fin d\'un tour : 3 PV par unité ennemie détruite qui avait débuté le tour à portée d\'un objectif (max 5 PV).' },
     { id: 'plunder', n: 'Pillage', e: 'Plunder', t: 'Action (phase de Tir, une fois par tour) : une unité dans une zone de décor hors de votre territoire la pille. Fin de votre tour : une zone pillée ce tour : 5 PV. (Si Purification est active, vous pouvez repiocher.)' },
-    { id: 'display-of-might', n: 'Démonstration de force', e: 'Display of Might', t: 'Plus d\'unités à vous que d\'ennemies (hors AIRCRAFT et en déroute) entièrement dans le Pas d\'homme : 2 PV à la fin de votre tour ; 5 PV à la fin du tour adverse.' },
+    { id: 'display-of-might', n: 'Démonstration de force', e: 'Display of Might', t: 'Plus d\'unités à vous que d\'ennemies (hors AIRCRAFT et en déroute) entièrement dans le No Man\'s Land : 2 PV à la fin de votre tour ; 5 PV à la fin du tour adverse.' },
     { id: 'outflank', n: 'Débordement', e: 'Outflank', t: 'Fin de votre tour : une unité à moins de 6" d\'un bord hors de votre territoire : 3 PV. OU deux unités à moins de 6" de bords opposés (dont une hors de votre territoire) : 5 PV. (Hors AIRCRAFT et en déroute.)' },
     { id: 'beacon', n: 'Balise', e: 'Beacon', t: 'À la pioche : désignez votre unité balise. Fin du tour adverse (ou fin du round 5) : balise sur le champ de bataille hors de votre zone de déploiement : 3 PV ; hors de votre territoire : 5 PV.' },
     { id: 'cleanse', n: 'Purification', e: 'Cleanse', t: 'Action (phase de Tir) : une unité à portée d\'un objectif (hors le vôtre), un objectif différent par unité. Fin de votre tour : 1 objectif purifié ce tour : 2 PV ; 2 ou plus : 5 PV. (Si Pillage est active, vous pouvez repiocher.)' },
     { id: 'a-grievous-blow', n: 'Coup fatal', e: 'A Grievous Blow', f: 1, v: [4, 5], t: 'Fin d\'un tour : par unité ennemie d\'effectif initial 13+ détruite ce tour : 4 PV (fixe) / 5 PV (tactique), max 5 PV. Tactique : si aucune telle unité, défaussez et repiochez.' },
     { id: 'defend-stronghold', n: 'Défendre la forteresse', e: 'Defend Stronghold', t: 'Round 2 et suivants, fin du tour adverse (ou fin du round 5) : vous contrôlez votre objectif de départ : 3 PV, +2 PV s\'il n\'y a aucune unité ennemie dans votre zone de déploiement. (Défaussez et repiochez au round 1.)' },
     { id: 'engage-on-all-fronts', n: 'Engager sur tous les fronts', e: 'Engage on All Fronts', f: 1, v: [2, 3], t: 'Fin de votre tour (présence = unité entièrement dans un quart de table, à plus de 6" du centre) : présence dans 3 quarts : 2 PV (fixe) / 3 PV (tactique) ; dans 4 quarts : 4 PV (fixe) / 5 PV (tactique).' },
-    { id: 'secure-no-mans-land', n: 'Sécuriser le Pas d\'homme', e: 'Secure No Man\'s Land', t: 'Fin de votre tour : vous contrôlez 2 objectifs ou plus dans le Pas d\'homme (hors le vôtre) : 5 PV.' },
+    { id: 'secure-no-mans-land', n: 'Sécuriser le No Man\'s Land', e: 'Secure No Man\'s Land', t: 'Fin de votre tour : vous contrôlez 2 objectifs ou plus dans le No Man\'s Land (hors le vôtre) : 5 PV.' },
     { id: 'forward-position', n: 'Position avancée', e: 'Forward Position', t: 'Fin de votre tour : vous contrôlez l\'objectif de départ adverse et/ou chaque objectif d\'expansion : 5 PV. (Repiochez au round 1 si vous le souhaitez.)' },
     { id: 'centre-ground', n: 'Centre du champ de bataille', e: 'Centre Ground', t: 'Fin de votre tour : une unité à vous à moins de 3" du centre et aucune ennemie à moins de 3" : 3 PV ; aucune ennemie à moins de 6" : 5 PV. (Hors AIRCRAFT et en déroute.)' },
     { id: 'assassination', n: 'Assassinat', e: 'Assassination', f: 1, v: [3, 5], t: 'Fixe : fin d\'un tour, par CHARACTER ennemi détruit : 3 PV, +1 PV s\'il a 4 PV ou plus (W). Tactique : un CHARACTER ennemi détruit ce tour (ou tous détruits pendant la bataille) : 5 PV.' },
-    { id: 'a-tempting-target', n: 'Cible tentante', e: 'A Tempting Target', t: 'À la pioche : l\'adversaire désigne un objectif du Pas d\'homme (hors objectifs de départ). Fin de votre tour : vous le contrôlez : 5 PV.' },
+    { id: 'a-tempting-target', n: 'Cible tentante', e: 'A Tempting Target', t: 'À la pioche : l\'adversaire désigne un objectif du No Man\'s Land (hors objectifs de départ). Fin de votre tour : vous le contrôlez : 5 PV.' },
     { id: 'behind-enemy-lines', n: 'Derrière les lignes ennemies', e: 'Behind Enemy Lines', t: 'Fin de votre tour : 3 PV par unité entièrement dans la zone de déploiement adverse (hors AIRCRAFT et en déroute), max 5 PV. (Repiochez au round 1 si vous le souhaitez.)' },
     { id: 'bring-it-down', n: 'Abattez-le', e: 'Bring It Down', f: 1, v: [4, 5], t: 'Fin d\'un tour : par figurine ennemie de PV (W) 10+ détruite ce tour : 4 PV (fixe) / 5 PV (tactique), max 5 PV. Tactique : si aucune, défaussez et repiochez.' },
     { id: 'burden-of-trust', n: 'Fardeau de confiance', e: 'Burden of Trust', t: 'À la pioche / début de votre tour : une unité peut garder chaque objectif. Fin du tour adverse (ou fin du round 5) : 2 PV par objectif gardé par votre armée (max 5 PV).' }

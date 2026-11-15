@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.65.4';
+var APP_VERSION = '1.66.0';
 var APP_RELEASES = [
+  { v: '1.66.0', date: '2026-11-15', notes: [
+    'Raccourcis vers les règles : les termes d\'aptitudes, stratagèmes et missions (Touches soutenues, Précision, Couvert, Cohésion, Anti-X, « (10.07) »…) sont cliquables et ouvrent la règle en fenêtre, avec un bouton pour l\'ouvrir dans Règles.',
+    '« No Man\'s Land » n\'est plus traduit. Disposition « Purger l\'ennemi » renommée « Éliminez l\'Adversaire » (nom officiel français).'
+  ] },
   { v: '1.65.4', date: '2026-11-15', notes: ['Préparation : les plans de décors sont indiqués comme des propositions de l\'appli, avec un lien vers les layouts officiels recommandés (gdmissions.app) pour ta disposition de force.'] },
   { v: '1.65.3', date: '2026-11-15', notes: ['Import PDF ALN : un détachement dont le nom et le début de la règle étaient fusionnés dans le PDF est maintenant lu correctement (ex. « Kauyon (2 pts) »).','Missions : les détachements préfixés par la faction (« T\'au Empire - Kauyon ») sont reconnus.'] },
   { v: '1.65.2', date: '2026-11-15', notes: ['Listes : bouton « Choisir » supprimé ; ouvrir une liste suffit pour la consulter ou la modifier, sans lien avec les batailles.'] },
