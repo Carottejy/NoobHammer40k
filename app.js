@@ -1120,10 +1120,9 @@
     if (!lib.length) return h + '<div class="card"><p class="muted">Aucune liste pour l\'instant : crée-la avec le Creator ou l\'Assistant, ou importe-la (PDF, texte ALN, BBCode, JSON).</p></div>';
     const open = S.ui.openArmy;
     h += lib.map((x) => {
-      const on = x.id === S.armyId; const isOpen = x.id === open; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
+      const isOpen = x.id === open; const pts = x.total && x.total.points != null ? x.total.points : x.units.reduce((t, u) => t + (+u.pts || 0), 0);
       let c = `<div class="card army-card" style="margin-bottom:${isOpen ? 6 : 8}px"><div class="row sp" data-act="armyOpen" data-val="${x.id}" style="cursor:pointer;flex-wrap:nowrap"><div style="min-width:0"><b>${esc(x.name)}</b><div class="muted">${esc(x.faction || '')}${x.chapter ? ' · ' + esc(x.chapter) : ''} · ${pts} pts · ${x.units.length} unité(s)</div></div><span class="row" style="flex-wrap:nowrap;gap:6px">${ib('armyEdit', x.id, '✏️', 'Modifier')}${ib('armyPdf', x.id, '📄', 'Exporter en PDF')}<button class="btn small ghost" data-act="armyTts" data-val="${x.id}" title="Exporter pour Tabletop Simulator" aria-label="Exporter pour Tabletop Simulator" style="min-height:30px;padding:4px 8px;font-weight:700">TTS</button>${ib('armyDel', x.id, '🗑️', 'Supprimer', 'danger')}<span class="muted" style="font-size:1.1rem">${isOpen ? '▾' : '▸'}</span></span></div>`;
       c += ttsNote(x);
-      if (isOpen && !on) c += `<div class="row" style="margin-top:8px"><button class="btn small" data-act="armySel" data-val="${x.id}">Choisir</button></div>`;
       c += '</div>';
       if (isOpen) c += armyDetail(x);
       return c;
@@ -3274,7 +3273,7 @@
         document.body.appendChild(el); el.click(); setTimeout(() => { URL.revokeObjectURL(el.href); el.remove(); }, 1500);
       } catch (e) { alert('Export PDF impossible : ' + e.message); }
     },
-    armyOpen(id) { S.ui = Object.assign({}, S.ui, { openArmy: S.ui.openArmy === id ? '' : id }); },
+    armyOpen(id) { const opening = S.ui.openArmy !== id; S.ui = Object.assign({}, S.ui, { openArmy: opening ? id : '' }); const x = S.armies.find((y) => y.id === id); if (opening && x && !x.gameOf) { S.armyId = id; S.libId = id; } },
     armySel(id) { S.armyId = id; S.libId = id; S.ui = Object.assign({}, S.ui, { importMsg: '' }); },
     armyEdit(id) { S.armyId = id; S.libId = id; S.editUnit = null; S.ui = Object.assign({}, S.ui, { importMsg: '' }); const a = S.armies.find((x) => x.id === id); if (a && a.build) actions.bReopen(); else { B.cm = 'edit'; bsave(); } S.tab = 'build'; },
     armyDel(id) { const x = S.armies.find((y) => y.id === id); if (!x || !confirm('Supprimer l\'armée « ' + x.name + ' » ?')) return; S.customStrats = S.customStrats.filter((c) => c.armyId !== id); delete S.armyRules[id]; S.armies = S.armies.filter((y) => y.id !== id); if (B.editId === id) B.editId = ''; if (S.armyId === id) S.armyId = libArmies()[0] ? libArmies()[0].id : null; },
