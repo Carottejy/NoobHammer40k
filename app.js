@@ -1044,6 +1044,13 @@
   const abilitiesToText = (as) => (as || []).map((a) => `${a.name} | ${(a.phases || ['all']).join(',')} | ${a.text || ''}`).join('\n');
 
   /* Rappel des détachements d'une liste : mission (Force Disposition) et stratagèmes de chacun */
+  /* Mission associée à un détachement (disposition de force + missions primaires possibles) */
+  function detMissionHtml(name) {
+    const nm = bwDet(Wahap.T ? Wahap.T(name) : name); const fd = BD.NAMEFD[Wahap.norm(nm)] || '';
+    if (!fd) return '';
+    const pms = [...new Set(BD.MATRIX[fd])].map((id) => (BD.PM[id] || {}).n).filter(Boolean).sort();
+    return `<div class="bwr" style="margin-top:6px"><b>Mission associée : ${esc(BD.FD[fd].n)}</b> <span class="muted">(${esc(BD.FD[fd].e)})</span><div class="muted">${esc(BD.FD[fd].d)}</div>${pms.length ? `<div class="muted" style="margin-top:4px"><b>Missions primaires possibles :</b> ${esc(pms.join(' · '))}</div>` : ''}</div>`;
+  }
   function detRecap(a) {
     const strats = S.customStrats.filter((s) => s.armyId === a.id); const used = new Set();
     const sline = (s) => `<details class="note"><summary><b>${esc(s.name)}</b> · ${s.cp} PC · ${esc((s.phases || []).map((x) => phaseLabel(x)).join(' / '))}</summary>${s.when ? `<div class="muted"><b>Quand :</b> ${esc(s.when)}</div>` : ''}${s.target ? `<div class="muted"><b>Cible :</b> ${esc(s.target)}</div>` : ''}<div>${esc(s.effect || s.text || '—')}</div></details>`;
@@ -1443,7 +1450,8 @@
       const d0 = f.detachments.find((x) => x.id === dbs.det); if (!d0) { dbs.det = null; return ''; }
       const d = dsd(f, d0);
       let h = `<div class="card"><div class="row sp"><h2 style="margin:0">${wt(d.name)}</h2><button class="btn small ghost" data-act="dbBack">← Détachements</button></div><div class="muted">${+d.dp ? esc(d.dp) + ' ' + L('pt(s) de détachement', 'detachment point(s)') : L('Détachement d\'abordage · sans point de détachement', 'Boarding Actions detachment · no detachment points')}</div>${army() && d.strats.length ? '<button class="btn small" style="margin-top:8px" data-act="dbAddStrats">➕ Ajouter ses stratagèmes à mon armée</button>' : ''}</div>`;
-      if (d.abilities.length) h += `<div class="card"><h2>${L('Règles', 'Rules')}</h2>${d.abilities.map((a) => `<details class="note" open><summary><b>${wt(a.name)}</b></summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
+      if (detMissionHtml(d.name) && !d.abilities.length) h += `<div class="card">${detMissionHtml(d.name)}</div>`;
+      if (d.abilities.length) h += `<div class="card"><h2>${L('Règles', 'Rules')}</h2>${detMissionHtml(d.name)}${d.abilities.map((a) => `<details class="note" open><summary><b>${wt(a.name)}</b></summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
       if (d.enh.length) h += `<div class="card"><h2>${L('Améliorations', 'Enhancements')}</h2>${d.enh.map((a) => `<details class="note"><summary><b>${wt(a.name)}</b> · ${esc(a.cost)} pts</summary><div>${wt(a.text)}</div></details>`).join('')}</div>`;
       if (d.strats.length) h += `<div class="card"><h2>${L('Stratagèmes', 'Stratagems')}</h2>${d.strats.map((a) => `<details class="note"><summary><b>${wt(a.name)}</b> · ${esc(a.cp)} ${L('PC', 'CP')}</summary><div class="muted">${esc(stType(a.type))}</div><div>${wt(a.text)}</div></details>`).join('')}</div>`;
       return h;
@@ -1596,7 +1604,7 @@
     if (!f) { if (B.facErr === B.fac) return h + `<div class="card"><div class="warn">Faction introuvable (fichier data/wahapedia/${esc(B.fac)}.js manquant ?).</div><button class="btn small" data-act="bRetry">Réessayer</button></div>`; if (!B.facLoad) { B.facLoad = true; Wahap.faction(B.fac).then(() => { B.facLoad = false; if (!Wahap.cached(B.fac)) B.facErr = B.fac; render(); }).catch(() => { B.facLoad = false; B.facErr = B.fac; render(); }); } return h + '<div class="card"><p class="muted">Chargement de la faction…</p></div>'; }
     const dp = f.detachments.filter((d) => B.dets.includes(d.id)).reduce((s, d) => s + (+d.dp || 0), 0);
     h += `<div class="card">${fh('det', 'Détachements' + (B.dets.length ? ' · ' + dp + ' pt(s)' : ''))}<div ${B.fold.det ? 'hidden' : ''}><div class="chips" style="margin-top:8px">${f.detachments.filter((d) => chOkDet(d) || B.dets.includes(d.id)).map((d) => `<button class="chip ${B.dets.includes(d.id) ? 'on' : ''}" data-act="bDet" data-val="${d.id}">${esc(T0(d.name))} (${+d.dp ? esc(d.dp) : 'abordage'})</button>`).join('')}</div>${chList() && B.ch ? `<p class="muted">${f.detachments.filter((d) => !chOkDet(d)).length} détachement(s) masqué(s) pour : ${esc(chLabel())}.</p>` : ''}
-      ${B.dets.map((id) => { const d = f.detachments.find((x) => x.id === id); return d ? `<details class="note"><summary><b>${wt(d.name)}</b></summary>${(d.abilities || []).map((a) => `<div style="margin-top:6px"><b>${wt(a.name)}</b><div>${wt(a.text)}</div></div>`).join('')}</details>` : ''; }).join('')}</div></div>`;
+      ${B.dets.map((id) => { const d = f.detachments.find((x) => x.id === id); return d ? `<details class="note"><summary><b>${wt(d.name)}</b></summary>${detMissionHtml(d.name)}${(d.abilities || []).map((a) => `<div style="margin-top:6px"><b>${wt(a.name)}</b><div>${wt(a.text)}</div></div>`).join('')}</details>` : ''; }).join('')}</div></div>`;
     const pts = B.units.reduce((s, e) => s + bCost(f, e), 0), over = B.limit && pts > B.limit;
     if (B.warlord && !B.units.some((x) => x.k === B.warlord)) B.warlord = '';
     const wlc = B.units.filter((x) => { const d = bdef1(f, x.id); return d && kwOf(d).some((k) => k === 'personnage' || k === 'heros epique'); });

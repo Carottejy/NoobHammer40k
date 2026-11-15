@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.66.0';
+var APP_VERSION = '1.66.1';
 var APP_RELEASES = [
+  { v: '1.66.1', date: '2026-11-15', notes: [
+    'Règles de détachement : la mission associée (disposition de force et missions primaires possibles) est indiquée en tête des règles, dans la fiche détachement des Règles et dans le constructeur de liste.'
+  ] },
   { v: '1.66.0', date: '2026-11-15', notes: [
     'Raccourcis vers les règles : les termes d\'aptitudes, stratagèmes et missions (Touches soutenues, Précision, Couvert, Cohésion, Anti-X, « (10.07) »…) sont cliquables et ouvrent la règle en fenêtre, avec un bouton pour l\'ouvrir dans Règles.',
     '« No Man\'s Land » n\'est plus traduit. Disposition « Purger l\'ennemi » renommée « Éliminez l\'Adversaire » (nom officiel français).'
