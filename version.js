@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.66.1';
+var APP_VERSION = '1.66.2';
 var APP_RELEASES = [
+  { v: '1.66.2', date: '2026-11-16', notes: [
+    'Mes listes : seuls les en-têtes des listes sont affichés. Un clic ouvre le détail dans une vue dédiée avec un bouton « ← Mes listes ». La liste consultée reste ouverte quand on change d\'onglet.'
+  ] },
   { v: '1.66.1', date: '2026-11-15', notes: [
     'Règles de détachement : la mission associée (disposition de force et missions primaires possibles) est indiquée en tête des règles, dans la fiche détachement des Règles et dans le constructeur de liste.'
   ] },
