@@ -1616,6 +1616,26 @@
   function creatorTabs() {
     return `${backLists()}${hd('Creator')}`;
   }
+  /* Liste importée : choix des détachements (le Creator n'est pas utilisé pour ces listes) */
+  const detStrip = (x) => String(x || '').replace(/\s*\(\s*\d+\s*pts?\s*\)\s*$/i, '').trim();
+  function detEditFac(a) {
+    const ix = Wahap.index(); let ids = [];
+    if (ix) { a.units.forEach((u) => { const e = u.wahapId && ix.units.find((x) => x.id === u.wahapId); if (e && !ids.includes(e.f)) ids.push(e.f); }); }
+    if (!ids.length) ids = Wahap.facIds(a.faction);
+    return ids;
+  }
+  function detEditCard(a) {
+    if (!Wahap.index()) { Wahap.ready().then(render).catch(() => {}); return '<div class="card"><p class="muted">Chargement de la base…</p></div>'; }
+    const ids = detEditFac(a); const fs = ids.map((id) => Wahap.cached(id));
+    if (fs.some((f) => !f)) { ids.forEach((id) => { if (!Wahap.cached(id)) Wahap.faction(id).then(render).catch(() => {}); }); return '<div class="card"><p class="muted">Chargement des détachements…</p></div>'; }
+    const dets = fs.reduce((t, f) => t.concat(f.detachments || []), []); const cur = (a.detachments || []).map((x) => Wahap.norm(Wahap.T(detStrip(x))));
+    const known = new Set(dets.map((d) => Wahap.norm(Wahap.T(d.name))));
+    let h = '<div class="card"><h2>Détachements</h2>';
+    const extra = (a.detachments || []).map((x, i) => ({ x, i })).filter((o) => !known.has(Wahap.norm(Wahap.T(detStrip(o.x)))));
+    if (extra.length) h += '<div class="row" style="margin-bottom:6px">' + extra.map((o) => `<button class="btn small" data-act="aDetDel" data-val="${o.i}">${esc(o.x)} ✕</button>`).join('') + '</div>';
+    h += '<div class="row" style="flex-wrap:wrap;gap:6px">' + dets.map((d) => { const on = cur.includes(Wahap.norm(Wahap.T(d.name))); return `<button class="btn small ${on ? '' : 'ghost'}" data-act="aDetToggle" data-val="${esc(d.id)}">${on ? '✓ ' : ''}${esc(Wahap.T(d.name))}${d.dp ? ' (' + d.dp + ')' : ''}</button>`; }).join('') + '</div></div>';
+    return h;
+  }
   function viewBuild() {
     const head = creatorTabs();
     if (B.cm === 'edit') {
@@ -1625,6 +1645,7 @@
       h += '</div>';
       if (!a) return h + '<p class="muted">Aucune liste à modifier : retourne dans Mes Listes.</p>';
       if (S.ui.importMsg) h += `<div class="note" style="white-space:pre-wrap">${esc(S.ui.importMsg)}</div>`;
+      if (!a.build && !S.editUnit) h += detEditCard(a);
       h += armyBody(a);
       if (!S.editUnit) h += `<div class="card"><button class="btn" data-act="bDone">💾 Sauvegarder</button></div>` + profilesCard(a) + `<div class="card"><h2>Sauvegarde / partage (JSON)</h2><textarea id="jsonBox">${esc(JSON.stringify({ army: a, rules: S.armyRules[a.id] || [] }, null, 1))}</textarea><div class="row" style="margin-top:8px"><button class="btn small ghost" data-act="copyJson">Copier</button></div></div>`;
       return h;
@@ -3129,6 +3150,13 @@
       g.state = snapshot(); const l = readGames(); l.unshift(g); writeGames(l);
     },
 
+    aDetToggle(id) {
+      const a = army(); if (!a) return; const ix = Wahap.index(); if (!ix) return;
+      const d = detEditFac(a).map((f) => Wahap.cached(f)).filter(Boolean).reduce((t, f) => t.concat(f.detachments || []), []).find((x) => x.id === id); if (!d) return;
+      a.detachments = a.detachments || []; const q = Wahap.norm(Wahap.T(d.name)); const i = a.detachments.findIndex((x) => Wahap.norm(Wahap.T(detStrip(x))) === q);
+      if (i >= 0) a.detachments.splice(i, 1); else a.detachments.push(Wahap.T(d.name) + ' (' + (d.dp || 0) + ' pts)');
+    },
+    aDetDel(i) { const a = army(); if (a && a.detachments) a.detachments.splice(+i, 1); },
     bDet(id) { const i = B.dets.indexOf(id); if (i >= 0) { B.dets.splice(i, 1); B.units.forEach((e) => { if (e.enh && e.enh.startsWith(id + '|')) e.enh = ''; }); } else B.dets.push(id); bsave(); },
     dbRetry() { dbs.err = ''; dbs.loading = false; },
     lang(v) { S.lang = v === 'en' ? 'en' : 'fr'; Wahap.setLang(S.lang); dbs.kw = ''; B.kw = ''; if (v === 'en') Wahap.showIndex().then(() => render()).catch(() => {}); },

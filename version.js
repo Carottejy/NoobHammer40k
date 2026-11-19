@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.67.0';
+var APP_VERSION = '1.67.1';
 var APP_RELEASES = [
+  { v: '1.67.1', date: '2026-11-19', notes: [
+    'Modification d\'une liste importée : on peut maintenant ajouter, retirer ou changer ses détachements (liste des détachements du codex, avec leurs points).'
+  ] },
   { v: '1.67.0', date: '2026-11-19', notes: [
     'Import texte : chaque unité est complétée depuis les codex comme dans le Creator (profil, armes, aptitudes, mots-clés, nombre de figurines) et le détachement est rapproché de la base.',
     'Import texte : le format de l\'application (« Nom (65 points) », « Attachée en tant que : Meneur », « Seigneur de Guerre ») est lu directement, les meneurs sont rattachés à leur unité.'
