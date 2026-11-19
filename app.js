@@ -2536,20 +2536,8 @@
     return `<details class="bwr"><summary><b>${esc(c.n)}</b> <span class="muted">(${esc(c.e)})</span></summary><div>${esc(c.t)}</div></details>`;
   }
   const bwChips = (act, cur, items, extra) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => `<button type="button" class="chip${cur === v ? ' on' : ''}" data-act="${act}" data-val="${esc(v)}"${extra || ''}>${l}</button>`).join('')}</div>`;
-  const bwMapHtml = (w, big) => {
-    if (!w.dep) return '';
-    const lay = BM.layout(w.dep, w.seed || 1, !!w.two);
-    return BM.svg(w.dep, lay, { names: bwRoleNames(w), id: big ? 'z' : 'p', cotes: w.cotes !== false });
-  };
-  function bwTable(w) {
-    const lay = BM.layout(w.dep, w.seed || 1, !!w.two); const ms = BM.measures(lay);
-    const objs = lay.objs.map((o) => `<tr><td>${o.n}</td><td>${o.x}"</td><td>${o.y}"</td></tr>`).join('');
-    const rows = ms.map((m) => `<tr><td><b>${m.n}</b></td><td>${m.s === 'T' ? 'Triangle' : 'Rectangle'} ${m.k === 'D' ? 'dense' : 'léger'}</td><td>${m.w}"×${m.h}"</td><td>${m.near[0]}"</td><td>${m.near[1]}"</td><td>${esc(m.obj)}</td></tr>`).join('');
-    return `<details class="card" open><summary><b>Cotes de placement</b></summary><p class="muted" style="margin:6px 0">Plateau 44" × 60". Pour chaque empreinte : distance de son bord <b>le plus proche</b> au bord de table le plus proche, horizontalement puis verticalement (comme sur le plan). Largeur × hauteur telles que dessinées ; triangle : angle droit côté dessiné.</p>
-      <div style="overflow-x:auto"><table class="bwtab"><tr><th>Objectif</th><th>X</th><th>Y</th></tr>${objs}</table>
-      <table class="bwtab" style="margin-top:8px"><tr><th>N°</th><th>Empreinte</th><th>Larg.×Haut.</th><th>Au bord (←→)</th><th>Au bord (↑↓)</th><th>Sur objectif</th></tr>${rows}</table></div>
-      <p class="muted" style="margin:6px 0 0">Empreintes officielles 11e (grand rectangle 11,5"×7", triangle 8"×11,5", rectangle moyen 6"×4", lignes 10"×2,5" et 6"×2") : posez vos décors à l'intérieur. Une empreinte recouvre chaque objectif. Laissez au moins 3" entre elles.</p></details>`;
-  }
+  const bwLayId = (w) => { if (!w.lay || !w.fdMe || !w.fdOpp) return ''; return w.lay.indexOf(BD.layPair(w.fdMe, w.fdOpp) + '-') === 0 ? w.lay : ''; };
+  const bwMapHtml = (w, big) => { const id = bwLayId(w); return id ? `<img class="lay${big ? ' big' : ''}" src="layouts/${id}.webp" alt="Layout ${esc(id)}" loading="lazy">` : ''; };
   function bwSecPick(w, who, label) {
     const s = w.sec[who];
     let h = `<div class="card"><h2 style="margin:0 0 6px">${esc(label)}</h2>${bwChips('bwSecMode', s.m, [['tac', 'Tactique'], ['fix', 'Fixe']], ` data-who="${who}"`)}`;
@@ -2565,17 +2553,17 @@
     const sec = (who) => { const s = b.sec[who]; return s.m === 'tac' ? 'Tactique' : 'Fixe : ' + (s.f.map((i) => (BD.SM.find((c) => c.id === i) || {}).n).join(' + ') || '—'); };
     let h = `<div class="card"><div class="bwr"><b>Missions primaires</b><div>${esc(n.me)} : <b>${esc(BD.PM[b.pm.me].n)}</b> (${esc(BD.FD[b.fdMe].n)})<br>${esc(n.op)} : <b>${esc(BD.PM[b.pm.op].n)}</b> (${esc(BD.FD[b.fdOpp].n)})</div></div>
       ${b.twist ? `<div class="bwr"><b>Péripétie</b><div>${esc(BD.TWISTS.find((t) => t.id === b.twist).n)}</div></div>` : ''}
-      <div class="bwr"><b>Déploiement</b><div>${esc(d.n)} <span class="muted">(${esc(d.e)})</span> · plan n° ${b.seed} · ${b.two ? '2 objectifs centraux' : '1 objectif central'}</div></div>
+      <div class="bwr"><b>Déploiement</b><div>${esc(d.n)} <span class="muted">(${esc(d.e)})</span> ${b.lay ? '· layout n° ' + b.lay.split('-').pop() : ''}</div></div>
       <div class="bwr"><b>Rôles</b><div>Attaquant : ${esc(role[0])}<br>Défenseur : ${esc(role[1])}</div></div>
       <div class="bwr"><b>Missions secondaires</b><div>${esc(n.me)} : ${esc(sec('me'))}<br>${esc(n.op)} : ${esc(sec('op'))}</div></div></div>`;
-    if (big) h += `<div class="card">${BM.svg(b.dep, BM.layout(b.dep, b.seed, !!b.two), { names: { a: role[0], d: role[1] }, id: 'r' })}</div>`;
+    if (big && b.lay) h += `<div class="card"><img class="lay" src="layouts/${esc(b.lay)}.webp" alt="Layout" loading="lazy"></div>`;
     return h;
   }
-  function bwBattle(w) { return { names: bwNames(), fdMe: w.fdMe, fdOpp: w.fdOpp, twist: w.twist || '', pm: bwPrim(w), dep: w.dep, seed: w.seed || 1, two: !!w.two, role: w.role, sec: w.sec }; }
+  function bwBattle(w) { return { names: bwNames(), fdMe: w.fdMe, fdOpp: w.fdOpp, twist: w.twist || '', pm: bwPrim(w), dep: w.dep, lay: bwLayId(w), role: w.role, sec: w.sec }; }
   const bwNext = (w, ok) => `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="bwNext" ${ok ? '' : 'disabled'}>Suivant →</button></div>`;
   function viewBattle() {
     const w = S.bw; const n = bwNames(); let h = '';
-    const zoom = w.zoom ? `<div class="bwz"><button class="bwi" data-act="bwZoom" aria-label="Fermer l'aperçu" style="position:absolute;top:10px;right:10px">✕</button>${bwMapHtml(w, true)}</div>` : '';
+    const zoom = w.zoom ? `<div class="bwz"><button class="bwi" data-act="bwZoom" aria-label="Fermer l'aperçu" style="position:absolute;top:10px;right:10px">✕</button>${w.zoom === true ? bwMapHtml(w, true) : `<img class="lay big" src="layouts/${esc(w.zoom)}.webp" alt="Layout">`}</div>` : '';
     if (w.step === 0) {
       const b = ngBody();
       h = bwHead(w, 'Nouvelle bataille') + `<div class="card">${b.h}</div>` + bwNext(w, b.can);
@@ -2596,13 +2584,10 @@
       if (w.twist === 'mirror') h += `<label>Mission commune</label>${bwChips('bwMirror', w.mirror || '', BD.MIRROR.map((i) => [i, esc(BD.PM[i].n)]))}<button class="btn small ghost" data-act="bwMirror" data-val="">🎲 Au hasard</button>`;
       h += '</div>' + bwNext(w, w.twist !== 'mirror' || !!w.mirror);
     } else if (w.step === 3) {
-      h = bwHead(w, 'Champ de bataille') + `<div class="card"><h2 style="margin:0 0 4px">Carte de déploiement</h2>${bwChips('bwDep', w.dep || '', Object.keys(BD.DEPLOY).map((k) => [k, esc(BD.DEPLOY[k].n)]))}<button class="btn small ghost" data-act="bwDep" data-val="">🎲 Au hasard</button>`;
-      if (w.dep) {
-        h += `<h2 style="margin:12px 0 4px">Plan des décors (proposition de l'appli)</h2><p class="muted" style="margin:0 0 6px">Ces plans sont générés par l'appli, ce ne sont pas les layouts officiels recommandés. ${w.fdMe ? `<a href="https://gdmissions.app/11th/layouts/${({ TH: 'take-and-hold', PF: 'purge-the-foe', REC: 'reconnaissance', PA: 'priority-assets', DIS: 'disruption' })[w.fdMe]}" target="_blank" rel="noopener">Voir les 3 layouts officiels recommandés (gdmissions.app) ↗</a>` : ''}</p><div class="chips" style="margin:6px 0">${[1, 2, 3, 4, 5, 6].map((i) => `<button type="button" class="chip${(w.seed || 1) === i ? ' on' : ''}" data-act="bwSeed" data-val="${i}">Plan ${i}</button>`).join('')}</div><button class="btn small ghost" data-act="bwSeed" data-val="">🎲 Plan au hasard</button>
-          <h2 style="margin:12px 0 4px">Objectifs centraux</h2><div class="muted">Jet de D6 : 1–5 = un objectif central au centre ; 6 = deux objectifs à 6" de part et d'autre du centre, le long de la ligne en pointillés.</div>${bwChips('bwTwo', w.two ? '1' : '0', [['0', '1 central (1–5)'], ['1', '2 centraux (6)']])}<button class="btn small ghost" data-act="bwTwo" data-val="">🎲 Lancer le D6</button>`;
-      }
+      const pk = w.fdMe && w.fdOpp ? BD.layPair(w.fdMe, w.fdOpp) : ''; const cur = bwLayId(w);
+      h = bwHead(w, 'Champ de bataille') + `<div class="card"><h2 style="margin:0 0 4px">Layout de terrain</h2><p class="muted" style="margin:0 0 6px">Les 3 layouts recommandés pour ${esc(BD.FD[w.fdMe].n)} contre ${esc(BD.FD[w.fdOpp].n)}. Choisir un layout fixe aussi la carte de déploiement. <button class="btn small ghost" data-act="bwLay" data-val="">🎲 Au hasard</button></p>`;
+      h += [1, 2, 3].map((n) => { const id = pk + '-' + n; const d = BD.DEPLOY[BD.LAYOUTS[id]] || { n: '', e: '' }; return `<div class="card" style="margin:8px 0;padding:8px;${cur === id ? 'border:2px solid var(--accent)' : ''}"><div class="row sp"><b>Layout ${n} · ${esc(d.n)}</b><span class="row"><button class="btn small ${cur === id ? '' : 'ghost'}" data-act="bwLay" data-val="${n}">${cur === id ? '✓ Choisi' : 'Choisir'}</button><button class="btn small ghost" data-act="bwZoom" data-val="${id}" aria-label="Agrandir">⤢</button></span></div><div data-act="bwLay" data-val="${n}"><img class="lay" src="layouts/${id}.webp" alt="Layout ${n}" loading="lazy"></div></div>`; }).join('');
       h += '</div>';
-      if (w.dep) h += `<div class="card"><div class="row sp"><b>Plan de la table</b><button class="btn small ghost" data-act="bwCotes" title="Afficher / masquer les cotes">📏 ${w.cotes === false ? 'Cotes : non' : 'Cotes : oui'}</button><button class="btn small ghost" data-act="bwZoom" aria-label="Agrandir" title="Agrandir">⤢</button></div><div data-act="bwZoom">${bwMapHtml(w)}</div></div>`;
       h += bwNext(w, !!w.dep);
     } else if (w.step === 4) {
       h = bwHead(w, 'Attaquant et Défenseur') + `<div class="card"><p class="muted" style="margin:0 0 6px">Chaque joueur jette un dé : le gagnant choisit d'être Attaquant ou Défenseur.</p>${bwChips('bwRole', w.role || '', [['A', 'Je suis Attaquant'], ['D', 'Je suis Défenseur']])}<button class="btn small ghost" data-act="bwRole" data-val="">🎲 Tirage au sort</button>${w.role ? `<div class="note" style="margin-top:8px">Attaquant : <b>${esc(w.role === 'A' ? n.me : n.op)}</b><br>Défenseur : <b>${esc(w.role === 'A' ? n.op : n.me)}</b></div>` : ''}</div>` + (w.role ? `<div class="card">${bwMapHtml(w)}</div>` : '') + bwNext(w, !!w.role);
@@ -3110,7 +3095,7 @@
       CALC.open = !CALC.enemy;
     },
     mxPick(v) { const [i, j] = v.split('-').map(Number); S.ui = Object.assign({}, S.ui, { mx: [i, j] }); },
-    bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', seed: 1, two: false, role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
+    bwNew() { if (!S.inGame && S.enemy) { S.enemy = null; S.play.targetUnitId = null; S.ui.enemyMsg = ''; } S.ui = Object.assign({}, S.ui, { ng: { open: true }, ngName: '' }); S.bw = { open: true, step: 0, fdMe: '', fdOpp: '', twist: '', mirror: '', dep: '', lay: '', role: '', sec: { me: { m: 'tac', f: [] }, op: { m: 'tac', f: [] } } }; window.scrollTo(0, 0); },
     bwDrop() { if (confirm('Abandonner la bataille en préparation ?')) S.bw = null; },
     bwResume() { if (S.bw) S.bw.open = true; },
     bwClose() { if (S.bw) { S.bw.open = false; S.bw.zoom = false; } },
@@ -3120,13 +3105,11 @@
     bwTwist(v) { S.bw.twist = v; if (v !== 'mirror') S.bw.mirror = ''; },
     bwMirror(v) { S.bw.mirror = v || BD.MIRROR[Math.floor(Math.random() * BD.MIRROR.length)]; },
     bwDep(v) { const k = Object.keys(BD.DEPLOY); S.bw.dep = v || k[Math.floor(Math.random() * k.length)]; },
-    bwSeed(v) { S.bw.seed = v ? +v : 1 + Math.floor(Math.random() * 6); },
-    bwTwo(v) { S.bw.two = v === '' ? Math.floor(Math.random() * 6) === 5 : v === '1'; },
+    bwLay(v) { const w = S.bw; const pk = BD.layPair(w.fdMe, w.fdOpp); const n = v ? +v : 1 + Math.floor(Math.random() * 3); w.lay = pk + '-' + n; w.dep = BD.LAYOUTS[w.lay]; },
     bwRole(v) { S.bw.role = v || (Math.random() < 0.5 ? 'A' : 'D'); },
     bwSecMode(v, el) { const s = S.bw.sec[el.dataset.who]; s.m = v; if (v === 'tac') s.f = []; },
     bwFix(v, el) { const s = S.bw.sec[el.dataset.who]; const i = s.f.indexOf(v); if (i >= 0) s.f.splice(i, 1); else { if (s.f.length >= 2) s.f.shift(); s.f.push(v); } },
-    bwCotes() { S.bw.cotes = S.bw.cotes === false; },
-    bwZoom() { S.bw.zoom = !S.bw.zoom; },
+    bwZoom(v) { S.bw.zoom = S.bw.zoom ? false : (v || true); },
     bwStart() { pendingBattle = bwBattle(S.bw); S.bw = null; actions.gameCreate(); },
     gameCreate() {
       const a = army(); if (!a) { alert('Importe ou crée d\'abord une armée.'); return; }
@@ -3490,7 +3473,7 @@
     });
     document.body.appendChild(o); linkRules(o.querySelector('.rpop-box'));
   }
-  window.NH_linkRules = linkRules;
+  window.NH_linkRules = linkRules; window.NH_dbg = { get S() { return S; }, render: () => render() };
   document.addEventListener('click', (e) => { const ln = e.target.closest && e.target.closest('[data-rule]'); if (ln && !ln.closest('#rpop')) { e.preventDefault(); e.stopPropagation(); rulePop(ln.dataset.rule, ln.dataset.term); } }, true);
 
 

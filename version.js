@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.67.1';
+var APP_VERSION = '1.68.0';
 var APP_RELEASES = [
+  { v: '1.68.0', date: '2026-11-19', notes: [
+    'Champ de bataille : les plans générés par l\'appli sont remplacés par les 3 layouts officiels recommandés pour chaque duo de dispositions de force (gdmissions.app). Choisir un layout fixe aussi la carte de déploiement ; zoom plein écran et tirage au hasard.',
+    'Suppression des cotes de placement, du plan numéroté et du jet de D6 pour les objectifs centraux (les layouts les indiquent).'
+  ] },
   { v: '1.67.1', date: '2026-11-19', notes: [
     'Modification d\'une liste importée : on peut maintenant ajouter, retirer ou changer ses détachements (liste des détachements du codex, avec leurs points).'
   ] },

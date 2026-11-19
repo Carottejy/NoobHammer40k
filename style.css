@@ -142,3 +142,5 @@ select option:disabled, select option.dead { color: #9a927f; }
 .rpop { position: fixed; inset: 0; z-index: 90; background: rgba(0,0,0,.6); display: flex; align-items: flex-end; justify-content: center; }
 .rpop-box { background: var(--panel); border: 1px solid var(--line); border-radius: 14px 14px 0 0; padding: 12px; width: 100%; max-width: 560px; max-height: 80vh; overflow: auto; }
 .rpop-box p, .rpop-box li { font-size: .92rem; }
+img.lay { display: block; width: 100%; height: auto; border-radius: 8px; }
+.bwz img.lay.big { width: 200vw; max-width: none; border-radius: 0; }
