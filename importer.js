@@ -15,10 +15,54 @@ const Importer = (() => {
     return { text: t, urls };
   }
 
+
+  /* ---------- Format « application » (Gitanos (1995 points) / • Attachée en tant que : Meneur …) ---------- */
+  const NAT_UNIT = /^(.+?)\s*\((\d+)\s*points?\)\s*$/i;
+  const isNative = (lines) => lines.some((l) => /^[•*-]?\s*attach[ée]e? en tant que/i.test(l) || /^unit[ée]\s*\d+\s*attach[ée]e$/i.test(l) || (NAT_UNIT.test(l) && !/:\s*\d+\s*pts?\b/i.test(l)));
+  function parseNative(lines) {
+    const res = { name: '', faction: '', detachments: [], units: [], url: null, total: null, warnings: [] };
+    let section = '', last = null, grp = '', pre = true, n0 = 0;
+    const fin = () => { if (last) { last = null; } };
+    for (const line of lines) {
+      if (!line) continue;
+      const hd = line.match(/^(.+?)\s*\((\d+)\s*points?\)\s*$/i);
+      if (pre) {
+        const isSec = /^[A-ZÀ-Ý' ]{4,}$/.test(line) && line === line.toUpperCase() || /^unit[ée]s? attach[ée]es?$/i.test(line);
+        if (!isSec) {
+          n0++;
+          const det = line.match(/^(.+?)\s*\((\d+)\s*points?\s+de\s+d[ée]tachement\)/i);
+          if (det) { res.detachments.push(det[1].trim() + ' (' + det[2] + ' pts)'); continue; }
+          if (n0 === 1) { if (hd) { res.name = hd[1].trim(); res.total = { points: +hd[2], models: null, units: null }; } else res.name = line; continue; }
+          if (n0 === 2) { res.faction = line; continue; }
+          continue; /* mission / format de partie : ignoré */
+        }
+        pre = false;
+      }
+      if (/^unit[ée]s? attach[ée]es?$/i.test(line)) { section = 'Unités attachées'; continue; }
+      const g = line.match(/^unit[ée]\s*(\d+)\s*attach[ée]e$/i); if (g) { grp = g[1]; continue; }
+      if (/^[A-ZÀ-Ý' ]{4,}$/.test(line) && line === line.toUpperCase()) { section = line.charAt(0) + line.slice(1).toLowerCase(); grp = ''; continue; }
+      if (hd && !/^[•*-]/.test(line)) {
+        last = { name: hd[1].trim(), models: null, pts: +hd[2], tag: '', section, options: [], enhancement: '', group: grp, attRole: '', warlord: false, counts: {} };
+        res.units.push(last); continue;
+      }
+      if (!last) continue;
+      const t = line.replace(/^[•*-]\s*/, '').trim(); if (!t) continue;
+      const at = t.match(/^attach[ée]e? en tant que\s*:\s*(.+)$/i);
+      if (at) { last.attRole = /meneur/i.test(at[1]) ? 'leader' : 'guard'; continue; }
+      if (/^seigneur de guerre$|^warlord$/i.test(t)) { last.warlord = true; continue; }
+      const c = t.match(/^(\d+)\s*x\s+(.+)$/i);
+      if (c) { const k = norm(c[2]); last.counts[k] = (last.counts[k] || 0) + +c[1]; }
+      last.options.push(t);
+    }
+    if (!res.units.length) res.warnings.push('Aucune unité reconnue.');
+    return res;
+  }
+
   /* ---------- Liste (texte ou BBCode) ---------- */
   function parseList(raw) {
     const { text, urls } = stripBBCode(raw);
     const lines = text.split('\n').map((l) => l.replace(/\t/g, ' ').replace(/\s+/g, ' ').trim());
+    if (isNative(lines)) return parseNative(lines);
     const res = { name: '', faction: '', detachments: [], units: [], url: null, total: null, warnings: [] };
     let section = '', inDet = false, last = null, first = true;
     for (const line of lines) {

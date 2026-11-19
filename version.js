@@ -1,6 +1,10 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.66.2';
+var APP_VERSION = '1.67.0';
 var APP_RELEASES = [
+  { v: '1.67.0', date: '2026-11-19', notes: [
+    'Import texte : chaque unité est complétée depuis les codex comme dans le Creator (profil, armes, aptitudes, mots-clés, nombre de figurines) et le détachement est rapproché de la base.',
+    'Import texte : le format de l\'application (« Nom (65 points) », « Attachée en tant que : Meneur », « Seigneur de Guerre ») est lu directement, les meneurs sont rattachés à leur unité.'
+  ] },
   { v: '1.66.2', date: '2026-11-16', notes: [
     'Mes listes : seuls les en-têtes des listes sont affichés. Un clic ouvre le détail dans une vue dédiée avec un bouton « ← Mes listes ». La liste consultée reste ouverte quand on change d\'onglet.'
   ] },

@@ -1246,6 +1246,50 @@
     const buf = await file.arrayBuffer();
     return pdfToText(buf);
   }
+  /* Import texte : complète chaque unité depuis les codex (profil, armes, aptitudes, mots-clés) comme le Creator, rattache les meneurs et rapproche le détachement */
+  async function enrichFromBase(a, r) {
+    await Wahap.ready();
+    const hint = Wahap.facIds(a.faction); const ix = Wahap.index();
+    const ids = hint.length ? hint : ix.factions.map((f) => f.id);
+    const facs = (await Promise.all(ids.map((id) => Wahap.faction(id).catch(() => null)))).filter(Boolean);
+    const nk = Importer.norm; const lines = []; let nOk = 0; const miss = [];
+    const find = (name) => {
+      const q = nk(name); let best = null, bs = 1e9;
+      facs.forEach((f) => f.units.forEach((d) => {
+        const n1 = nk(d.name), n2 = nk(d.en || '');
+        if (n1 === q || n2 === q) { if (bs > -1) { best = d; bs = -1; } return; }
+        const toks = q.split(' ').filter((t) => t.length > 2);
+        const hit = (n) => n && toks.length && (toks.every((t) => n.includes(t)) || n.split(' ').filter((t) => t.length > 2).every((t) => q.includes(t)));
+        const dist = Math.min(hit(n1) ? Math.abs(n1.length - q.length) : 1e9, hit(n2) ? Math.abs(n2.length - q.length) : 1e9);
+        if (dist < bs) { best = d; bs = dist; }
+      }));
+      return best;
+    };
+    a.units.forEach((u, i) => {
+      const src = r.units[i] || {}; const d = find(src.name || u.name);
+      if (!d) { miss.push(u.name); return; }
+      const app = Wahap.toApp(d, () => u.id); const counts = src.counts || {};
+      let models = 0;
+      if (!src.counts) models = +u.models || 0;
+      else if ((d.models || []).length > 1) (d.models || []).forEach((m) => { models += counts[nk(m.name)] || 0; });
+      if (!models) models = Math.max(1, ...Object.values(counts).map((v) => +v || 0));
+      Object.assign(u, app, { id: u.id, pts: src.pts != null ? src.pts : u.pts, section: src.section || app.section, models: String(models), options: src.options || [], enhancement: '', hasProfile: true, wahapId: d.id });
+      if (src.warlord) u.warlord = true; if (src.attRole === 'leader') u.role = 'leader';
+      nOk++;
+    });
+    const byG = {};
+    a.units.forEach((u, i) => { const s2 = r.units[i]; if (s2 && s2.group) (byG[s2.group] = byG[s2.group] || { l: [], g: [] })[s2.attRole === 'leader' ? 'l' : 'g'].push(u); });
+    let nAtt = 0; Object.values(byG).forEach((g) => { if (g.g[0]) g.l.forEach((l) => { l.attachedTo = g.g[0].id; nAtt++; }); });
+    const dets = facs.reduce((t, f) => t.concat(f.detachments || []), []);
+    a.detachments = (a.detachments || []).map((s2) => {
+      const nm = String(s2).replace(/\s*\(.*$/, ''); const q = nk(nm); const pts = (String(s2).match(/\((\d+)/) || [])[1];
+      const d = dets.find((x) => nk(x.name) === q || nk(x.e || x.en || '') === q) || dets.find((x) => { const e = nk(x.e || x.en || ''); return (e && q.includes(e)) || (nk(x.name).length > 4 && q.includes(nk(x.name))); });
+      return d ? d.name + ' (' + (pts || d.dp || 0) + ' pts)' : s2;
+    });
+    lines.push(`+ ${nOk}/${a.units.length} unité(s) complétée(s) depuis les codex` + (nAtt ? `, ${nAtt} meneur(s) rattaché(s)` : '') + '.');
+    if (miss.length) lines.push('Introuvables dans les codex : ' + [...new Set(miss)].join(', '));
+    return lines.join('\n');
+  }
   function makeArmy(r, blocks) {
     const withProfile = (blocks || []).filter((b) => b.stats || b.weapons.length);
     let units;
@@ -3312,7 +3356,8 @@
       S.armies.push(a); S.armyId = a.id; S.play.unitId = a.units[0].id; S.play.nModelsUnit = null;
       S.ui.importMsg = `Armée « ${a.name} » créée : ${a.units.length} unité(s), ${a.detachments.length} détachement(s)${r.total ? ', ' + r.total.points + ' pts' : ''}.`;
       S.ui.profMsg = '';
-      if (a.alnUrl) runFetch(true);
+      if (r.units.some((u) => u.counts) || !a.alnUrl) enrichFromBase(a, r).then((m) => { S.ui.importMsg += '\n' + m; render(); }).catch(() => {});
+      else if (a.alnUrl) runFetch(true);
     },
     fetchProfiles() { runFetch(false); },
     parsePage() { S.ui.profMsg = ''; const t = document.getElementById('alnPage').value; if (!t.trim()) { S.ui.profMsg = 'Colle d\'abord le contenu de la page.'; return; } applyPage(t); },
