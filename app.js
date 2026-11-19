@@ -2537,7 +2537,9 @@
   }
   const bwChips = (act, cur, items, extra) => `<div class="chips" style="margin:6px 0 10px">${items.map(([v, l]) => `<button type="button" class="chip${cur === v ? ' on' : ''}" data-act="${act}" data-val="${esc(v)}"${extra || ''}>${l}</button>`).join('')}</div>`;
   const bwLayId = (w) => { if (!w.lay || !w.fdMe || !w.fdOpp) return ''; return w.lay.indexOf(BD.layPair(w.fdMe, w.fdOpp) + '-') === 0 ? w.lay : ''; };
-  const bwMapHtml = (w, big) => { const id = bwLayId(w); return id ? `<img class="lay${big ? ' big' : ''}" src="layouts/${id}.webp" alt="Layout ${esc(id)}" loading="lazy">` : ''; };
+  const layUrl = (id) => 'layouts/' + id + (S.ui.layMeas ? '-m' : '') + '.webp';
+  const layBtn = () => `<button class="btn small ${S.ui.layMeas ? '' : 'ghost'}" data-act="layMeas">📏 Mesures : ${S.ui.layMeas ? 'oui' : 'non'}</button>`;
+  const bwMapHtml = (w, big) => { const id = bwLayId(w); return id ? `<img class="lay${big ? ' big' : ''}" src="${layUrl(id)}" alt="Layout ${esc(id)}" loading="lazy">` : ''; };
   function bwSecPick(w, who, label) {
     const s = w.sec[who];
     let h = `<div class="card"><h2 style="margin:0 0 6px">${esc(label)}</h2>${bwChips('bwSecMode', s.m, [['tac', 'Tactique'], ['fix', 'Fixe']], ` data-who="${who}"`)}`;
@@ -2556,14 +2558,14 @@
       <div class="bwr"><b>Déploiement</b><div>${esc(d.n)} <span class="muted">(${esc(d.e)})</span> ${b.lay ? '· layout n° ' + b.lay.split('-').pop() : ''}</div></div>
       <div class="bwr"><b>Rôles</b><div>Attaquant : ${esc(role[0])}<br>Défenseur : ${esc(role[1])}</div></div>
       <div class="bwr"><b>Missions secondaires</b><div>${esc(n.me)} : ${esc(sec('me'))}<br>${esc(n.op)} : ${esc(sec('op'))}</div></div></div>`;
-    if (big && b.lay) h += `<div class="card"><img class="lay" src="layouts/${esc(b.lay)}.webp" alt="Layout" loading="lazy"></div>`;
+    if (big && b.lay) h += `<div class="card"><img class="lay" src="${layUrl(b.lay)}" alt="Layout" loading="lazy"></div>`;
     return h;
   }
   function bwBattle(w) { return { names: bwNames(), fdMe: w.fdMe, fdOpp: w.fdOpp, twist: w.twist || '', pm: bwPrim(w), dep: w.dep, lay: bwLayId(w), role: w.role, sec: w.sec }; }
   const bwNext = (w, ok) => `<div class="row" style="margin-top:12px"><button class="btn grow" data-act="bwNext" ${ok ? '' : 'disabled'}>Suivant →</button></div>`;
   function viewBattle() {
     const w = S.bw; const n = bwNames(); let h = '';
-    const zoom = w.zoom ? `<div class="bwz"><button class="bwi" data-act="bwZoom" aria-label="Fermer l'aperçu" style="position:absolute;top:10px;right:10px">✕</button>${w.zoom === true ? bwMapHtml(w, true) : `<img class="lay big" src="layouts/${esc(w.zoom)}.webp" alt="Layout">`}</div>` : '';
+    const zoom = w.zoom ? `<div class="bwz"><button class="bwi" data-act="bwZoom" aria-label="Fermer l'aperçu" style="position:absolute;top:10px;right:10px">✕</button><span style="position:fixed;top:12px;left:10px;z-index:2">${layBtn()}</span>${w.zoom === true ? bwMapHtml(w, true) : `<img class="lay big" src="${layUrl(w.zoom)}" alt="Layout">`}</div>` : '';
     if (w.step === 0) {
       const b = ngBody();
       h = bwHead(w, 'Nouvelle bataille') + `<div class="card">${b.h}</div>` + bwNext(w, b.can);
@@ -2585,8 +2587,8 @@
       h += '</div>' + bwNext(w, w.twist !== 'mirror' || !!w.mirror);
     } else if (w.step === 3) {
       const pk = w.fdMe && w.fdOpp ? BD.layPair(w.fdMe, w.fdOpp) : ''; const cur = bwLayId(w);
-      h = bwHead(w, 'Champ de bataille') + `<div class="card"><h2 style="margin:0 0 4px">Layout de terrain</h2><p class="muted" style="margin:0 0 6px">Les 3 layouts recommandés pour ${esc(BD.FD[w.fdMe].n)} contre ${esc(BD.FD[w.fdOpp].n)}. Choisir un layout fixe aussi la carte de déploiement. <button class="btn small ghost" data-act="bwLay" data-val="">🎲 Au hasard</button></p>`;
-      h += [1, 2, 3].map((n) => { const id = pk + '-' + n; const d = BD.DEPLOY[BD.LAYOUTS[id]] || { n: '', e: '' }; return `<div class="card" style="margin:8px 0;padding:8px;${cur === id ? 'border:2px solid var(--accent)' : ''}"><div class="row sp"><b>Layout ${n} · ${esc(d.n)}</b><span class="row"><button class="btn small ${cur === id ? '' : 'ghost'}" data-act="bwLay" data-val="${n}">${cur === id ? '✓ Choisi' : 'Choisir'}</button><button class="btn small ghost" data-act="bwZoom" data-val="${id}" aria-label="Agrandir">⤢</button></span></div><div data-act="bwLay" data-val="${n}"><img class="lay" src="layouts/${id}.webp" alt="Layout ${n}" loading="lazy"></div></div>`; }).join('');
+      h = bwHead(w, 'Champ de bataille') + `<div class="card"><h2 style="margin:0 0 4px">Layout de terrain</h2><p class="muted" style="margin:0 0 6px">Les 3 layouts recommandés pour ${esc(BD.FD[w.fdMe].n)} contre ${esc(BD.FD[w.fdOpp].n)}. Choisir un layout fixe aussi la carte de déploiement.</p><div class="row" style="margin-bottom:6px"><button class="btn small ghost" data-act="bwLay" data-val="">🎲 Au hasard</button>${layBtn()}</div>`;
+      h += [1, 2, 3].map((n) => { const id = pk + '-' + n; const d = BD.DEPLOY[BD.LAYOUTS[id]] || { n: '', e: '' }; return `<div class="card" style="margin:8px 0;padding:8px;${cur === id ? 'border:2px solid var(--accent)' : ''}"><div class="row sp"><b>Layout ${n} · ${esc(d.n)}</b><span class="row"><button class="btn small ${cur === id ? '' : 'ghost'}" data-act="bwLay" data-val="${n}">${cur === id ? '✓ Choisi' : 'Choisir'}</button><button class="btn small ghost" data-act="bwZoom" data-val="${id}" aria-label="Agrandir">⤢</button></span></div><div data-act="bwLay" data-val="${n}"><img class="lay" src="${layUrl(id)}" alt="Layout ${n}" loading="lazy"></div></div>`; }).join('');
       h += '</div>';
       h += bwNext(w, !!w.dep);
     } else if (w.step === 4) {
@@ -3105,6 +3107,7 @@
     bwTwist(v) { S.bw.twist = v; if (v !== 'mirror') S.bw.mirror = ''; },
     bwMirror(v) { S.bw.mirror = v || BD.MIRROR[Math.floor(Math.random() * BD.MIRROR.length)]; },
     bwDep(v) { const k = Object.keys(BD.DEPLOY); S.bw.dep = v || k[Math.floor(Math.random() * k.length)]; },
+    layMeas() { S.ui = Object.assign({}, S.ui, { layMeas: !S.ui.layMeas }); },
     bwLay(v) { const w = S.bw; const pk = BD.layPair(w.fdMe, w.fdOpp); const n = v ? +v : 1 + Math.floor(Math.random() * 3); w.lay = pk + '-' + n; w.dep = BD.LAYOUTS[w.lay]; },
     bwRole(v) { S.bw.role = v || (Math.random() < 0.5 ? 'A' : 'D'); },
     bwSecMode(v, el) { const s = S.bw.sec[el.dataset.who]; s.m = v; if (v === 'tac') s.f = []; },
