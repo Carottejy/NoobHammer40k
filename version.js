@@ -1,6 +1,9 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.68.2';
+var APP_VERSION = '1.68.3';
 var APP_RELEASES = [
+  { v: '1.68.3', date: '2026-11-24', notes: [
+    'Creator : une unité qui n\'est pas un Personnage peut maintenant recevoir une amélioration (case « Autoriser une amélioration sur cette unité »), avec toutes les améliorations des détachements choisis.'
+  ] },
   { v: '1.68.2', date: '2026-11-19', notes: [
     'Layouts de terrain : images recadrées sur la table uniquement (sans bandeau ni légende), donc plus grandes à l\'écran.'
   ] },
