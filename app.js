@@ -1585,6 +1585,13 @@
       for (let ai = e.sel[ri].length - 1; ai >= 0 && over > 0; ai--) { const t = Math.min(over, e.sel[ri][ai]); e.sel[ri][ai] -= t; over -= t; }
     });
   };
+  /* caractéristiques + surcoût d'un élément d'option d'armement */
+  const wrItemInfo = (d, it) => {
+    const ws = it.w ? (d.weapons || []).filter((w) => wbn(w.e || w.name) === it.w) : [];
+    let h = ws.map((w) => `<div class="muted" style="font-size:.78rem;margin-left:8px">${ws.length > 1 ? esc(w.name) + ' : ' : ''}${esc(w.range)} · A${esc(w.A)} · ${esc(w.skill)} · F${esc(w.S)} PA${esc(w.AP)} D${esc(w.D)}${w.ab ? ' · ' + esc(w.ab) : ''}</div>`).join('');
+    const nm = wbn(it.e || it.n), pw = d.pc ? d.pc.w.find((x) => wbn(x[0]) === nm) : null;
+    return { h, pts: pw ? pw[1] : 0 };
+  };
   const wrItemTxt = (it, en) => (it.q > 1 ? it.q + ' × ' : '') + (en ? it.e : it.n);
   /* armes finales de l'unité + lignes « options choisies » */
   const bFinal = (d, e) => {
@@ -1754,7 +1761,7 @@
             h += `<div class="muted" style="font-size:.8rem">${L('Choisi', 'Chosen')} ${sum} / ${cap}${r.nd ? ' · ' + L('sans doublons', 'no duplicates') : ''}</div>`;
             r.alts.forEach((alt, ai) => {
               const cur = +(wrSel(e, ri)[ai]) || 0; const m = Math.min(cur + room, r.nd ? Math.min(cap, n) : cap);
-              h += `<div class="row sp" style="margin-top:4px"><span>${alt.map((it) => wrItemTxt(it, Wahap.lang === 'en')).join(' + ')}</span><select style="width:70px" data-bu="${e.k}" data-bs="${ri}:${ai}">${Array.from({ length: m + 1 }, (_, v) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`;
+              h += `<div class="row sp" style="margin-top:4px"><span>${alt.map((it) => wrItemTxt(it, Wahap.lang === 'en')).join(' + ')}${(() => { const inf = alt.map((it) => wrItemInfo(d, it)); const pts = inf.reduce((a, x) => a + x.pts, 0); return (pts ? ` <span class="muted">+${pts} pts</span>` : '') + inf.map((x) => x.h).join(''); })()}</span><select style="width:70px" data-bu="${e.k}" data-bs="${ri}:${ai}">${Array.from({ length: m + 1 }, (_, v) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`;
             });
           }
           h += '</div>';
