@@ -1,6 +1,7 @@
 /* Numéro de version + notes de version. À mettre à jour à chaque publication (sw.js s'en sert pour renouveler le cache). */
-var APP_VERSION = '1.68.4';
+var APP_VERSION = '1.69.0';
 var APP_RELEASES = [
+  { v: '1.69.0', date: '2026-11-24', notes: ['Créateur de liste : ordre des unités modifiable (flèches ▲▼ et poignée ⠿ à glisser-déposer).'] },
   { v: '1.68.4', date: '2026-11-24', notes: [
     'Creator : les améliorations sont proposées à toute unité éligible (hors Héros épiques) : c\'est le texte de l\'amélioration (mots-clés exigés) qui filtre, plus le fait d\'être Personnage. La case ajoutée en 1.68.3 est retirée.'
   ] },

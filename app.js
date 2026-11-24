@@ -1726,7 +1726,7 @@
     const d = bdef1(f, e.id); if (!d) return '';
     const sizes = bSizes(d, bOrd(e)); const open = B.open === e.k, host = e.to && B.units.find((x) => x.k === e.to);
     const fd = B.fold['u' + e.k] !== false;
-    let h = `<div class="card"><div class="row sp fold" data-act="bFold" data-val="u${e.k}" style="cursor:pointer"><b>${fd ? '▸' : '▾'} ${B.warlord === e.k ? '👑 ' : ''}${esc(e.nm || T0(d.name))}</b><span class="muted">${bCost(f, e)} pts</span></div><div ${fd ? 'hidden' : ''}>
+    let h = `<div class="card" data-uk="${e.k}"><div class="row fold" style="flex-wrap:nowrap;align-items:center;gap:6px"><span class="bdrag" data-drag="${e.k}" title="Glisser pour déplacer" aria-label="Déplacer">⠿</span><div class="row sp" data-act="bFold" data-val="u${e.k}" style="cursor:pointer;flex:1;min-width:0"><b>${fd ? '▸' : '▾'} ${B.warlord === e.k ? '👑 ' : ''}${esc(e.nm || T0(d.name))}</b><span class="muted">${bCost(f, e)} pts</span></div><button class="btn small ghost bmv" data-act="bMove" data-val="${e.k}|-1" ${i === 0 ? 'disabled' : ''} aria-label="Monter">▲</button><button class="btn small ghost bmv" data-act="bMove" data-val="${e.k}|1" ${i === B.units.length - 1 ? 'disabled' : ''} aria-label="Descendre">▼</button></div><div ${fd ? 'hidden' : ''}>
       <label style="margin-top:6px">Nom de l'unité${e.nm ? ' <span class="muted">(' + esc(T0(d.name)) + ')</span>' : ''}</label><input type="text" data-bu="${e.k}" data-bk="nm" value="${esc(e.nm || '')}" placeholder="${esc(T0(d.name))}">
       <div class="kws">${kwShow(d).map((k) => `<span class="kw">${esc(k)}</span>`).join('')}</div>
       ${dsInline(f, d)}
@@ -3172,6 +3172,8 @@
     bAdd(id) { const f = bfac(); const d = f && bdef1(f, id); if (!d) return; const k = uid(); B.units.push({ k, id, models: ((d.pc && d.pc.t.length && d.pc.t[0][1].length) ? d.pc.t[0][1][0][0] : 1), pts: 0, wg: {}, to: '', enh: '', woff: [], aoff: [] }); B.open = null; B.msg = ''; bsave(); },
     bDs(id) { dbs.msg = ''; dbs.hist = []; dbs.mode = 'units'; Wahap.unit(id).then((u) => { dbs.unit = u; S.tab = 'db'; render(); }).catch((e) => { B.msg = e.message; render(); }); },
     bOpen(k) { B.open = B.open === k ? null : k; },
+    bMove(v) { const [k, d] = String(v).split('|'); const i = B.units.findIndex((x) => x.k === k), j = i + (+d); if (i < 0 || j < 0 || j >= B.units.length) return; const t = B.units[i]; B.units[i] = B.units[j]; B.units[j] = t; bsave(); },
+    bMoveTo(v) { const [k, t] = String(v).split('|'); const i = B.units.findIndex((x) => x.k === k), j = B.units.findIndex((x) => x.k === t); if (i < 0 || j < 0 || i === j) return; const [u] = B.units.splice(i, 1); B.units.splice(j, 0, u); bsave(); },
     bDup(k) { const e = B.units.find((x) => x.k === k); if (!e) return; const c = JSON.parse(JSON.stringify(e)); c.k = uid(); c.enh = ''; c.to = ''; B.units.splice(B.units.indexOf(e) + 1, 0, c); bsave(); },
     bDel(k) { B.units = B.units.filter((x) => x.k !== k); B.units.forEach((x) => { if (x.to === k) x.to = ''; }); bsave(); },
     bCopy() { const a = army(); const t = a ? yellowFromArmy(a) : ''; const ta = document.getElementById('ysTxt'); const ok = () => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; }; try { navigator.clipboard.writeText(t).then(() => { B.msg = 'Texte copié : colle-le dans YellowScribe.'; render(); }, () => { if (ta) { ta.select(); document.execCommand('copy'); } ok(); }); } catch (e) { if (ta) { ta.select(); document.execCommand('copy'); } ok(); } },
@@ -3478,6 +3480,30 @@
     });
     document.body.appendChild(o); linkRules(o.querySelector('.rpop-box'));
   }
+  /* Déplacement des unités par glisser-déposer (poignée ⠿) */
+  (() => {
+    let drag = null;
+    const cardAt = (x, y) => { const el = document.elementFromPoint(x, y); return el && el.closest ? el.closest('[data-uk]') : null; };
+    document.addEventListener('pointerdown', (e) => {
+      const h = e.target.closest && e.target.closest('[data-drag]'); if (!h) return;
+      e.preventDefault(); const card = h.closest('[data-uk]'); if (!card) return;
+      drag = { k: h.dataset.drag, card, over: null }; card.classList.add('dragging');
+      try { h.setPointerCapture(e.pointerId); } catch (x) { /* ignoré */ }
+    });
+    document.addEventListener('pointermove', (e) => {
+      if (!drag) return; e.preventDefault();
+      const c = cardAt(e.clientX, e.clientY);
+      document.querySelectorAll('.dragover').forEach((n) => n.classList.remove('dragover'));
+      drag.over = c && c !== drag.card ? c : null; if (drag.over) drag.over.classList.add('dragover');
+      const m = 70; if (e.clientY < m) window.scrollBy(0, -12); else if (e.clientY > window.innerHeight - m) window.scrollBy(0, 12);
+    }, { passive: false });
+    const end = () => {
+      if (!drag) return; const d = drag; drag = null;
+      document.querySelectorAll('.dragover,.dragging').forEach((n) => n.classList.remove('dragover', 'dragging'));
+      if (d.over) { actions.bMoveTo(d.k + '|' + d.over.dataset.uk); render(); }
+    };
+    document.addEventListener('pointerup', end); document.addEventListener('pointercancel', end);
+  })();
   window.NH_linkRules = linkRules; window.NH_dbg = { get S() { return S; }, render: () => render() };
   document.addEventListener('click', (e) => { const ln = e.target.closest && e.target.closest('[data-rule]'); if (ln && !ln.closest('#rpop')) { e.preventDefault(); e.stopPropagation(); rulePop(ln.dataset.rule, ln.dataset.term); } }, true);
 

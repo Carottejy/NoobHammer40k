@@ -144,3 +144,8 @@ select option:disabled, select option.dead { color: #9a927f; }
 .rpop-box p, .rpop-box li { font-size: .92rem; }
 img.lay { display: block; width: 100%; height: auto; border-radius: 8px; }
 .bwz img.lay.big { width: 200vw; max-width: none; border-radius: 0; }
+.bdrag{cursor:grab;touch-action:none;user-select:none;padding:6px 8px;font-size:20px;line-height:1;color:var(--mut,#888)}
+.bmv{padding:4px 9px;min-width:32px}
+.bmv[disabled]{opacity:.3}
+.card.dragging{opacity:.6;outline:2px dashed #c9a227}
+.card.dragover{outline:2px solid #c9a227;background:rgba(201,162,39,.12)}
